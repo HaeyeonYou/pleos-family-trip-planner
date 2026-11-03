@@ -13,9 +13,13 @@
 | 12/19 ~ 1월 중순 | 전시 준비 (신규 기능 개발 기간 아님) |
 | 2027년 2월 | 그룹 행사에서 전시·시연·시상 |
 
-## GitHub 저장소 제출 요건 (10:35 ~ 11:12)
+## GitHub 저장소 제출 요건 (설명회 10:35 ~ 11:12 + [제출 가이드](https://appdevchallenge.auto-hmg.io/guide/submission))
 - APK는 이메일 첨부가 아니라 **GitHub 링크로 제출**
-- APK는 저장소의 **`APK` 폴더** 또는 **GitHub Releases**에 업로드
+- APK는 저장소 내 **`apk/` 폴더**에 업로드 (가이드 기준 소문자). GitHub 업로드 용량을 넘으면 **Releases**에 올리고 Release 페이지 주소를 제출
+- APK 파일명: **`팀명_앱이름_release.apk`**, 실행 가능한 **release 빌드**
+- 저장소 주소와 APK 파일 경로를 제출 시 함께 기재
+- 개인 계정 Private 저장소의 Collaborator는 **쓰기 권한까지** 받으니 초대 전 권한 확인
+- 심사용 GitHub 계정은 2026-11-04 기준 공지사항·FAQ에 아직 없음
 - **README**에 포함할 것:
   - 앱 이름, 한 줄 소개
   - 실행 방법
@@ -25,9 +29,11 @@
   - 심사용 계정 이름은 자막에 없음 → 홈페이지 공지 확인 필요
 
 ## 제출·수정
-- 이메일 제목: `차량용 앱 개발 공모전, 앱명, 팀명(또는 개인 이름)`
+- 접수 양식(DOCX)이 곧 기획서. 접수양식 + 개인정보 동의서는 홈페이지에서 다운로드
+- 이메일 제목 (홈페이지 기준, 설명회 구두 안내와 다름): `[차량용 앱 개발 공모전] 팀명(개인은 성명)_대표자명`
 - 참가자 전원 CC
-- 수정 제출: 마감 전, 처음 보낸 이메일 주소로 **전체 자료 + 서명 동의서 다시** 전송, 제목 앞에 `수정 제출`. 마지막 제출본이 최종본.
+- 수정 제출: 마감 전, 처음 보낸 이메일 주소로 **전체 자료 + 서명 동의서 다시** 전송. 제목: `[수정제출] [차량용 앱 개발 공모전] 팀명(개인은 성명)_대표자명`. 마지막 제출본이 최종본.
+- 1차 합격 20팀, 최종 10팀. 최종 10팀은 전시용 최종 APK 제출과 2027년 2월 행사 현장 참석이 의무
 
 ## 심사 기준
 - 필수: **차량 특화성**(주행/정차 맥락, 차량 데이터·하드웨어 활용), **창의성**, **기술 활용성**(Pleos Playground SDK/API를 핵심 기능에 활용), **사업성**
@@ -45,6 +51,13 @@
 - **외부 API와 퍼블릭 네트워크 사용 가능**
 - 실차 시연 없음. **Pleos Connect 에뮬레이터 + Virtual Console**(기어, 도어, 배터리 상태 변경)로 검증
 - 생성형 AI 사용 가능. 단, PT 기술 Q&A에서 전체 구조·로직을 직접 설명할 수 있어야 함
+
+## 공식 개발 문서 링크 ([개발 환경 가이드](https://appdevchallenge.auto-hmg.io/guide/development))
+- [Pleos Connect 개발 환경 설정 (에뮬레이터)](https://document.pleos.ai/docs/connect/guide/getting-started/application-development/setup-connect-sdk-emulator)
+- [Pleos Connect SDK 문서](https://document.pleos.ai/docs/pleos-only/connect-sdk-pleos/)
+- [Vehicle SDK 튜토리얼](https://document.pleos.ai/docs/pleos-only/tutorial/vehicle-sdk)
+- [Pleos Connect SDK API 참조](https://document.pleos.ai/api-reference/connect-sdk-pleos)
+- [Pleos Playground](https://pleos.ai/playground)
 
 ## 기타
 - 숏폼 챌린지 (선택, 가산점 없음): 30초~1분 세로 영상, 릴스/쇼츠, `#HMG차량용앱개발공모전` 포함 해시태그 2~3개 이상
