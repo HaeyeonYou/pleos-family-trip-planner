@@ -20,7 +20,8 @@ _외부 API 키 등 필요한 설정은 개발 진행에 맞춰 추가합니다.
 
 ## APK
 
-- 저장소의 [`APK/`](APK/) 폴더 또는 [Releases](../../releases)
+- 위치: [`apk/`](apk/) 폴더 (용량 초과 시 [Releases](../../releases))
+- 파일명: `팀명_앱이름_release.apk` (release 빌드)
 
 ## 문서
 
