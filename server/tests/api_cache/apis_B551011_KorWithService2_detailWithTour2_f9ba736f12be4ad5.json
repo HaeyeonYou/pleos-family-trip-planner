@@ -1,0 +1,6 @@
+{
+ "request": "GET apis.data.go.kr/B551011/KorWithService2/detailWithTour2?MobileApp=FamilyTrip&MobileOS=ETC&_type=json&contentId=2752545",
+ "status": 200,
+ "content_type": "application/json",
+ "body": "{\"response\": {\"header\":{\"resultCode\":\"0000\",\"resultMsg\":\"OK\"},\"body\": {\"items\": {\"item\":[{\"contentid\":\"2752545\",\"parking\":\"장애인 주차장 있음_무장애 편의시설\",\"publictransport\":\"\",\"route\":\"출입구까지 턱이 없어 휠체어 접근 가능함\",\"ticketoffice\":\"\",\"promotion\":\"\",\"wheelchair\":\"\",\"exit\":\"주출입구는 턱이 없어 휠체어 접근 가능함\",\"elevator\":\"\",\"restroom\":\"\",\"auditorium\":\"\",\"room\":\"\",\"handicapetc\":\"\",\"braileblock\":\"\",\"helpdog\":\"동반가능_시각장애인 편의시설\",\"guidehuman\":\"\",\"audioguide\":\"\",\"bigprint\":\"\",\"brailepromotion\":\"\",\"guidesystem\":\"\",\"blindhandicapetc\":\"\",\"signguide\":\"\",\"videoguide\":\"\",\"hearingroom\":\"\",\"hearinghandicapetc\":\"\",\"stroller\":\"\",\"lactationroom\":\"\",\"babysparechair\":\"\",\"infantsfamilyetc\":\"\"}]},\"numOfRows\":1,\"pageNo\":1,\"totalCount\":1}}}"
+}

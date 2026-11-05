@@ -1,0 +1,6 @@
+{
+ "request": "GET apis.data.go.kr/B551011/KorWithService2/detailWithTour2?MobileApp=FamilyTrip&MobileOS=ETC&_type=json&contentId=126618",
+ "status": 200,
+ "content_type": "application/json",
+ "body": "{\"response\": {\"header\":{\"resultCode\":\"0000\",\"resultMsg\":\"OK\"},\"body\": {\"items\": {\"item\":[{\"contentid\":\"126618\",\"parking\":\"\",\"publictransport\":\"\",\"route\":\"출입구가지 단차 없이 연결 됨(잔디구간 있음)\",\"ticketoffice\":\"\",\"promotion\":\"\",\"wheelchair\":\"\",\"exit\":\"\",\"elevator\":\"\",\"restroom\":\"장애인 전용 화장실 있음(야외공연장 쪽,공원 변두리)\",\"auditorium\":\"\",\"room\":\"\",\"handicapetc\":\"\",\"braileblock\":\"\",\"helpdog\":\"보조견동반 가능함\",\"guidehuman\":\"\",\"audioguide\":\"\",\"bigprint\":\"\",\"brailepromotion\":\"\",\"guidesystem\":\"\",\"blindhandicapetc\":\"\",\"signguide\":\"\",\"videoguide\":\"\",\"hearingroom\":\"\",\"hearinghandicapetc\":\"\",\"stroller\":\"\",\"lactationroom\":\"\",\"babysparechair\":\"\",\"infantsfamilyetc\":\"\"}]},\"numOfRows\":1,\"pageNo\":1,\"totalCount\":1}}}"
+}

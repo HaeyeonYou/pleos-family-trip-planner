@@ -1,0 +1,6 @@
+{
+ "request": "GET apis.data.go.kr/B551011/KorWithService2/detailWithTour2?MobileApp=FamilyTrip&MobileOS=ETC&_type=json&contentId=125512",
+ "status": 200,
+ "content_type": "application/json",
+ "body": "{\"response\": {\"header\":{\"resultCode\":\"0000\",\"resultMsg\":\"OK\"},\"body\": {\"items\": {\"item\":[{\"contentid\":\"125512\",\"parking\":\"장애인 주차장 있음(2면)\",\"publictransport\":\"\",\"route\":\"주 출입구 경사로 완만함\",\"ticketoffice\":\"\",\"promotion\":\"\",\"wheelchair\":\"\",\"exit\":\"\",\"elevator\":\"\",\"restroom\":\"\",\"auditorium\":\"\",\"room\":\"\",\"handicapetc\":\"\",\"braileblock\":\"\",\"helpdog\":\"\",\"guidehuman\":\"\",\"audioguide\":\"\",\"bigprint\":\"\",\"brailepromotion\":\"\",\"guidesystem\":\"\",\"blindhandicapetc\":\"\",\"signguide\":\"\",\"videoguide\":\"\",\"hearingroom\":\"\",\"hearinghandicapetc\":\"\",\"stroller\":\"\",\"lactationroom\":\"\",\"babysparechair\":\"\",\"infantsfamilyetc\":\"화장실 내 기저귀 교환대 있음\"}]},\"numOfRows\":1,\"pageNo\":1,\"totalCount\":1}}}"
+}

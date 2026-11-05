@@ -1,0 +1,6 @@
+{
+ "request": "GET apis.data.go.kr/B551011/KorWithService2/detailWithTour2?MobileApp=FamilyTrip&MobileOS=ETC&_type=json&contentId=3423015",
+ "status": 200,
+ "content_type": "application/json",
+ "body": "{\"response\": {\"header\":{\"resultCode\":\"0000\",\"resultMsg\":\"OK\"},\"body\": {\"items\": {\"item\":[{\"contentid\":\"3423015\",\"parking\":\"지하1층 주차장 들어오자마자 우측에 장애인 주차장 위치\",\"publictransport\":\"\",\"route\":\"\",\"ticketoffice\":\"\",\"promotion\":\"\",\"wheelchair\":\"\",\"exit\":\"\",\"elevator\":\"정문 출입 후 좌측 직진 1층 엘리베이터 입구\",\"restroom\":\"역삼도서관 입구에서 좌측 직진 후 1층 엘리베이터 우측 편에 바로 위치\",\"auditorium\":\"\",\"room\":\"\",\"handicapetc\":\"\",\"braileblock\":\"\",\"helpdog\":\"\",\"guidehuman\":\"\",\"audioguide\":\"\",\"bigprint\":\"\",\"brailepromotion\":\"점자책 있음\",\"guidesystem\":\"촉지도식 점자 안내판\",\"blindhandicapetc\":\"점자블록 및 음성 안내 서비스\",\"signguide\":\"\",\"videoguide\":\"\",\"hearingroom\":\"\",\"hearinghandicapetc\":\"\",\"stroller\":\"\",\"lactationroom\":\"\",\"babysparechair\":\"\",\"infantsfamilyetc\":\"유아용 화장실 (가족 화장실) , 기저귀 교환대\"}]},\"numOfRows\":1,\"pageNo\":1,\"totalCount\":1}}}"
+}
