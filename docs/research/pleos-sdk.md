@@ -441,3 +441,5 @@
 - `adb emu geo fix`로 넣은 GPS는 Android GPS provider와 내비 앱에 전달되지만, 내비는 이 값을 쓰지 않는다.
 - Virtual Console의 ACCEL은 차속만 바꾸고 위치는 바꾸지 않는다. Motion 도메인에 좌표 항목이 없다.
 - 그래서 에뮬레이터에서는 `onDestinationArrived`가 발생하지 않는다. 실차에서의 동작은 [미확인].
+- 원인 (추가 분석): 내장 내비는 `GpsLocationSourceRepositoryImpl`에서 GNSS NMEA 원문을 읽고 체크섬을 검사한다. 에뮬레이터는 GPGGA/GPRMC를 항상 `*47`로 내보내서 체크섬이 맞지 않아 거부된다. 체크섬을 맞춘 유효 NMEA를 연속으로 넣어도 내비 엔진 위치는 바뀌지 않았다.
+- 반면 `adb emu geo fix`는 Android GPS·fused provider에 반영되고, Pleos FusedLocation 서비스가 fused provider를 구독하므로 **FusedLocation SDK를 쓰는 앱은 위치 주입으로 테스트할 수 있다** (출처: github.com/Pleos-Playground/pleos-sample-fusedlocation-app README).
