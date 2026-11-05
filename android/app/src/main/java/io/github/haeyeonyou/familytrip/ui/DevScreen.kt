@@ -26,6 +26,7 @@ import io.github.haeyeonyou.familytrip.vehicle.GearState
 import io.github.haeyeonyou.familytrip.vehicle.VehicleState
 
 import io.github.haeyeonyou.familytrip.AppContainer
+import io.github.haeyeonyou.familytrip.dev.BackgroundDisplayTest
 import androidx.compose.material3.TextButton
 
 private val COEX = Place("코엑스", 37.5115, 127.0595)
@@ -47,7 +48,23 @@ fun DevScreen(container: AppContainer, onBack: () -> Unit) {
         VehicleStatusSection(vehicleState)
         NaviSection(naviState, container.navi, locationState, container.location)
         LocationSection(locationState)
+        BackgroundDisplaySection()
     }
+}
+
+@Composable
+private fun BackgroundDisplaySection() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    Text("백그라운드 표시 시험 (#38)", fontSize = 24.sp)
+    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        Button(onClick = { BackgroundDisplayTest.postNotificationLater(context) }) {
+            Text("4초 뒤 헤드업 알림", fontSize = 20.sp)
+        }
+        Button(onClick = { BackgroundDisplayTest.toggleOverlay(context) }) {
+            Text("오버레이 켜기/끄기", fontSize = 20.sp)
+        }
+    }
+    Text("오버레이 권한: ${BackgroundDisplayTest.canDrawOverlays(context)}", fontSize = 18.sp)
 }
 
 @Composable
