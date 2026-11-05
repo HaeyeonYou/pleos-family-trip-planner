@@ -8,6 +8,7 @@ import ai.pleos.playground.location.fused.model.ProximityAlertEvent
 import ai.pleos.playground.location.fused.model.ProximityAlertRequest
 import ai.pleos.playground.location.fused.model.ProximityTransition
 import android.content.Context
+import android.location.Location
 import android.util.Log
 import io.github.haeyeonyou.familytrip.navi.Place
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -78,6 +79,16 @@ class PleosLocationRepository(context: Context) : LocationRepository {
         clearArrival()
         _state.update { it.copy(watching = place, arrivedAt = null) }
         log("도착 감시: ${place.name} 반경 ${radiusMeters.toInt()}m")
+        // 같은 건물 안의 다음 장소처럼 이미 반경 안이면 ENTER가 오지 않으므로 바로 도착 처리한다.
+        val current = _state.value
+        if (current.latitude != null && current.longitude != null) {
+            val distance = FloatArray(1)
+            Location.distanceBetween(current.latitude, current.longitude, place.latitude, place.longitude, distance)
+            if (distance[0] <= radiusMeters) {
+                log("이미 반경 안 (${distance[0].toInt()}m): ${place.name}")
+                _state.update { it.copy(arrivedAt = place.name) }
+            }
+        }
         fusedLocation.addProximityAlert(
             ProximityAlertRequest(
                 place.latitude,
