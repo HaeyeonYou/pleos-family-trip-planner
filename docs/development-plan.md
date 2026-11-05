@@ -30,7 +30,7 @@
 
 | 순위 | 항목 | 어디서 | 소요 | 용도 |
 |---|---|---|---|---|
-| 1 | **Pleos Playground 계정** | pleos.ai/playground | 즉시 (추정) | 프로젝트 생성, 서버형 TTS/STT의 Client ID/Secret |
+| 1 | (선택) Pleos Playground 계정·프로젝트 | pleos.ai/playground | 즉시 (추정) | **공모전 개발에는 불필요**(11/6 확인, 아래 참고). 서버형 TTS/STT의 Client ID/Secret이 필요할 때만 |
 | 2 | **공모전 접수양식·동의서 DOCX** | 공모전 홈페이지 지원·제출 페이지 | 즉시 | 필수 제출물 |
 | 3 | 공공데이터포털 가입 후 활용신청 | data.go.kr | 자동승인, 키 동작까지 최대 1시간 (추정) | TourAPI 3종(국문, 무장애, 반려동물), EV 충전소 |
 | 3-1 | 기상청 API허브 가입 후 활용신청 (data.go.kr 단기예보가 API허브 연계로 바뀜) | apihub.kma.go.kr → 예특보 → 단기예보 탭 → "4. 동네예보 조회"의 4.1 초단기실황, 4.2 초단기예보, 4.3 단기예보 | 별도 인증키(`authKey`) | `VilageFcstInfoService_2.0`, 위경도를 격자(nx, ny)로 바꿔 조회 |
@@ -39,6 +39,12 @@
 | 6 | ~~Cloudflare 계정 + 도메인~~ | — | — | 불필요: 기존 DDNS 사용 (D8) |
 | 7 | 오피넷 인증키 | opinet.co.kr | 즉시 (추정) | 주유소. P1이고 EV 시연이면 생략 가능 |
 | 8 | NAS 정보 확인 | 사용자 NAS | — | 아래 8장 참고 |
+
+**Playground 프로젝트 생성·SDK 사용 신청 (11/6 확인)**: 공모전 개발에는 필요 없다.
+- 설명회(42dot 세션): 공모전 개발 중에는 권한 승인이 필요 없고 `AndroidManifest`에 `uses-permission` 선언만 하면 된다. 심사는 App Market 배포 때만 한다.
+- 프로젝트를 만들면 받는 Project ID는 App Market 심사 요청용이다. 공모전 제출은 GitHub(소스+APK)라서 쓰지 않는다.
+- 실제로 에뮬레이터에서 Vehicle, NaviHelper, FusedLocation 모두 신청 없이 동작했다. FusedLocation은 신청 페이지에 'Coming Soon'으로 표시되지만 SDK는 동작한다.
+- 예외: 서버형 TTS/STT는 Client ID/Secret이 필요할 수 있다. S7(#5)에서 ON_DEVICE 모드로 먼저 확인하고, 필요하면 그때 계정과 프로젝트를 만든다.
 
 키는 `secrets.properties`(앱)와 `.env`(서버)에 보관하고 git에서 제외합니다. 두 파일 모두 `.gitignore`에 등록되어 있습니다.
 
