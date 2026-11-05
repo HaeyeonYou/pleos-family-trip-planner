@@ -129,30 +129,40 @@
   - 로컬 venv는 Python 3.14 (`server/.venv`)
 - Android Studio 2026.2 설치 (Homebrew)
 
-### 진행 중: 막힌 지점
-**Pleos 에뮬레이터 이미지가 SDK Manager에 안 보임**
-- SDK Update Sites에 위 arm64 XML을 등록했지만 빨간 `!`와 "IO exception while downloading manifest"가 뜸
-- 확인한 것
-  - curl과 Android Studio 내장 Java(jbr)로는 같은 XML을 정상적으로 받음
-  - 인증서 체인은 Amazon으로 정상
-  - Android Studio 프록시 설정이 `USE_PROXY_PAC=true`(자동 감지)이고, 시스템에는 프록시가 없음
-- 사용자에게 안내한 해결책
-  1. Settings → HTTP Proxy → **No proxy**
-  2. 중복 등록된 사이트 정리 후 새로고침
-  3. 그래도 안 되면 Android Studio 재시작
-- **그래도 안 되면 수동 설치**: zip을 내려받아 `~/Library/Android/sdk/system-images/android-34/pleos_car_emulator/arm64-v8a/`에 풀기. 사용자가 42dot 라이선스에 동의해야 진행
-- SDK 경로 `~/Library/Android/sdk`에는 build-tools, emulator, platform-tools, platforms가 설치되어 있음
+### 에뮬레이터 (S1 완료, 11/5)
+- SDK Manager의 "IO exception while downloading manifest"는 HTTP Proxy를 **No proxy**로 바꾸고 중복 사이트를 정리해서 해결
+- 이미지 설치: `~/Library/Android/sdk/system-images/android-34/pleos_car_emulator/arm64-v8a` (19GB)
+- AVD `Pleos_Connect_v2.1.0`: 하드웨어 프로필 Pleos Connect v2.1.0 (2560×1440). 생성 시 RAM이 2GB로 잡혀서 `config.ini`를 RAM 8192, GPU host로 수정함
+- **Apple Silicon에서 부팅 성공.** 콜드 부팅 약 25초, Android 14 / API 34, `RELEASE.release_connect_v2.1.0`
+- 실행: `emulator -avd Pleos_Connect_v2.1.0 -no-snapshot-load`. Studio와 CLI로 동시에 띄우면 FATAL(같은 AVD 중복)
+- Virtual Console: `adb forward tcp:8088 tcp:8088` 후 `http://127.0.0.1:8088/`에서 HTTP 200
+- 설치된 주요 패키지: `ai.pleos.playground.service.{vehicle,navi,location.fused,adas}`, `ai.pleos.hardware.vehicle.emulator`, `ai.pleos.connectwebconsole`, 내비 앱 `ai.umos.maps.android.navigation.app`
+- cmdline-tools(avdmanager, sdkmanager)는 미설치
+- Virtual Console 사용법: 왼쪽 "Emulation Controls" 카드를 열고 도메인 탭(Energy, Vehicle 등)에서 값을 바꿈. ACCEL/BRAKE 페달도 있어 차속 변경도 가능해 보임 [미확인]
+
+### Android 앱 골격 + S2 (11/5)
+- 위치: `android/` (단일 `:app` 모듈, 패키지 `io.github.haeyeonyou.familytrip`, 패키지명은 임시)
+- 툴체인: Pleos 샘플앱 기준 AGP 8.8.2, Gradle 8.10.2(wrapper), Kotlin 2.0.0, Compose BOM 2024.12.01, compile/targetSdk 35, minSdk 28
+- **JDK 17 필요**: Android Studio 내장 JBR은 JDK 25라서 Gradle 8.10.2가 안 돎. `brew install openjdk@17`로 설치함
+  - CLI 빌드: `JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home ./gradlew :app:assembleDebug`
+  - Android Studio에서 열 때는 Settings → Build Tools → Gradle → Gradle JDK를 17로 지정
+- 구조: `vehicle/VehicleRepository`(인터페이스, 데모 모드용 교체 가능) + `PleosVehicleRepository`(SDK 래퍼), `MainActivity`는 확인용 상태 카드 화면
+- **S2 통과**: SoC, 주행가능거리, 기어를 get으로 읽고 리스너로 변경을 받음. Virtual Console에서 SoC 100→35%, 기어 P→D로 바꾸면 앱에 바로 반영됨
+- 권한 `CAR_ENERGY`, `CAR_DRIVE`, `VEHICLE_BINDING`은 설치할 때 자동으로 부여됨(런타임 요청 불필요)
+- **조사 문서 정정**: 실제 Vehicle 2.3.2 AAR에는 `Gear`(`getCurrentGearSelectionState`, `registerGearSelection`)와 `Odometer.getRangeRemainingDistance`가 **있음**. 다만 둘 다 `@Deprecated`이고 "Google GEAR_SELECTION / RANGE_REMAINING 프로퍼티를 쓰라"고 안내함. 지금은 동작하므로 그대로 쓰고, 나중에 AAOS `CarPropertyManager`로 옮길지 검토
+- 주행가능거리 단위는 **미터**(Console 219000 m → 클러스터 219 km)
+- 주의: Range 리스너는 값이 안 바뀌어도 약 3~4초마다 호출됨. 첫 get 값(500km)과 Console 초기값(0 m)이 달랐음
 
 ### 아직 안 한 것 (다음 순서)
-1. **에뮬레이터 부팅 확인 (S1)**: Apple Silicon에서 Pleos 이미지가 부팅되는지. 계획 전체에서 가장 큰 불확실성
-2. 스파이크 S2~S7 (development-plan.md 3-3)
-   - Vehicle SoC 읽기와 Virtual Console 반영
-   - NaviHelper 경로 요청과 **도착 콜백**
-   - 주행 여부 감지
-   - Range
-   - TTS/STT/FusedLocation
-3. Android 앱 골격
-   - 모듈: vehicle/, navi/, location/, voice/, data/, demo(Mock)
+1. ~~에뮬레이터 부팅 확인 (S1)~~ 완료
+2. 스파이크 S3~S7 (development-plan.md 3-3)
+   - ~~S2 Vehicle SoC 읽기와 Virtual Console 반영~~ 완료
+   - S3/S4 NaviHelper 경로 요청과 **도착 콜백**
+   - ~~S5 주행 여부 감지~~ 기어 API로 가능 (deprecated)
+   - ~~S6 Range~~ Odometer API로 가능 (deprecated)
+   - S7 TTS/STT/FusedLocation
+3. Android 앱 골격 확장
+   - 패키지: navi/, location/, voice/, data/, demo(Mock) 추가 (vehicle/는 완료)
    - 주행 중/정차 중 UI 분리
 4. 서버 `/course`: TourAPI + 카카오 후보 수집 → 규칙 필터 → 길찾기 동선
    - TourAPI 개발계정 한도가 하루 1,000건이라 시연 지역은 미리 DB에 적재하는 방식 권장
