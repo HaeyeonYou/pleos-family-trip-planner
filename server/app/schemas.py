@@ -25,6 +25,10 @@ class TripConditions(BaseModel):
         default_factory=list,
         description="육아 편의 조건: stroller, nursing_room, kids_chair, kids_zone",
     )
+    interests: list[str] = Field(
+        default_factory=list,
+        description="아이 관심사 한 단어씩 (예: 공룡, 기차, 동물, 우주, 물놀이)",
+    )
 
 
 class ParseRequest(BaseModel):
