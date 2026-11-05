@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 from typing import Protocol
 from zoneinfo import ZoneInfo
 
+from app import interests
 from app.course import classify
 from app.schemas import (
     Amenity,
@@ -34,6 +35,7 @@ NEARBY_MEAL_RADIUS_M = 2_000
 NEARBY_CAFE_RADIUS_M = 1_500
 AMENITY_LOOKUPS = 6  # 후보 상위 몇 곳만 무장애 상세를 조회한다 (API 한도)
 ALTERNATIVES = 3
+MAX_INTEREST_SEARCHES = 2  # 관심사 키워드 검색은 앞의 2개까지 (카카오 호출 수)
 
 STAY_MINUTES = {StopRole.MEAL: 60, StopRole.OUTING: 120, StopRole.CAFE: 40}
 INFANT_OUTING_MINUTES = 90  # 만 2세 이하는 나들이를 짧게
@@ -125,6 +127,7 @@ class CoursePlanner:
         candidates = self._tour_candidates(origin, radius, cond.with_pet)
         if not cond.with_pet:
             candidates += self._play_candidates(origin, radius)
+            candidates += self._interest_candidates(origin, radius, cond.interests, candidates)
         if cond.indoor_only:
             candidates = [c for c in candidates if c.indoor]
 
@@ -177,6 +180,23 @@ class CoursePlanner:
             _Candidate(place=_kakao_place(p), theme=Theme.PLAY, indoor=True, distance_m=p.distance_m)
             for p in places.values()
         ]
+
+    def _interest_candidates(
+        self, origin: LatLng, radius: int, wanted: list[str], existing: list[_Candidate]
+    ) -> list[_Candidate]:
+        """관심사로 카카오 장소를 검색해 나들이 장소 분류에 해당하는 것만 후보로 더한다."""
+        seen = {(c.place.source, c.place.source_id) for c in existing}
+        result = []
+        for interest in wanted[:MAX_INTEREST_SEARCHES]:
+            query = interests.search_query(interest)
+            for p in self._kakao.by_keyword(query, origin.latitude, origin.longitude, radius):
+                kind = classify.kakao_outing_kind(p)
+                if kind is None or ("kakao", p.place_id) in seen:
+                    continue
+                seen.add(("kakao", p.place_id))
+                theme, indoor = kind
+                result.append(_Candidate(place=_kakao_place(p), theme=theme, indoor=indoor, distance_m=p.distance_m))
+        return result
 
     def _nearby_kakao(self, code: str, center: Place, radius: int, suitable) -> list[Place]:
         found = self._kakao.by_category(code, center.latitude, center.longitude, radius)
@@ -272,6 +292,9 @@ def _score(c: _Candidate, cond: TripConditions, radius: int) -> float:
     score -= 2 * min(c.distance_m / radius, 1)  # 가까울수록 좋음
     if cond.child_ages and min(cond.child_ages) <= 2 and c.indoor:
         score += 0.5  # 영아는 실내가 편하다
+    text = f"{c.place.name} {c.place.category}"
+    if any(term in text for i in cond.interests for term in interests.terms(i)):
+        score += 3  # 아이 관심사와 맞으면 테마 일치만큼 가점
     return score
 
 

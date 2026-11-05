@@ -186,3 +186,32 @@ def test_streets_halls_and_snack_shops_are_excluded():
     names = [res.stops[1].place.name] + [p.name for p in res.alternatives[StopRole.OUTING]]
     assert "가로수길" not in names and "컨벤션홀" not in names
     assert res.stops[0].place.name == "한식당"
+
+
+class InterestKakao(FakeKakao):
+    def __init__(self, keyword_results, **kw):
+        super().__init__(**kw)
+        self.keyword_results = keyword_results
+        self.queries = []
+
+    def by_keyword(self, query, latitude, longitude, radius_m, size=15):
+        self.queries.append(query)
+        return self.keyword_results.get(query, [])
+
+
+def test_interest_matches_place_name():
+    dino = tour("d", "공룡테마 자연사박물관", "A02060100", 6000, type_id=CONTENT_TYPE_CULTURE)
+    src = FakeTour({CONTENT_TYPE_ATTRACTION: [PARK], CONTENT_TYPE_CULTURE: [dino]})
+    res = plan(TripConditions(interests=["공룡"]), tour_src=src)
+    assert res.stops[1].place.name == "공룡테마 자연사박물관"
+
+
+def test_interest_search_adds_kakao_outing_places_only():
+    train = kakao("t1", "철도박물관", "문화,예술 > 문화시설 > 박물관", dist=4000)
+    shop = kakao("t2", "기차 장난감 가게", "쇼핑 > 완구", dist=100)
+    kk = InterestKakao({"기차": [train, shop]})
+    res = plan(TripConditions(interests=["기차", "공룡", "우주"]), tour_src=FakeTour({CONTENT_TYPE_ATTRACTION: [PARK]}), kakao_src=kk)
+    assert res.stops[1].place.name == "철도박물관"
+    names = [p.name for p in res.alternatives[StopRole.OUTING]]
+    assert "기차 장난감 가게" not in names
+    assert [q for q in kk.queries if q not in ("키즈카페", "실내놀이터")] == ["기차", "공룡"]  # 최대 2개
