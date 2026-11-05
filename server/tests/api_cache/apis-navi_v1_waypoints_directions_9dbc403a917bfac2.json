@@ -1,0 +1,6 @@
+{
+ "request": "POST apis-navi.kakaomobility.com/v1/waypoints/directions?",
+ "status": 200,
+ "content_type": "application/json;charset=UTF-8",
+ "body": "{\"trans_id\":\"01a1ac635ce670b3bce807b7a6988a15\",\"routes\":[{\"result_code\":0,\"result_msg\":\"길찾기 성공\",\"summary\":{\"origin\":{\"name\":\"\",\"x\":127.02859385662663,\"y\":37.26359818087615},\"destination\":{\"name\":\"\",\"x\":127.02859385662663,\"y\":37.26359818087615},\"waypoints\":[{\"name\":\"w0\",\"x\":127.03756170570581,\"y\":37.25789542749984},{\"name\":\"w1\",\"x\":127.035985697016,\"y\":37.2586034791602},{\"name\":\"w2\",\"x\":127.03756411300887,\"y\":37.25770621780788}],\"priority\":\"RECOMMEND\",\"bound\":{\"min_x\":127.025427927845,\"min_y\":37.25643552513673,\"max_x\":127.0384587214765,\"max_y\":37.26359761304634},\"fare\":{\"taxi\":11500,\"toll\":0},\"distance\":5452,\"duration\":1080},\"sections\":[{\"distance\":2143,\"duration\":319},{\"distance\":842,\"duration\":161},{\"distance\":804,\"duration\":221},{\"distance\":1663,\"duration\":379}]}]}"
+}

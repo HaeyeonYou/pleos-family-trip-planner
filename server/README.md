@@ -44,6 +44,12 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 ```bash
 .venv/bin/python -m pytest
 ```
+- `tests/test_course_planner.py`, `test_rule_parser.py`: 규칙 검증용 고정 데이터 (귀가 시각 초과 같은 상황을 일부러 만듦)
+- `tests/test_real_api_data.py`: **실제 API 데이터**로 응답 형식과 코스 생성 검증
+  - 처음 실행 때 실제로 호출해 `tests/api_cache/`에 저장하고, 이후에는 저장본을 씀 (TourAPI 하루 1,000건 한도, 같은 호출 반복 방지)
+  - 저장본은 레포에 포함되어 키 없이도 실행됨. API 키는 저장하지 않음
+  - 데이터 새로 받기·API 변경 검증: `API_CACHE=refresh .venv/bin/python -m pytest tests/test_real_api_data.py`
+  - 저장본만 쓰기: `API_CACHE=offline`
 
 ## NAS (Synology Container Manager)
 `docker compose up -d --build` (저장소 루트 `.env` 필요)
