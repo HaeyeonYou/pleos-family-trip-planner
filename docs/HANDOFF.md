@@ -1,6 +1,6 @@
 # 인계 문서: 오늘, 어디 가지? (Pleos 차량용 앱 공모전)
 
-마지막 갱신: 2026-11-05. 이전 Claude 세션에서 한 작업, 파악한 사실, 계획, 남은 일을 다른 세션이 이어받을 수 있게 정리한 문서입니다.
+마지막 갱신: 2026-11-06. 이전 Claude 세션에서 한 작업, 파악한 사실, 계획, 남은 일을 다른 세션이 이어받을 수 있게 정리한 문서입니다.
 
 ---
 
@@ -8,12 +8,12 @@
 
 | 항목 | 내용 |
 |---|---|
-| 언어 | 사용자에게 보이는 글은 **모두 한국어**. 작업 중간의 진행 안내도 한국어로. 코드, 식별자, 커밋 메시지는 영어 가능 |
+| 언어 | 사용자에게 보이는 글은 **모두 한국어**. 작업 중간의 진행 안내도 한국어로. 코드·식별자는 영어, **커밋 메시지·이슈·PR·라벨은 한국어** |
 | 모델 | 별도 지시가 없으면 **Opus 5.5, effort Medium**. 서브에이전트도 `model: opus`, `effort: medium`. (원래 기획서 분석은 Fable 5.1이었지만 한도가 부족해 Opus로 전환) |
 | GitHub 계정 | 개인 프로젝트. **개인 계정 `HaeyeonYou`만 사용.** 회사(APR) 계정이나 조직에는 절대 만들거나 push하지 않음. push 전에 `gh auth status`로 계정 확인 |
 | git 사용자 정보 | 전역 설정이 아니라 이 레포에만 설정되어 있음 (`user.name HaeyeonYou`, noreply 이메일) |
 | 작업 흐름 | **기능별 GitHub 이슈 → `feature/<이슈번호>-<이름>` 브랜치 → PR(`Closes #번호`)로 main 병합.** PR은 기록용이라 리뷰 없이 바로 병합(작업자 1명). **커밋 메시지, 이슈, PR, 라벨은 한국어로 작성** (11/5에 기존 커밋 메시지도 한국어로 재작성, 해시가 바뀜) 전체 플랜은 고정 이슈 #24에서 추적하고 진행 시 갱신 (11/5부터) |
-| 커밋/push | 사용자가 요청할 때만. 지금까지는 "커밋 후 push"라고 할 때마다 진행 |
+| 커밋/push/병합 | 작업 단위가 끝나면 브랜치 커밋 → push → PR → **바로 병합**까지 진행해 왔음 (사용자 승인). gh 기본 병합 커밋은 영어라 `gh pr merge --merge --subject "PR #N 병합: <제목>" --body "<브랜치> 브랜치"`로 지정. **일부만 끝낸 이슈는 `Refs #N`만** (`Closes #N` 문구가 들어가면 통째로 닫힘) |
 | 결정 사항 질문 | 여러 결정을 한 번에 묻지 말고 **하나씩** 질문 |
 | 키·비밀값 | 채팅에 붙여 넣게 하지 말고 루트 `.env`에 넣게 안내. 출력할 때도 값은 숨김 |
 | 계정 작업 | 가입, 결제, 라이선스 동의는 사용자가 직접 |
@@ -52,7 +52,9 @@
 | `docs/development-plan.md` | **개발 계획 본문**: 체크리스트, 환경 구성, 아키텍처, 기능 계획, 마일스톤, 리스크, **8장 결정 사항** |
 | `docs/research/pleos-sdk.md` | Pleos SDK와 에뮬레이터 조사 (출처 URL 포함) |
 | `docs/research/backend-apis.md` | 외부 API, NAS, LLM 조사 |
-| `server/` | FastAPI 서버 골격 |
+| `server/` | FastAPI 서버 (`/health`, `/parse`, `/course`), 테스트, `README.md`에 API·테스트 방법 |
+| `android/` | 차량 앱 (Kotlin + Compose) |
+| `tools/geo_drive.py` | 에뮬레이터 주행 시뮬레이션 (geo fix를 1초마다) |
 | `.env.example` | 필요한 키 목록. 실제 키는 `.env`(git 제외, 이 Mac에만 있음) |
 
 ---
@@ -89,10 +91,10 @@
   - **차속과 연료량은 바꿀 수 없음**
 - Vehicle SDK
   - 있음: 연료, EV SoC, HVAC, Light, Window 등. 권한은 `pleos.car.permission.CAR_ENERGY` 등
-  - **없음: 주행가능거리, 기어, 차속 API.** AAOS 표준 API로 대체 검토
+  - 문서엔 없다고 했지만 실제 AAR에 기어·주행가능거리 API 있음(deprecated, 5장 참고). 차속 API는 없음(AAOS `PERF_VEHICLE_SPEED`)
 - NaviHelper
   - **경유지 최대 2개** → 구간마다 순차 안내하는 방식으로 설계
-  - `onDestinationArrived`, `onWayPointArrived` 콜백은 있음. 다만 실제로 오는지는 내비 구현에 따라 다름 → **에뮬레이터에서 검증 필요**
+  - `onDestinationArrived`, `onWayPointArrived` 콜백은 있음. 에뮬레이터는 내비 위치가 고정이라 검증 불가 → 도착은 FusedLocation 근접 알림으로 판정 (5장)
 - 주행 중 UX 제한: AAOS `CarUxRestrictionsManager`
 
 **외부 API** (11/5 실제 호출로 모두 200 응답 확인, 기준 강남역)
@@ -118,77 +120,72 @@
 
 ---
 
-## 5. 현재 상태
+## 5. 현재 상태 (11/6 기준)
 
-### 완료
-- 레포 생성, README, `apk/` 폴더, 문서 일체 (push 완료)
-- 서버 골격 `server/`
-  - `/health`, `/parse`
-  - `RuleBasedParser`: 나이, 개월, 반려동물, 테마, 실내, 귀가 시각, 이동 시간, 육아 편의 조건과 부정 표현 처리
-  - `ClaudeParser`: `messages.parse` + Pydantic `TripConditions`, 실패하거나 거절되면 규칙 기반으로 대체
-  - Dockerfile, docker-compose, pytest 4개 통과
-  - 로컬 venv는 Python 3.14 (`server/.venv`)
-- Android Studio 2026.2 설치 (Homebrew)
+GitHub 이슈와 PR이 상세 기록이다. **고정 이슈 #24**에 전체 체크리스트와 날짜별 진행 기록이 있다.
 
-### 에뮬레이터 (S1 완료, 11/5)
-- SDK Manager의 "IO exception while downloading manifest"는 HTTP Proxy를 **No proxy**로 바꾸고 중복 사이트를 정리해서 해결
-- 이미지 설치: `~/Library/Android/sdk/system-images/android-34/pleos_car_emulator/arm64-v8a` (19GB)
-- AVD `Pleos_Connect_v2.1.0`: 하드웨어 프로필 Pleos Connect v2.1.0 (2560×1440). 생성 시 RAM이 2GB로 잡혀서 `config.ini`를 RAM 8192, GPU host로 수정함
-- **Apple Silicon에서 부팅 성공.** 콜드 부팅 약 25초, Android 14 / API 34, `RELEASE.release_connect_v2.1.0`
-- **cold boot 필수** (quick boot면 VHAL 사용 불가). AVD `config.ini`가 원래 `fastboot.forceFastBoot=yes`라서 `forceColdBoot=yes`, `forceFastBoot=no`로 고침
-- 실행: `emulator -avd Pleos_Connect_v2.1.0 -no-snapshot-load`. Studio와 CLI로 동시에 띄우면 FATAL(같은 AVD 중복)
-- Virtual Console: `adb forward tcp:8088 tcp:8088` 후 `http://127.0.0.1:8088/`에서 HTTP 200
-- 설치된 주요 패키지: `ai.pleos.playground.service.{vehicle,navi,location.fused,adas}`, `ai.pleos.hardware.vehicle.emulator`, `ai.pleos.connectwebconsole`, 내비 앱 `ai.umos.maps.android.navigation.app`
-- cmdline-tools(avdmanager, sdkmanager)는 미설치
-- Virtual Console 사용법: 왼쪽 "Emulation Controls" 카드를 열고 도메인 탭(Energy, Vehicle 등)에서 값을 바꿈. ACCEL/BRAKE 페달도 있어 차속 변경도 가능해 보임 [미확인]
+### 완료한 것
+| 영역 | 내용 | PR/이슈 |
+|---|---|---|
+| 에뮬레이터 | Apple Silicon 부팅(S1), Vehicle SoC·주행가능거리·기어(S2), NaviHelper 경로 요청(S3) | #1 #2 #3 |
+| 도착 판정 | 에뮬레이터 내장 내비 위치가 고정이라 `onDestinationArrived` 검증 불가(S4) → **FusedLocation 근접 알림**으로 앱이 판정 | #4 PR #28 #30 #31 |
+| 서버 `/course` | TourAPI(국문·무장애·반려동물) + 카카오 로컬로 후보 → 테마·실내·육아 편의·관심사 점수 → 근처 식사·카페 → 카카오 다중 경유지 길찾기로 시간표, 귀가 초과 시 카페 제외, 교체 후보 | #7 PR #34 |
+| 관심사 | `TripConditions.interests` (공룡→자연사, 물고기→아쿠아리움 등 `app/interests.py`) | #8 PR #35 |
+| Claude 파서 | 실서버 확인, 규칙 파서와 같은 결과, 약 2초(첫 호출 8초) | #12 PR #35 |
+| 앱 화면 | 조건 입력(자연어→조건 수정) → 코스 결과 → 구간 안내 → 도착 → 귀가. 주행 중에도 조작 허용(조수석), 상단 안내 띠만 | PR #36 |
+| 테스트 | 실제 API 응답을 `server/tests/api_cache/`에 저장해 재사용 (키 없이 실행, `API_CACHE=refresh`로 갱신) | PR #37 |
+| 안내 중 화면 | 안내 시작 시 **내장 내비를 앞으로**, 도착하면 **헤드업 알림**(다음 안내 시작·앱 열기 버튼), 안내 중 **위치 포그라운드 서비스**(앱이 얼지 않게), 알림 꺼짐 안내 띠 | #38 PR #39 |
+| 기타 | Playground 프로젝트 생성·SDK 신청은 공모전 개발에 불필요 확인 | PR #32 |
 
-### Android 앱 골격 + S2 (11/5)
-- 위치: `android/` (단일 `:app` 모듈, 패키지 `io.github.haeyeonyou.familytrip`, 패키지명은 임시)
-- 툴체인: Pleos 샘플앱 기준 AGP 8.8.2, Gradle 8.10.2(wrapper), Kotlin 2.0.0, Compose BOM 2024.12.01, compile/targetSdk 35, minSdk 28
-- **JDK 17 필요**: Android Studio 내장 JBR은 JDK 25라서 Gradle 8.10.2가 안 돎. `brew install openjdk@17`로 설치함
-  - CLI 빌드: `JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home ./gradlew :app:assembleDebug`
-  - Android Studio에서 열 때는 Settings → Build Tools → Gradle → Gradle JDK를 17로 지정
-- 구조: `vehicle/VehicleRepository`(인터페이스, 데모 모드용 교체 가능) + `PleosVehicleRepository`(SDK 래퍼), `MainActivity`는 확인용 상태 카드 화면
-- **S2 통과**: SoC, 주행가능거리, 기어를 get으로 읽고 리스너로 변경을 받음. Virtual Console에서 SoC 100→35%, 기어 P→D로 바꾸면 앱에 바로 반영됨
-- 권한 `CAR_ENERGY`, `CAR_DRIVE`, `VEHICLE_BINDING`은 설치할 때 자동으로 부여됨(런타임 요청 불필요)
-- **조사 문서 정정**: 실제 Vehicle 2.3.2 AAR에는 `Gear`(`getCurrentGearSelectionState`, `registerGearSelection`)와 `Odometer.getRangeRemainingDistance`가 **있음**. 다만 둘 다 `@Deprecated`이고 "Google GEAR_SELECTION / RANGE_REMAINING 프로퍼티를 쓰라"고 안내함. 지금은 동작하므로 그대로 쓰고, 나중에 AAOS `CarPropertyManager`로 옮길지 검토
-- 주행가능거리 단위는 **미터**(Console 219000 m → 클러스터 219 km)
-- 주의: Range 리스너는 값이 안 바뀌어도 약 3~4초마다 호출됨. 첫 get 값(500km)과 Console 초기값(0 m)이 달랐음
+### 앱 구조 (`android/app/src/main/java/io/github/haeyeonyou/familytrip/`)
+- `FamilyTripApp` / `AppContainer`: 차량·내비·위치·API·안내 세션을 앱 단위로 보유 (데모 모드 교체 지점)
+- `vehicle/` Vehicle SDK, `navi/` NaviHelper(`showNavigation()` = `requestNavigationScreen(Foreground)`), `location/` FusedLocation(근접 알림, 이미 반경 안이면 즉시 도착)
+- `data/TripApi`: Retrofit + kotlinx.serialization, 서버 주소 `BuildConfig.SERVER_URL`(기본 `http://10.0.2.2:8000/`, `-PserverUrl=`), 로컬만 평문 HTTP
+- `guide/`: `GuideSession`(구간 순차 안내 상태), `GuideNotifier`(헤드업 알림), `GuideActionReceiver`(알림 버튼), `GuideService`(위치 포그라운드 서비스)
+- `ui/`: `InputScreen`, `CourseScreen`, `GuideScreen`, `DevScreen`(SDK 확인용 "개발자 화면"), `TripViewModel`, `Common`(큰 버튼, 주행 중 안내 띠, 알림 꺼짐 띠)
+- 툴체인: AGP 8.8.2, Gradle 8.10.2, Kotlin 2.0.0, Compose BOM 2024.12.01, compile/targetSdk 35, minSdk 28. 라이브러리는 Kotlin 2.0과 맞는 버전으로 고정(navigation-compose 2.8.5, kotlinx-serialization 1.7.1, Retrofit 2.11.0)
+- 패키지명 `io.github.haeyeonyou.familytrip`은 임시
 
-### 위치·도착 판정 (11/5, #6)
-- `location/LocationRepository` + `PleosLocationRepository` (FusedLocation 1.1.3): 현재 위치 구독, 근접 알림으로 도착 판정
-- 확인용 화면: 내비 안내 버튼을 누르면 같은 목적지에 반경 150m 도착 감시도 시작
-- **에뮬레이터에서 검증 완료**: `adb emu geo fix` 좌표를 FusedLocation이 그대로 받음, 목적지 반경 진입 시 `ENTER` 이벤트 → 도착 표시
-- `pleos.car.permission.FUSED_LOCATION`은 **dangerous(런타임) 권한**. 앱이 실행 시 요청함
-  - adb로 줄 때는 AAOS 운전자 사용자(10)에게 줘야 함: `adb shell pm grant --user current io.github.haeyeonyou.familytrip pleos.car.permission.FUSED_LOCATION`
-- 주행 시뮬레이션: `python3 tools/geo_drive.py <위도1> <경도1> <위도2> <경도2> [km/h]` (1초마다 geo fix)
-- SDK 사용 신청: Playground 문서상 FusedLocation은 'Coming Soon'이지만 에뮬레이터에서는 신청 없이 동작. 신청·Project ID는 App Market 심사·배포 단계에서 필요
+### 권한 정리
+| 권한 | 종류 | 비고 |
+|---|---|---|
+| `CAR_ENERGY`, `CAR_DRIVE`, `NAVI_ROUTE`, `NAVI_ROUTE_SEARCH`, `NAVI_CUSTOM_MAP` | 설치 시 자동 | |
+| `pleos.car.permission.FUSED_LOCATION` | 런타임 | 도착 판정 |
+| `ACCESS_FINE_LOCATION` | 런타임 | 위치 포그라운드 서비스 조건(Android 14). 거부 시 서비스 없이 동작 |
+| `POST_NOTIFICATIONS` | 런타임 | 도착 헤드업 알림. 거부 시 앱 상단 안내 띠 |
+- **Android 권한 창은 주행 중(기어 D)에 "주행 중에는 사용할 수 없습니다"로 막힘** → 정차(P)에서 받아야 함
+- adb로 권한을 줄 때는 운전자 사용자 10: `adb shell pm grant --user current <패키지> <권한>`. 권한을 회수하면 앱 프로세스가 종료됨
 
-### 아직 안 한 것 (다음 순서)
-1. ~~에뮬레이터 부팅 확인 (S1)~~ 완료
-2. 스파이크 S3~S7 (development-plan.md 3-3)
-   - ~~S2 Vehicle SoC 읽기와 Virtual Console 반영~~ 완료
-   - ~~S3 NaviHelper 경로 요청~~ 완료 (#3): `requestRoute` → 내장 내비 안내 시작. `onRouteStarted` 직후 `onRouteEnded`가 같이 오니 도착으로 쓰면 안 됨
-   - ~~S4 도착 콜백~~ 결론 (#4): **에뮬레이터에서는 검증 불가.** 대안으로 도착 판정을 앱에서 함 (아래 참고)
-     - Virtual Console D + ACCEL: 차속만 오르고 내비 위치는 그대로
-     - `adb emu geo fix`: Android GPS에는 들어가고 내비 앱에도 전달되지만(dumpsys 기준) 내비는 무시하고 성남 수정구 시흥동(37.41272, 127.09468)에 고정
-     - ADAS 크루즈 Full autonomous + D도 차속 0, 위치 그대로
-     - 내비 설정에 모의 주행 없음. 공식 문서(에뮬레이터 사용·설정, Virtual Console 가이드)에도 위치·경로 시뮬레이션 없음
-     - 부수 효과: geo fix로 에뮬레이터 시간대가 한국 시간으로 바뀜
-     - **원인**: 내장 내비는 NMEA 원문을 읽는데, 에뮬레이터가 GPGGA/GPRMC를 고정 체크섬 `*47`로 내보내 전부 거부됨. 체크섬을 맞춘 유효 NMEA를 10초 연속 넣어도 내비 엔진 위치는 고정 → 에뮬레이터 측 한계 (#4 댓글)
-     - **우리 앱은 테스트 가능**: `adb emu geo fix <경도> <위도>`가 Android fused provider → Pleos FusedLocation 서비스로 전달됨. 위치 추적·근접 판정·도착 처리는 이 방식으로 검증
-     - **도착 판정 방식 (확정)**: `onDestinationArrived`(실차용)와 함께, 앱 쪽 근접 판정(Pleos FusedLocation 근접 알림, 목적지 반경 진입)과 정차 중 수동 "도착" 버튼을 둠. 시연에서는 데모 모드로 도착 이벤트를 발생시킴. 구현은 #11
-   - ~~S5 주행 여부 감지~~ 기어 API로 가능 (deprecated)
-   - ~~S6 Range~~ Odometer API로 가능 (deprecated)
-   - S7 TTS/STT/FusedLocation
-3. Android 앱 골격 확장
-   - 패키지: navi/, location/, voice/, data/, demo(Mock) 추가 (vehicle/는 완료)
-   - 주행 중/정차 중 UI 분리
-4. 서버 `/course`: TourAPI + 카카오 후보 수집 → 규칙 필터 → 길찾기 동선
-   - TourAPI 개발계정 한도가 하루 1,000건이라 시연 지역은 미리 DB에 적재하는 방식 권장
-5. `TripConditions`에 `interests` 필드 추가 ("공룡 좋아해" 같은 관심사가 지금은 빠짐)
-6. 11/13 시연 영상과 release APK, 11/14 제출 (팀원과 협의)
-7. 11/16 이후 NAS 배포, P1 기능(EV 에너지 코스, 날씨·지연 플랜 변경, 재추천, 음성, 베이비 케어), 오프라인 데모 모드
+### 에뮬레이터·화면 사실 (조사 결과)
+- 화면 구조: 왼쪽 **Driving view**(고정, 853px, 차속·기어·**내비 턴바이턴 카드**·아래 차량 위젯 페이지) + 오른쪽 앱 영역(최대 2개 앱, portrait=창 1개, landscape=2개)
+- 내장 내비(`ai.umos.maps.android.navigation.app`)는 가로 전용 → 우리 앱과 분할 표시 안 됨
+- **내장 내비 위치는 시흥동(37.41272, 127.09468)에 고정**: 내비는 GNSS NMEA 원문을 읽는데 에뮬레이터 NMEA 체크섬이 `*47` 고정이라 거부됨. 체크섬을 맞춘 유효 NMEA도 엔진 위치를 못 바꿈. 시연 영상에서 내비 지도 위 차는 안 움직임
+- Pleos는 **앱용 지도 SDK가 없음**. `requestNavigationScreen()`은 내장 내비 화면 전환(Foreground, OverviewRoute 등)만. 문서에 없는 `getInternalApi().updateOccupiedRegion(Rect)`은 쓰지 않음
+- 헤드업 알림은 내비 지도 위에 표시됨. **'다른 앱 위에 표시'(SYSTEM_ALERT_WINDOW)는 동작하지만 Pleos에 권한 설정 화면이 없어** 사용자가 켤 수 없음 → 쓰지 않음 (시험 코드는 `spike/38-background-display` 브랜치, 미병합)
+- 화면에 보이지 않는 앱은 Android 14가 프로세스를 얼림(`isFrozen=true`) → 백그라운드 콜백을 받으려면 포그라운드 서비스 필요
+- AVD는 **cold boot 필수**(VHAL). `config.ini`를 `forceColdBoot=yes`로 고쳐 둠. 실행: `emulator -avd Pleos_Connect_v2.1.0 -no-snapshot-load`
+- `adb emu geo fix`는 에뮬레이터 시간대를 한국으로 바꿈
+- SDK 정정: Vehicle 2.3.2에 `Gear`, `Odometer.getRangeRemainingDistance`가 있음(deprecated). 주행가능거리 단위는 미터
+
+### 로컬에서 돌려 보는 방법
+1. 에뮬레이터: `~/Library/Android/sdk/emulator/emulator -avd Pleos_Connect_v2.1.0 -no-snapshot-load`
+2. Virtual Console: `adb forward tcp:8088 tcp:8088` → `http://127.0.0.1:8088/` → "Emulation Controls" → Motion(기어), Energy(SoC·주행가능거리)
+3. 서버: `cd server && .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000` (키는 루트 `.env`, `PARSER=claude`로 Claude 파서)
+4. 앱 빌드·설치: `cd android && JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home ./gradlew :app:assembleDebug && adb install -r app/build/outputs/apk/debug/app-debug.apk`
+   - **JDK 17 필요** (Android Studio 내장 JBR은 25라 안 됨, `brew install openjdk@17`). Studio에서는 Gradle JDK를 17로
+5. 주행: 출발지 `adb emu geo fix 127.0276 37.4979` → 안내 시작 → `python3 tools/geo_drive.py 37.4979 127.0276 <목적지 위도> <경도> 300`
+6. 서버 테스트: `cd server && .venv/bin/python -m pytest` (35개, 실제 API 저장본 포함)
+- 시간표는 지금 시각 기준이라 새벽에 실행하면 새벽 시간으로 나옴(시연 때는 출발 시각 지정 필요)
+
+### 다음에 할 일 (우선순위)
+1. **11/14 1차 접수 준비**(#13): 11/12 진행 점검, 11/13 시연 영상·release APK(`apk/팀명_앱이름_release.apk`, 팀명 미정)·README. 접수양식·메일은 팀원 담당
+2. #14 디자인·기획 확정안 반영 (확정 대기)
+3. #11 경험 맵 (도착 → 방문 기록 → Room 저장 → 경험 맵 화면)
+4. #10 남은 것: 코스 결과에서 장소 교체(`alternatives` 사용)
+5. #40 코스 화면에 실제 지도(카카오맵 SDK, 장소 마커·동선·지도 위 문구) — P1
+6. #21 오프라인 데모 모드(서버·위치 없이 시나리오 재생), #33 시연 지역 데이터 사전 적재·분류 보정
+7. #5 S7 TTS/STT, #19 음성 안내, #15 NAS 배포, #16 EV 코스, #17 플랜 변경, #18 재추천, #20 베이비 케어, #22 웹 경험 맵, #23 Public 전환 준비
+- 공모전 Q&A 문의 후보: 에뮬레이터 내장 내비 위치 시뮬레이션(NMEA 체크섬), 내비와 서드파티 앱 분할 표시
 
 ---
 
