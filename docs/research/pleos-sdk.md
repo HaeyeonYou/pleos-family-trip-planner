@@ -434,3 +434,10 @@
   - 둘 다 `@Deprecated`이고, Google `GEAR_SELECTION`/`RANGE_REMAINING` 프로퍼티(AAOS `CarPropertyManager`)를 쓰라고 안내한다.
 - 에뮬레이터 v2.1.0에서 둘 다 동작하고, Virtual Console 변경이 리스너로 들어오는 것을 확인했다.
 - 리스너의 `onFailed(e: Exception)` 인자는 non-null이다.
+
+## 에뮬레이터 내비 위치 (2026-11-05 확인)
+
+- 내장 내비(`ai.umos.maps.android.navigation.app`, Mapbox 기반)의 현재 위치는 성남 수정구 시흥동(37.41272, 127.09468)에 고정되어 있다.
+- `adb emu geo fix`로 넣은 GPS는 Android GPS provider와 내비 앱에 전달되지만, 내비는 이 값을 쓰지 않는다.
+- Virtual Console의 ACCEL은 차속만 바꾸고 위치는 바꾸지 않는다. Motion 도메인에 좌표 항목이 없다.
+- 그래서 에뮬레이터에서는 `onDestinationArrived`가 발생하지 않는다. 실차에서의 동작은 [미확인].
