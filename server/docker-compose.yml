@@ -1,0 +1,10 @@
+services:
+  api:
+    build: .
+    env_file: ../.env
+    environment:
+      PARSER: ${PARSER:-rule}
+      DEMO_MODE: ${DEMO_MODE:-false}
+    ports:
+      - "8000:8000"
+    restart: unless-stopped

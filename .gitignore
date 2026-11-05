@@ -18,3 +18,8 @@ captures/
 # Secrets
 secrets.properties
 .env
+
+# Python
+.venv/
+__pycache__/
+.pytest_cache/
