@@ -32,3 +32,18 @@ def test_empty_request_gives_defaults():
     assert c.child_ages == []
     assert c.themes == []
     assert c.return_by_hour is None
+
+
+def test_interests_from_likes():
+    c = parser.parse("공룡이랑 기차 좋아하는 5살, 티라노 보러 가고 싶어")
+    assert c.interests == ["공룡", "기차"]
+
+
+def test_interests_need_a_liking_phrase():
+    c = parser.parse("강아지 데리고 산책할 공원, 4살 아이는 책 읽는 걸 좋아해")
+    assert c.interests == ["책"]
+    assert c.with_pet is True
+
+
+def test_word_inside_another_word_is_not_an_interest():
+    assert parser.parse("산책 좋아해").interests == []
