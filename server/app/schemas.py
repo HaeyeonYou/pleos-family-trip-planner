@@ -34,3 +34,61 @@ class ParseRequest(BaseModel):
 class ParseResponse(BaseModel):
     conditions: TripConditions
     parser: str
+
+
+class StopRole(str, Enum):
+    MEAL = "meal"      # 식사
+    OUTING = "outing"  # 나들이
+    CAFE = "cafe"      # 카페
+    HOME = "home"      # 귀가
+
+
+class Amenity(str, Enum):
+    """육아 편의 표시. 데이터 대부분이 자유 텍스트라 '없음'으로 단정하지 않는다."""
+
+    AVAILABLE = "available"  # 있음
+    UNKNOWN = "unknown"      # 정보 없음
+
+
+class LatLng(BaseModel):
+    latitude: float = Field(..., ge=33, le=39, description="위도 (국내)")
+    longitude: float = Field(..., ge=124, le=132, description="경도 (국내)")
+
+
+class Place(BaseModel):
+    name: str
+    latitude: float
+    longitude: float
+    address: str = ""
+    category: str = ""
+    source: str = Field(..., description="tour / kakao")
+    source_id: str
+    image_url: str = ""
+    amenities: dict[str, Amenity] = Field(default_factory=dict, description="stroller, nursing_room, kids_chair")
+    amenity_notes: dict[str, str] = Field(default_factory=dict, description="편의 정보 원문")
+
+
+class Stop(BaseModel):
+    role: StopRole
+    place: Place
+    arrive_at: str = Field(..., description="도착 시각 HH:MM")
+    depart_at: str | None = Field(None, description="출발 시각 HH:MM, 귀가는 없음")
+    stay_minutes: int = 0
+    drive_minutes: int = Field(..., description="이전 지점에서 오는 이동 시간(분)")
+    drive_distance_m: int
+
+
+class CourseRequest(BaseModel):
+    conditions: TripConditions
+    origin: LatLng
+    home: LatLng | None = Field(None, description="귀가 지점. 없으면 출발지")
+    departure_time: str | None = Field(None, pattern=r"^\d{2}:\d{2}$", description="출발 시각 HH:MM. 없으면 지금")
+
+
+class CourseResponse(BaseModel):
+    stops: list[Stop]
+    total_drive_minutes: int
+    return_at: str
+    route_source: str = Field(..., description="kakao: 실제 길찾기 / estimate: 직선거리 추정")
+    alternatives: dict[StopRole, list[Place]] = Field(default_factory=dict, description="장소 교체 후보")
+    warnings: list[str] = Field(default_factory=list)
