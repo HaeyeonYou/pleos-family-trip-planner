@@ -46,5 +46,6 @@ dependencies {
     implementation(libs.androidx.material3)
     implementation(libs.pleos.vehicle)
     implementation(libs.pleos.navihelper)
+    implementation(libs.pleos.fusedlocation)
     debugImplementation(libs.androidx.ui.tooling)
 }
