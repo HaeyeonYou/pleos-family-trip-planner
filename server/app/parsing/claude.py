@@ -1,6 +1,7 @@
 import logging
 
 import anthropic
+import httpx
 
 from app import interests
 from app.parsing.rule_based import RuleBasedParser
@@ -24,8 +25,8 @@ _SYSTEM = """\
 class ClaudeParser:
     name = "claude"
 
-    def __init__(self, api_key: str, model: str):
-        self._client = anthropic.Anthropic(api_key=api_key, timeout=15.0, max_retries=1)
+    def __init__(self, api_key: str, model: str, http_client: httpx.Client | None = None):
+        self._client = anthropic.Anthropic(api_key=api_key, timeout=15.0, max_retries=1, http_client=http_client)
         self._model = model
         self._fallback = RuleBasedParser()
 

@@ -1,0 +1,6 @@
+{
+ "request": "GET apis.data.go.kr/B551011/KorWithService2/detailWithTour2?MobileApp=FamilyTrip&MobileOS=ETC&_type=json&contentId=130226",
+ "status": 200,
+ "content_type": "application/json",
+ "body": "{\"response\": {\"header\":{\"resultCode\":\"0000\",\"resultMsg\":\"OK\"},\"body\": {\"items\": {\"item\":[{\"contentid\":\"130226\",\"parking\":\"장애인 전용 주차구역 있음(포스코센터 공용)_무장애 편의시설\",\"publictransport\":\"\",\"route\":\"출입구까지 경사로가 설치되어 있음(건물입구)\",\"ticketoffice\":\"\",\"promotion\":\"\",\"wheelchair\":\"\",\"exit\":\"주출입구는 경사로가 설치되어 있어 경사로 이용하여 건물 진입 후 엘리베이터 이용하여 미술관까지 단차없이 진입 가능함(미술관은 지하1층)\",\"elevator\":\"엘리베이터 있음\",\"restroom\":\"장애인 전용 화장실 있음\",\"auditorium\":\"\",\"room\":\"\",\"handicapetc\":\"\",\"braileblock\":\"\",\"helpdog\":\"\",\"guidehuman\":\"\",\"audioguide\":\"\",\"bigprint\":\"\",\"brailepromotion\":\"\",\"guidesystem\":\"\",\"blindhandicapetc\":\"\",\"signguide\":\"\",\"videoguide\":\"\",\"hearingroom\":\"\",\"hearinghandicapetc\":\"\",\"stroller\":\"\",\"lactationroom\":\"\",\"babysparechair\":\"\",\"infantsfamilyetc\":\"\"}]},\"numOfRows\":1,\"pageNo\":1,\"totalCount\":1}}}"
+}

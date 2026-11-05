@@ -1,0 +1,6 @@
+{
+ "request": "GET apis.data.go.kr/B551011/KorWithService2/detailWithTour2?MobileApp=FamilyTrip&MobileOS=ETC&_type=json&contentId=126499",
+ "status": 200,
+ "content_type": "application/json",
+ "body": "{\"response\": {\"header\":{\"resultCode\":\"0000\",\"resultMsg\":\"OK\"},\"body\": {\"items\": {\"item\":[{\"contentid\":\"126499\",\"parking\":\"장애인 전용 주차구역 있음_무장애 편의시설\",\"publictransport\":\"\",\"route\":\"출입구까지 평지로 되어있으나 흙길 구간 있음\",\"ticketoffice\":\"\",\"promotion\":\"\",\"wheelchair\":\"무료대여(1대)\",\"exit\":\"주출입구는 단차가 없어 휠체어 접근 가능함\",\"elevator\":\"\",\"restroom\":\"장애인 전용 화장실 있음(주차장 입구,놀이터 옆)\",\"auditorium\":\"\",\"room\":\"\",\"handicapetc\":\"\",\"braileblock\":\"점자블록 있음(주차장)_시각장애인 편의시설\",\"helpdog\":\"\",\"guidehuman\":\"\",\"audioguide\":\"\",\"bigprint\":\"\",\"brailepromotion\":\"\",\"guidesystem\":\"\",\"blindhandicapetc\":\"\",\"signguide\":\"\",\"videoguide\":\"\",\"hearingroom\":\"\",\"hearinghandicapetc\":\"\",\"stroller\":\"무료대여(5대)\",\"lactationroom\":\"\",\"babysparechair\":\"\",\"infantsfamilyetc\":\"\"}]},\"numOfRows\":1,\"pageNo\":1,\"totalCount\":1}}}"
+}
