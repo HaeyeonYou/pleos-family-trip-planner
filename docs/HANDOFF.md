@@ -135,6 +135,7 @@
 - 이미지 설치: `~/Library/Android/sdk/system-images/android-34/pleos_car_emulator/arm64-v8a` (19GB)
 - AVD `Pleos_Connect_v2.1.0`: 하드웨어 프로필 Pleos Connect v2.1.0 (2560×1440). 생성 시 RAM이 2GB로 잡혀서 `config.ini`를 RAM 8192, GPU host로 수정함
 - **Apple Silicon에서 부팅 성공.** 콜드 부팅 약 25초, Android 14 / API 34, `RELEASE.release_connect_v2.1.0`
+- **cold boot 필수** (quick boot면 VHAL 사용 불가). AVD `config.ini`가 원래 `fastboot.forceFastBoot=yes`라서 `forceColdBoot=yes`, `forceFastBoot=no`로 고침
 - 실행: `emulator -avd Pleos_Connect_v2.1.0 -no-snapshot-load`. Studio와 CLI로 동시에 띄우면 FATAL(같은 AVD 중복)
 - Virtual Console: `adb forward tcp:8088 tcp:8088` 후 `http://127.0.0.1:8088/`에서 HTTP 200
 - 설치된 주요 패키지: `ai.pleos.playground.service.{vehicle,navi,location.fused,adas}`, `ai.pleos.hardware.vehicle.emulator`, `ai.pleos.connectwebconsole`, 내비 앱 `ai.umos.maps.android.navigation.app`
@@ -162,6 +163,7 @@
    - ~~S4 도착 콜백~~ 결론 (#4): **에뮬레이터에서는 검증 불가.** 대안으로 도착 판정을 앱에서 함 (아래 참고)
      - Virtual Console D + ACCEL: 차속만 오르고 내비 위치는 그대로
      - `adb emu geo fix`: Android GPS에는 들어가고 내비 앱에도 전달되지만(dumpsys 기준) 내비는 무시하고 성남 수정구 시흥동(37.41272, 127.09468)에 고정
+     - ADAS 크루즈 Full autonomous + D도 차속 0, 위치 그대로
      - 내비 설정에 모의 주행 없음. 공식 문서(에뮬레이터 사용·설정, Virtual Console 가이드)에도 위치·경로 시뮬레이션 없음
      - 부수 효과: geo fix로 에뮬레이터 시간대가 한국 시간으로 바뀜
      - **도착 판정 방식 (확정)**: `onDestinationArrived`(실차용)와 함께, 앱 쪽 근접 판정(목적지 반경 안 진입)과 정차 중 수동 "도착" 버튼을 둠. 시연에서는 데모 모드로 도착 이벤트를 발생시킴. 구현은 #11
