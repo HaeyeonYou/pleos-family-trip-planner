@@ -12,6 +12,7 @@
 | 모델 | 별도 지시가 없으면 **Opus 5.5, effort Medium**. 서브에이전트도 `model: opus`, `effort: medium`. (원래 기획서 분석은 Fable 5.1이었지만 한도가 부족해 Opus로 전환) |
 | GitHub 계정 | 개인 프로젝트. **개인 계정 `HaeyeonYou`만 사용.** 회사(APR) 계정이나 조직에는 절대 만들거나 push하지 않음. push 전에 `gh auth status`로 계정 확인 |
 | git 사용자 정보 | 전역 설정이 아니라 이 레포에만 설정되어 있음 (`user.name HaeyeonYou`, noreply 이메일) |
+| 작업 흐름 | **기능별 GitHub 이슈 → `feature/<이슈번호>-<이름>` 브랜치 → PR(`Closes #번호`)로 main 병합.** 전체 플랜은 고정 이슈 #24에서 추적하고 진행 시 갱신 (11/5부터) |
 | 커밋/push | 사용자가 요청할 때만. 지금까지는 "커밋 후 push"라고 할 때마다 진행 |
 | 결정 사항 질문 | 여러 결정을 한 번에 묻지 말고 **하나씩** 질문 |
 | 키·비밀값 | 채팅에 붙여 넣게 하지 말고 루트 `.env`에 넣게 안내. 출력할 때도 값은 숨김 |
@@ -157,7 +158,8 @@
 1. ~~에뮬레이터 부팅 확인 (S1)~~ 완료
 2. 스파이크 S3~S7 (development-plan.md 3-3)
    - ~~S2 Vehicle SoC 읽기와 Virtual Console 반영~~ 완료
-   - S3/S4 NaviHelper 경로 요청과 **도착 콜백**
+   - ~~S3 NaviHelper 경로 요청~~ 완료 (#3): `requestRoute` → 내장 내비 안내 시작. `onRouteStarted` 직후 `onRouteEnded`가 같이 오니 도착으로 쓰면 안 됨
+   - S4 **도착 콜백** (#4) 미해결: Virtual Console의 D + ACCEL로 속도는 오르지만 내비 위치가 안 움직임. 다음은 내비 모의 주행, 에뮬레이터 GPS 경로 재생 시도
    - ~~S5 주행 여부 감지~~ 기어 API로 가능 (deprecated)
    - ~~S6 Range~~ Odometer API로 가능 (deprecated)
    - S7 TTS/STT/FusedLocation
