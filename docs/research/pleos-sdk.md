@@ -425,3 +425,12 @@
 - TTS/STT: ko-KR을 지원하고, 권한은 `TTS_SERVICE`/`STT_SERVICE`다. 서버 모드에는 Client ID/Secret 앱 등록이 필요하다.
 - create-my-project 페이지 기준 TTS/STT/FusedLocation/Vehicle Control은 "Coming Soon"이다.
 - Gleo: Gleo AI 음성 비서와 앱을 잇는 function-calling 연동 규격이다. `assets/schema.json`과 intent action으로 연동하며, Gleo 팀 검토와 승인이 필요하다.
+
+## 정정 (2026-11-05, 실제 AAR 확인)
+
+- 위의 "기어, Range API 없음"은 문서 기준 판단이었고, 실제 `Vehicle-2.3.2.aar`에는 아래 API가 **있다.**
+  - `Vehicle.getGear()`: `getCurrentGearSelectionState`, `registerGearSelection`/`unregister…` (권한 `CAR_DRIVE`)
+  - `Odometer`: `getRangeRemainingDistance`, `registerRangeRemainingListener`/`unregister…` (권한 `CAR_DRIVE`, 단위 미터)
+  - 둘 다 `@Deprecated`이고, Google `GEAR_SELECTION`/`RANGE_REMAINING` 프로퍼티(AAOS `CarPropertyManager`)를 쓰라고 안내한다.
+- 에뮬레이터 v2.1.0에서 둘 다 동작하고, Virtual Console 변경이 리스너로 들어오는 것을 확인했다.
+- 리스너의 `onFailed(e: Exception)` 인자는 non-null이다.
