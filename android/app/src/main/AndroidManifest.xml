@@ -12,11 +12,19 @@
     <!-- Pleos NaviHelper: route request, guidance events -->
     <uses-permission android:name="pleos.car.permission.NAVI_ROUTE" />
     <uses-permission android:name="pleos.car.permission.NAVI_ROUTE_SEARCH" />
+    <!-- requestNavigationScreen(): 안내 중 내장 내비를 앞으로 -->
+    <uses-permission android:name="pleos.car.permission.NAVI_CUSTOM_MAP" />
 
     <!-- Pleos FusedLocation: position, proximity alerts (runtime permission) -->
     <uses-permission android:name="pleos.car.permission.FUSED_LOCATION" />
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- 안내 중 포그라운드 서비스 (앱이 뒤에 있어도 도착 판정 유지) -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
 
     <application
         android:name=".FamilyTripApp"
@@ -27,7 +35,8 @@
         android:theme="@android:style/Theme.Material.NoActionBar">
         <activity
             android:name=".MainActivity"
-            android:exported="true">
+            android:exported="true"
+            android:launchMode="singleTask">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -36,5 +45,12 @@
                 android:name="distractionOptimized"
                 android:value="true" />
         </activity>
+        <service
+            android:name=".guide.GuideService"
+            android:exported="false"
+            android:foregroundServiceType="location" />
+        <receiver
+            android:name=".guide.GuideActionReceiver"
+            android:exported="false" />
     </application>
 </manifest>

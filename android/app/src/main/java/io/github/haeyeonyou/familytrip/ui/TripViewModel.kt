@@ -5,11 +5,9 @@ import androidx.lifecycle.viewModelScope
 import io.github.haeyeonyou.familytrip.AppContainer
 import io.github.haeyeonyou.familytrip.data.CourseRequest
 import io.github.haeyeonyou.familytrip.data.CourseResponse
-import io.github.haeyeonyou.familytrip.data.CourseStop
 import io.github.haeyeonyou.familytrip.data.LatLng
 import io.github.haeyeonyou.familytrip.data.ParseRequest
 import io.github.haeyeonyou.familytrip.data.TripConditions
-import io.github.haeyeonyou.familytrip.navi.Place
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -27,15 +25,7 @@ data class TripUiState(
     val course: CourseResponse? = null,
     val loading: Boolean = false,
     val error: String? = null,
-    /** 구간 안내 중인 stops 인덱스. null이면 안내 전. */
-    val guideIndex: Int? = null,
-    /** 현재 구간 목적지에 도착했는지. */
-    val arrived: Boolean = false,
-) {
-    val currentStop: CourseStop? get() = guideIndex?.let { course?.stops?.getOrNull(it) }
-    val nextStop: CourseStop? get() = guideIndex?.let { course?.stops?.getOrNull(it + 1) }
-    val finished: Boolean get() = currentStop?.role == "home" && arrived
-}
+)
 
 class TripViewModel(private val container: AppContainer) : ViewModel() {
 
@@ -43,19 +33,7 @@ class TripViewModel(private val container: AppContainer) : ViewModel() {
     val state: StateFlow<TripUiState> = _state.asStateFlow()
 
     val vehicle = container.vehicle.state
-    val location = container.location.state
-
-    init {
-        // 도착 판정(FusedLocation 근접 알림)이 현재 구간 목적지면 도착 처리
-        viewModelScope.launch {
-            container.location.state.collect { loc ->
-                val current = _state.value.currentStop ?: return@collect
-                if (loc.arrivedAt == current.place.name && !_state.value.arrived) {
-                    _state.update { it.copy(arrived = true) }
-                }
-            }
-        }
-    }
+    val guide = container.guide.state
 
     fun onRequestTextChange(text: String) = _state.update { it.copy(requestText = text) }
 
@@ -75,37 +53,23 @@ class TripViewModel(private val container: AppContainer) : ViewModel() {
         val conditions = _state.value.conditions ?: TripConditions()
         launchRequest {
             val course = container.api.course(CourseRequest(conditions = conditions, origin = currentOrigin()))
-            _state.update { it.copy(course = course, guideIndex = null, arrived = false) }
+            _state.update { it.copy(course = course) }
             onSuccess()
         }
     }
 
-    /** 첫 장소부터 안내. 경유지 제한(최대 2개) 때문에 한 구간씩 목적지로 넘긴다. */
-    fun startGuide() = guideTo(0)
-
-    fun goToNext() {
-        val index = _state.value.guideIndex ?: return
-        guideTo(index + 1)
+    /** 첫 장소부터 안내. 안내 상태는 앱 단위 GuideSession이 가진다 (앱이 뒤에 있어도 도착 알림). */
+    fun startGuide() {
+        _state.value.course?.let { container.guide.start(it.stops) }
     }
 
-    /** 근접 판정이 안 될 때를 위한 수동 도착. */
-    fun markArrived() = _state.update { it.copy(arrived = true) }
+    fun goToNext() = container.guide.goToNext()
 
-    fun endGuide() {
-        container.navi.cancelRoute()
-        container.location.clearArrival()
-        _state.update { it.copy(guideIndex = null, arrived = false) }
-    }
+    fun markArrived() = container.guide.markArrived()
+
+    fun endGuide() = container.guide.end()
 
     fun dismissError() = _state.update { it.copy(error = null) }
-
-    private fun guideTo(index: Int) {
-        val stop = _state.value.course?.stops?.getOrNull(index) ?: return
-        val place = Place(stop.place.name, stop.place.latitude, stop.place.longitude)
-        container.navi.requestRoute(place)
-        container.location.watchArrival(place)
-        _state.update { it.copy(guideIndex = index, arrived = false) }
-    }
 
     private fun currentOrigin(): LatLng {
         val loc = container.location.state.value
