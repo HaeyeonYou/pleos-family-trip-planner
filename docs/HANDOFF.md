@@ -166,7 +166,9 @@
      - ADAS 크루즈 Full autonomous + D도 차속 0, 위치 그대로
      - 내비 설정에 모의 주행 없음. 공식 문서(에뮬레이터 사용·설정, Virtual Console 가이드)에도 위치·경로 시뮬레이션 없음
      - 부수 효과: geo fix로 에뮬레이터 시간대가 한국 시간으로 바뀜
-     - **도착 판정 방식 (확정)**: `onDestinationArrived`(실차용)와 함께, 앱 쪽 근접 판정(목적지 반경 안 진입)과 정차 중 수동 "도착" 버튼을 둠. 시연에서는 데모 모드로 도착 이벤트를 발생시킴. 구현은 #11
+     - **원인**: 내장 내비는 NMEA 원문을 읽는데, 에뮬레이터가 GPGGA/GPRMC를 고정 체크섬 `*47`로 내보내 전부 거부됨. 체크섬을 맞춘 유효 NMEA를 10초 연속 넣어도 내비 엔진 위치는 고정 → 에뮬레이터 측 한계 (#4 댓글)
+     - **우리 앱은 테스트 가능**: `adb emu geo fix <경도> <위도>`가 Android fused provider → Pleos FusedLocation 서비스로 전달됨. 위치 추적·근접 판정·도착 처리는 이 방식으로 검증
+     - **도착 판정 방식 (확정)**: `onDestinationArrived`(실차용)와 함께, 앱 쪽 근접 판정(Pleos FusedLocation 근접 알림, 목적지 반경 진입)과 정차 중 수동 "도착" 버튼을 둠. 시연에서는 데모 모드로 도착 이벤트를 발생시킴. 구현은 #11
    - ~~S5 주행 여부 감지~~ 기어 API로 가능 (deprecated)
    - ~~S6 Range~~ Odometer API로 가능 (deprecated)
    - S7 TTS/STT/FusedLocation
