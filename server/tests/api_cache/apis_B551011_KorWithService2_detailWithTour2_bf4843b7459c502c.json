@@ -1,0 +1,6 @@
+{
+ "request": "GET apis.data.go.kr/B551011/KorWithService2/detailWithTour2?MobileApp=FamilyTrip&MobileOS=ETC&_type=json&contentId=1906334",
+ "status": 200,
+ "content_type": "application/json",
+ "body": "{\"response\": {\"header\":{\"resultCode\":\"0000\",\"resultMsg\":\"OK\"},\"body\": {\"items\": {\"item\":[{\"contentid\":\"1906334\",\"parking\":\"장애인 주차장 있음(지하2,3층)_무장애 편의시설\",\"publictransport\":\"\",\"route\":\"출입구까지 턱이 없어 휠체어 접근 가능함\",\"ticketoffice\":\"\",\"promotion\":\"\",\"wheelchair\":\"대여가능(지하2층, 종합안내실)\",\"exit\":\"주출입구는 턱이 없어 휠체어 접근 가능함\",\"elevator\":\"\",\"restroom\":\"장애인 화장실 있음(동대문역사관,동대문운동장역사관 내)\",\"auditorium\":\"\",\"room\":\"\",\"handicapetc\":\"장애인 배려서비스(종합안내실)\",\"braileblock\":\"\",\"helpdog\":\"\",\"guidehuman\":\"\",\"audioguide\":\"\",\"bigprint\":\"\",\"brailepromotion\":\"\",\"guidesystem\":\"\",\"blindhandicapetc\":\"\",\"signguide\":\"\",\"videoguide\":\"\",\"hearingroom\":\"\",\"hearinghandicapetc\":\"\",\"stroller\":\"대여가능(지하2층, 종합안내실)\",\"lactationroom\":\"수유실 있음(1층, 살림터)\",\"babysparechair\":\"\",\"infantsfamilyetc\":\"\"}]},\"numOfRows\":1,\"pageNo\":1,\"totalCount\":1}}}"
+}

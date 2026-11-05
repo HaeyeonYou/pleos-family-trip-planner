@@ -1,0 +1,6 @@
+{
+ "request": "GET apis.data.go.kr/B551011/KorWithService2/detailWithTour2?MobileApp=FamilyTrip&MobileOS=ETC&_type=json&contentId=2773265",
+ "status": 200,
+ "content_type": "application/json",
+ "body": "{\"response\": {\"header\":{\"resultCode\":\"0000\",\"resultMsg\":\"OK\"},\"body\": {\"items\": {\"item\":[{\"contentid\":\"2773265\",\"parking\":\"장애인 전용 주차구역 주차 대수 : 2대(k현대미술관주차장)\\u003cbr/\\u003e주변 휠체어 이용자 등이 이용할 수 있는 여유공간 있음.\\u003cbr/\\u003e미술관까지의 거리 : 바로 앞(정문이용)\",\"publictransport\":\"대중교통 이용 가능 : 일지아트홀, 압구정노인복지관 정류장\\u003cbr/\\u003e저상버스 운행 : 모든 버스(광역버스 제외)\",\"route\":\"미술관 부지가 넓음. 이동경로 폭 넓음..\\u003cbr/\\u003e미술관 특성상 휠체어, 전동 스쿠터 사용자 이용 쉬움.\\u003cbr/\\u003e내부 턱 있음(메인 홀 이용 시, 10칸 단차 있음)\\u003cbr/\\u003e휠체어 사용자 엘리베이터 사용 가능.\",\"ticketoffice\":\"\",\"promotion\":\"\",\"wheelchair\":\"\",\"exit\":\"\",\"elevator\":\"엘리베이터 있음.(휠체어 사용자 사용 가능)\",\"restroom\":\"\",\"auditorium\":\"\",\"room\":\"\",\"handicapetc\":\"\",\"braileblock\":\"점자블록 있음(주출입구)_시각장애인 편의시설\",\"helpdog\":\"\",\"guidehuman\":\"안내데스크 상주\",\"audioguide\":\"\",\"bigprint\":\"\",\"brailepromotion\":\"\",\"guidesystem\":\"\",\"blindhandicapetc\":\"\",\"signguide\":\"\",\"videoguide\":\"\",\"hearingroom\":\"\",\"hearinghandicapetc\":\"\",\"stroller\":\"\",\"lactationroom\":\"\",\"babysparechair\":\"\",\"infantsfamilyetc\":\"\"}]},\"numOfRows\":1,\"pageNo\":1,\"totalCount\":1}}}"
+}
