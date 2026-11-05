@@ -1,8 +1,10 @@
 package io.github.haeyeonyou.familytrip
 
+import android.content.pm.PackageManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -23,6 +25,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.github.haeyeonyou.familytrip.location.FUSED_LOCATION_PERMISSION
+import io.github.haeyeonyou.familytrip.location.LocationRepository
+import io.github.haeyeonyou.familytrip.location.LocationState
+import io.github.haeyeonyou.familytrip.location.PleosLocationRepository
 import io.github.haeyeonyou.familytrip.navi.NaviRepository
 import io.github.haeyeonyou.familytrip.navi.NaviState
 import io.github.haeyeonyou.familytrip.navi.Place
@@ -38,6 +44,12 @@ class MainActivity : ComponentActivity() {
 
     private lateinit var vehicleRepository: VehicleRepository
     private lateinit var naviRepository: NaviRepository
+    private lateinit var locationRepository: LocationRepository
+
+    private val locationPermissionRequest =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            if (granted) locationRepository.start()
+        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -45,12 +57,19 @@ class MainActivity : ComponentActivity() {
         vehicleRepository.start()
         naviRepository = PleosNaviRepository(this)
         naviRepository.start()
+        locationRepository = PleosLocationRepository(this)
+        if (checkSelfPermission(FUSED_LOCATION_PERMISSION) == PackageManager.PERMISSION_GRANTED) {
+            locationRepository.start()
+        } else {
+            locationPermissionRequest.launch(FUSED_LOCATION_PERMISSION)
+        }
 
         setContent {
             MaterialTheme(colorScheme = darkColorScheme()) {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     val vehicleState by vehicleRepository.state.collectAsStateWithLifecycle()
                     val naviState by naviRepository.state.collectAsStateWithLifecycle()
+                    val locationState by locationRepository.state.collectAsStateWithLifecycle()
                     Column(
                         modifier = Modifier
                             .padding(48.dp)
@@ -59,7 +78,8 @@ class MainActivity : ComponentActivity() {
                     ) {
                         Text("오늘, 어디 가지?", fontSize = 40.sp)
                         VehicleStatusSection(vehicleState)
-                        NaviSection(naviState, naviRepository)
+                        NaviSection(naviState, naviRepository, locationState, locationRepository)
+                        LocationSection(locationState)
                     }
                 }
             }
@@ -67,6 +87,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        locationRepository.stop()
         naviRepository.stop()
         vehicleRepository.stop()
         super.onDestroy()
@@ -86,7 +107,17 @@ private fun VehicleStatusSection(state: VehicleState) {
 }
 
 @Composable
-private fun NaviSection(state: NaviState, navi: NaviRepository) {
+private fun NaviSection(
+    state: NaviState,
+    navi: NaviRepository,
+    locationState: LocationState,
+    location: LocationRepository,
+) {
+    fun guideTo(place: Place) {
+        navi.requestRoute(place)
+        location.watchArrival(place)
+    }
+
     Text("내비 (NaviHelper 확인용)", fontSize = 24.sp)
     Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
         StatusCard("연결", if (state.connected) "됨" else "안 됨")
@@ -96,19 +127,55 @@ private fun NaviSection(state: NaviState, navi: NaviRepository) {
         StatusCard("도착", state.arrivedAt ?: "-")
     }
     Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-        Button(onClick = { navi.requestRoute(COEX) }) { Text("코엑스로 안내", fontSize = 20.sp) }
-        val lat = state.currentLatitude
-        val lon = state.currentLongitude
+        Button(onClick = { guideTo(COEX) }) { Text("코엑스로 안내", fontSize = 20.sp) }
+        // Prefer FusedLocation: the built-in navigation's position is fixed on the emulator.
+        val lat = locationState.latitude ?: state.currentLatitude
+        val lon = locationState.longitude ?: state.currentLongitude
         Button(
             enabled = lat != null && lon != null,
-            onClick = { navi.requestRoute(Place("근처 테스트 지점", lat!! + 0.005, lon!!)) },
+            onClick = { guideTo(Place("근처 테스트 지점", lat!! + 0.005, lon!!)) },
         ) { Text("500m 북쪽으로 안내", fontSize = 20.sp) }
-        OutlinedButton(onClick = { navi.cancelRoute() }) { Text("안내 취소", fontSize = 20.sp) }
+        OutlinedButton(onClick = {
+            navi.cancelRoute()
+            location.clearArrival()
+        }) { Text("안내 취소", fontSize = 20.sp) }
         OutlinedButton(onClick = { navi.refreshCurrentLocation() }) { Text("현재 위치", fontSize = 20.sp) }
     }
     Card {
         Column(modifier = Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text("이벤트 로그", fontSize = 20.sp)
+            if (state.events.isEmpty()) Text("-", fontSize = 18.sp)
+            state.events.forEach { Text(it, fontSize = 18.sp) }
+        }
+    }
+}
+
+@Composable
+private fun LocationSection(state: LocationState) {
+    Text("위치·도착 판정 (FusedLocation 확인용)", fontSize = 24.sp)
+    Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+        StatusCard(
+            "서비스",
+            when (state.supported) {
+                null -> "-"
+                true -> "사용 가능"
+                false -> "없음"
+            },
+        )
+        StatusCard(
+            "현재 위치",
+            if (state.latitude != null && state.longitude != null) {
+                "%.5f, %.5f".format(state.latitude, state.longitude)
+            } else {
+                "-"
+            },
+        )
+        StatusCard("도착 감시", state.watching?.name ?: "-")
+        StatusCard("도착", state.arrivedAt ?: "-")
+    }
+    Card {
+        Column(modifier = Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("위치 이벤트 로그", fontSize = 20.sp)
             if (state.events.isEmpty()) Text("-", fontSize = 18.sp)
             state.events.forEach { Text(it, fontSize = 18.sp) }
         }
