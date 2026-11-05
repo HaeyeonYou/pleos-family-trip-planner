@@ -155,6 +155,15 @@
 - 주행가능거리 단위는 **미터**(Console 219000 m → 클러스터 219 km)
 - 주의: Range 리스너는 값이 안 바뀌어도 약 3~4초마다 호출됨. 첫 get 값(500km)과 Console 초기값(0 m)이 달랐음
 
+### 위치·도착 판정 (11/5, #6)
+- `location/LocationRepository` + `PleosLocationRepository` (FusedLocation 1.1.3): 현재 위치 구독, 근접 알림으로 도착 판정
+- 확인용 화면: 내비 안내 버튼을 누르면 같은 목적지에 반경 150m 도착 감시도 시작
+- **에뮬레이터에서 검증 완료**: `adb emu geo fix` 좌표를 FusedLocation이 그대로 받음, 목적지 반경 진입 시 `ENTER` 이벤트 → 도착 표시
+- `pleos.car.permission.FUSED_LOCATION`은 **dangerous(런타임) 권한**. 앱이 실행 시 요청함
+  - adb로 줄 때는 AAOS 운전자 사용자(10)에게 줘야 함: `adb shell pm grant --user current io.github.haeyeonyou.familytrip pleos.car.permission.FUSED_LOCATION`
+- 주행 시뮬레이션: `python3 tools/geo_drive.py <위도1> <경도1> <위도2> <경도2> [km/h]` (1초마다 geo fix)
+- SDK 사용 신청: Playground 문서상 FusedLocation은 'Coming Soon'이지만 에뮬레이터에서는 신청 없이 동작. 신청·Project ID는 App Market 심사·배포 단계에서 필요
+
 ### 아직 안 한 것 (다음 순서)
 1. ~~에뮬레이터 부팅 확인 (S1)~~ 완료
 2. 스파이크 S3~S7 (development-plan.md 3-3)
