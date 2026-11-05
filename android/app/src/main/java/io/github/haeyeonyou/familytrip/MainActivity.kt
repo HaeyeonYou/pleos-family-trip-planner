@@ -1,201 +1,108 @@
 package io.github.haeyeonyou.familytrip
 
-import android.content.pm.PackageManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
 import io.github.haeyeonyou.familytrip.location.FUSED_LOCATION_PERMISSION
-import io.github.haeyeonyou.familytrip.location.LocationRepository
-import io.github.haeyeonyou.familytrip.location.LocationState
-import io.github.haeyeonyou.familytrip.location.PleosLocationRepository
-import io.github.haeyeonyou.familytrip.navi.NaviRepository
-import io.github.haeyeonyou.familytrip.navi.NaviState
-import io.github.haeyeonyou.familytrip.navi.Place
-import io.github.haeyeonyou.familytrip.navi.PleosNaviRepository
-import io.github.haeyeonyou.familytrip.vehicle.GearState
-import io.github.haeyeonyou.familytrip.vehicle.PleosVehicleRepository
-import io.github.haeyeonyou.familytrip.vehicle.VehicleRepository
-import io.github.haeyeonyou.familytrip.vehicle.VehicleState
+import io.github.haeyeonyou.familytrip.ui.CourseScreen
+import io.github.haeyeonyou.familytrip.ui.DevScreen
+import io.github.haeyeonyou.familytrip.ui.GuideScreen
+import io.github.haeyeonyou.familytrip.ui.InputScreen
+import io.github.haeyeonyou.familytrip.ui.TripViewModel
 
-private val COEX = Place("코엑스", 37.5115, 127.0595)
+private object Routes {
+    const val INPUT = "input"
+    const val COURSE = "course"
+    const val GUIDE = "guide"
+    const val DEV = "dev"
+}
 
 class MainActivity : ComponentActivity() {
 
-    private lateinit var vehicleRepository: VehicleRepository
-    private lateinit var naviRepository: NaviRepository
-    private lateinit var locationRepository: LocationRepository
+    private val container by lazy { (application as FamilyTripApp).container }
 
     private val locationPermissionRequest =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-            if (granted) locationRepository.start()
+            if (granted) container.startLocationIfPermitted()
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        vehicleRepository = PleosVehicleRepository(this)
-        vehicleRepository.start()
-        naviRepository = PleosNaviRepository(this)
-        naviRepository.start()
-        locationRepository = PleosLocationRepository(this)
-        if (checkSelfPermission(FUSED_LOCATION_PERMISSION) == PackageManager.PERMISSION_GRANTED) {
-            locationRepository.start()
-        } else {
+        container.startLocationIfPermitted()
+        if (checkSelfPermission(FUSED_LOCATION_PERMISSION) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
             locationPermissionRequest.launch(FUSED_LOCATION_PERMISSION)
+        }
+
+        val factory = object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(modelClass: Class<T>): T = TripViewModel(container) as T
         }
 
         setContent {
             MaterialTheme(colorScheme = darkColorScheme()) {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    val vehicleState by vehicleRepository.state.collectAsStateWithLifecycle()
-                    val naviState by naviRepository.state.collectAsStateWithLifecycle()
-                    val locationState by locationRepository.state.collectAsStateWithLifecycle()
-                    Column(
-                        modifier = Modifier
-                            .padding(48.dp)
-                            .verticalScroll(rememberScrollState()),
-                        verticalArrangement = Arrangement.spacedBy(24.dp),
-                    ) {
-                        Text("오늘, 어디 가지?", fontSize = 40.sp)
-                        VehicleStatusSection(vehicleState)
-                        NaviSection(naviState, naviRepository, locationState, locationRepository)
-                        LocationSection(locationState)
+                    val vm: TripViewModel = viewModel(factory = factory)
+                    val state by vm.state.collectAsStateWithLifecycle()
+                    val vehicle by vm.vehicle.collectAsStateWithLifecycle()
+                    val nav = rememberNavController()
+
+                    NavHost(navController = nav, startDestination = Routes.INPUT) {
+                        composable(Routes.INPUT) {
+                            InputScreen(
+                                state = state,
+                                isParked = vehicle.isParked,
+                                onTextChange = vm::onRequestTextChange,
+                                onParse = vm::parse,
+                                onConditionsChange = vm::updateConditions,
+                                onMakeCourse = { vm.requestCourse { nav.navigate(Routes.COURSE) } },
+                                onOpenDev = { nav.navigate(Routes.DEV) },
+                            )
+                        }
+                        composable(Routes.COURSE) {
+                            state.course?.let { course ->
+                                CourseScreen(
+                                    course = course,
+                                    isParked = vehicle.isParked,
+                                    onStartGuide = {
+                                        vm.startGuide()
+                                        nav.navigate(Routes.GUIDE)
+                                    },
+                                    onBack = { nav.popBackStack() },
+                                )
+                            }
+                        }
+                        composable(Routes.GUIDE) {
+                            GuideScreen(
+                                state = state,
+                                isParked = vehicle.isParked,
+                                onNext = vm::goToNext,
+                                onMarkArrived = vm::markArrived,
+                                onEnd = {
+                                    vm.endGuide()
+                                    nav.popBackStack(Routes.INPUT, inclusive = false)
+                                },
+                            )
+                        }
+                        composable(Routes.DEV) {
+                            DevScreen(container, onBack = { nav.popBackStack() })
+                        }
                     }
                 }
             }
         }
     }
-
-    override fun onDestroy() {
-        locationRepository.stop()
-        naviRepository.stop()
-        vehicleRepository.stop()
-        super.onDestroy()
-    }
-}
-
-@Composable
-private fun VehicleStatusSection(state: VehicleState) {
-    Text("차량 상태 (Vehicle SDK 확인용)", fontSize = 24.sp)
-    Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-        StatusCard("배터리", state.stateOfChargePercent?.let { "$it%" } ?: "-")
-        StatusCard("주행가능거리", state.rangeRemainingMeters?.let { "%.0f km".format(it / 1000f) } ?: "-")
-        StatusCard("기어", state.gear.label())
-        StatusCard("상태", if (state.isParked) "정차 중" else "주행 중")
-    }
-    state.lastError?.let { Text("오류: $it", color = MaterialTheme.colorScheme.error, fontSize = 20.sp) }
-}
-
-@Composable
-private fun NaviSection(
-    state: NaviState,
-    navi: NaviRepository,
-    locationState: LocationState,
-    location: LocationRepository,
-) {
-    fun guideTo(place: Place) {
-        navi.requestRoute(place)
-        location.watchArrival(place)
-    }
-
-    Text("내비 (NaviHelper 확인용)", fontSize = 24.sp)
-    Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-        StatusCard("연결", if (state.connected) "됨" else "안 됨")
-        StatusCard("안내", if (state.routing) "안내 중" else "-")
-        StatusCard("남은 거리", state.remainingDistanceMeters?.let { "%.1f km".format(it / 1000f) } ?: "-")
-        StatusCard("남은 시간", state.remainingSeconds?.let { "${it / 60}분" } ?: "-")
-        StatusCard("도착", state.arrivedAt ?: "-")
-    }
-    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-        Button(onClick = { guideTo(COEX) }) { Text("코엑스로 안내", fontSize = 20.sp) }
-        // Prefer FusedLocation: the built-in navigation's position is fixed on the emulator.
-        val lat = locationState.latitude ?: state.currentLatitude
-        val lon = locationState.longitude ?: state.currentLongitude
-        Button(
-            enabled = lat != null && lon != null,
-            onClick = { guideTo(Place("근처 테스트 지점", lat!! + 0.005, lon!!)) },
-        ) { Text("500m 북쪽으로 안내", fontSize = 20.sp) }
-        OutlinedButton(onClick = {
-            navi.cancelRoute()
-            location.clearArrival()
-        }) { Text("안내 취소", fontSize = 20.sp) }
-        OutlinedButton(onClick = { navi.refreshCurrentLocation() }) { Text("현재 위치", fontSize = 20.sp) }
-    }
-    Card {
-        Column(modifier = Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("이벤트 로그", fontSize = 20.sp)
-            if (state.events.isEmpty()) Text("-", fontSize = 18.sp)
-            state.events.forEach { Text(it, fontSize = 18.sp) }
-        }
-    }
-}
-
-@Composable
-private fun LocationSection(state: LocationState) {
-    Text("위치·도착 판정 (FusedLocation 확인용)", fontSize = 24.sp)
-    Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-        StatusCard(
-            "서비스",
-            when (state.supported) {
-                null -> "-"
-                true -> "사용 가능"
-                false -> "없음"
-            },
-        )
-        StatusCard(
-            "현재 위치",
-            if (state.latitude != null && state.longitude != null) {
-                "%.5f, %.5f".format(state.latitude, state.longitude)
-            } else {
-                "-"
-            },
-        )
-        StatusCard("도착 감시", state.watching?.name ?: "-")
-        StatusCard("도착", state.arrivedAt ?: "-")
-    }
-    Card {
-        Column(modifier = Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("위치 이벤트 로그", fontSize = 20.sp)
-            if (state.events.isEmpty()) Text("-", fontSize = 18.sp)
-            state.events.forEach { Text(it, fontSize = 18.sp) }
-        }
-    }
-}
-
-@Composable
-private fun StatusCard(title: String, value: String) {
-    Card {
-        Column(modifier = Modifier.padding(32.dp)) {
-            Text(title, fontSize = 22.sp)
-            Text(value, fontSize = 40.sp)
-        }
-    }
-}
-
-private fun GearState.label() = when (this) {
-    GearState.PARK -> "P"
-    GearState.DRIVE -> "D"
-    GearState.REVERSE -> "R"
-    GearState.NEUTRAL -> "N"
-    GearState.UNKNOWN -> "?"
 }
