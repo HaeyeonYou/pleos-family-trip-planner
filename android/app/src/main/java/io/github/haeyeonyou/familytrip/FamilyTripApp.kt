@@ -3,6 +3,8 @@ package io.github.haeyeonyou.familytrip
 import android.app.Application
 import android.content.pm.PackageManager
 import io.github.haeyeonyou.familytrip.data.TripApi
+import io.github.haeyeonyou.familytrip.guide.GuideNotifier
+import io.github.haeyeonyou.familytrip.guide.GuideSession
 import io.github.haeyeonyou.familytrip.location.FUSED_LOCATION_PERMISSION
 import io.github.haeyeonyou.familytrip.location.LocationRepository
 import io.github.haeyeonyou.familytrip.location.PleosLocationRepository
@@ -10,6 +12,9 @@ import io.github.haeyeonyou.familytrip.navi.NaviRepository
 import io.github.haeyeonyou.familytrip.navi.PleosNaviRepository
 import io.github.haeyeonyou.familytrip.vehicle.PleosVehicleRepository
 import io.github.haeyeonyou.familytrip.vehicle.VehicleRepository
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 
 /**
  * 앱 전체에서 하나씩 쓰는 의존성. 차량·내비 연결은 프로세스가 살아 있는 동안 유지한다.
@@ -20,6 +25,8 @@ class AppContainer(private val app: Application) {
     val navi: NaviRepository = PleosNaviRepository(app)
     val location: LocationRepository = PleosLocationRepository(app)
     val api: TripApi = TripApi.create()
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    val guide = GuideSession(app, navi, location, GuideNotifier(app), scope)
 
     private var locationStarted = false
 

@@ -27,4 +27,7 @@ interface NaviRepository {
     fun requestRoute(destination: Place)
     fun cancelRoute()
     fun refreshCurrentLocation()
+
+    /** 내장 내비 화면을 앞으로 가져온다 (안내 중 지도를 보이게). */
+    fun showNavigation()
 }
