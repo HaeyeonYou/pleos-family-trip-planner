@@ -6,6 +6,7 @@ import ai.pleos.playground.navi.constants.RouteOption
 import ai.pleos.playground.navi.data.CurrentLocationInfo
 import ai.pleos.playground.navi.data.DestinationArrivedInfo
 import ai.pleos.playground.navi.data.DrivingInfo
+import ai.pleos.playground.navi.data.NavigationScreenRequest
 import ai.pleos.playground.navi.data.RouteInfo
 import ai.pleos.playground.navi.data.RouteStartInfo
 import ai.pleos.playground.navi.data.WaypointArrivedInfo
@@ -125,6 +126,8 @@ class PleosNaviRepository(context: Context) : NaviRepository {
     override fun cancelRoute() = naviHelper.cancelRoute()
 
     override fun refreshCurrentLocation() = naviHelper.getCurrentLocationInfo()
+
+    override fun showNavigation() = naviHelper.requestNavigationScreen(NavigationScreenRequest.Foreground)
 
     private fun log(message: String) {
         Log.d(TAG, message)

@@ -14,19 +14,22 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.haeyeonyou.familytrip.data.CourseStop
+import io.github.haeyeonyou.familytrip.guide.GuideState
 
 /**
- * 구간 안내. 주행 중에도 조수석에서 조작할 수 있게 버튼은 그대로 두고 안내 띠만 띄운다.
+ * 구간 안내 상태 화면. 안내 중에는 내장 내비가 앞에 있고, 도착하면 헤드업 알림이 뜬다.
+ * 이 화면은 알림이나 앱 아이콘으로 돌아왔을 때 보인다. 주행 중에도 조수석 조작을 위해 버튼은 그대로 둔다.
  */
 @Composable
 fun GuideScreen(
-    state: TripUiState,
+    state: GuideState,
     isParked: Boolean,
+    onShowMap: () -> Unit,
     onNext: () -> Unit,
     onMarkArrived: () -> Unit,
     onEnd: () -> Unit,
 ) {
-    val current = state.currentStop ?: return
+    val current = state.current ?: return
     DrivingAware(isParked) {
         Column(
             modifier = Modifier.fillMaxSize().padding(40.dp),
@@ -34,8 +37,8 @@ fun GuideScreen(
         ) {
             when {
                 state.finished -> Finished(onEnd)
-                state.arrived -> Arrived(current, state.nextStop, onNext)
-                else -> Heading(current, onMarkArrived)
+                state.arrived -> Arrived(current, state.next, onNext)
+                else -> Heading(current, onShowMap, onMarkArrived)
             }
             if (!state.finished) {
                 BigOutlinedButton("안내 끝내기", onEnd)
@@ -45,7 +48,7 @@ fun GuideScreen(
 }
 
 @Composable
-private fun Heading(stop: CourseStop, onMarkArrived: () -> Unit) {
+private fun Heading(stop: CourseStop, onShowMap: () -> Unit, onMarkArrived: () -> Unit) {
     Text("${ROLE_LABELS[stop.role]}(으)로 가는 중", fontSize = 28.sp, color = MaterialTheme.colorScheme.primary)
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(32.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -53,8 +56,11 @@ private fun Heading(stop: CourseStop, onMarkArrived: () -> Unit) {
             Text("${stop.arriveAt} 도착 예정 · ${stop.driveMinutes}분", fontSize = 28.sp)
         }
     }
-    // 근접 판정이 안 될 때를 위한 수동 도착
-    BigButton("도착했어요", onMarkArrived)
+    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        BigButton("지도 보기", onShowMap)
+        // 근접 판정이 안 될 때를 위한 수동 도착
+        BigOutlinedButton("도착했어요", onMarkArrived)
+    }
 }
 
 @Composable

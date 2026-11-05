@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -76,5 +77,27 @@ fun DrivingAware(isParked: Boolean, content: @Composable () -> Unit) {
 fun ErrorText(message: String?) {
     message?.let {
         Text(it, color = MaterialTheme.colorScheme.error, fontSize = 22.sp, modifier = Modifier.padding(vertical = 8.dp))
+    }
+}
+
+/** 알림이 꺼져 있으면 내비가 앞에 있을 때 도착 안내를 받을 수 없음을 알린다. */
+@Composable
+fun NotificationOffBanner(visible: Boolean, onAllow: () -> Unit) {
+    if (!visible) return
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.errorContainer)
+            .padding(horizontal = 40.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(24.dp),
+    ) {
+        Text(
+            "알림이 꺼져 있어 내비 화면에서 도착 안내를 실시간으로 받을 수 없어요",
+            fontSize = 22.sp,
+            color = MaterialTheme.colorScheme.onErrorContainer,
+            modifier = Modifier.weight(1f),
+        )
+        BigOutlinedButton("알림 허용", onAllow)
     }
 }
