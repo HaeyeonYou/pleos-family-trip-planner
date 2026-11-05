@@ -31,6 +31,23 @@ _EXCLUDED_TITLE_WORDS = ("묘역", "왕릉", "비석", "성터", "절터", "공�
 
 PLAY_KEYWORDS = ("키즈카페", "실내놀이터")
 
+# 관심사 키워드로 카카오에서 찾은 장소 중 나들이로 쓸 분류 → (테마, 실내)
+_KAKAO_OUTING_CATEGORIES: list[tuple[str, Theme, bool]] = [
+    ("가정,생활 > 유아 > 놀이시설", Theme.PLAY, True),
+    ("문화,예술 > 문화시설 > 박물관", Theme.EXHIBITION, True),
+    ("문화,예술 > 문화시설 > 전시관", Theme.EXHIBITION, True),
+    ("문화,예술 > 문화시설 > 과학관", Theme.EXHIBITION, True),
+    ("문화,예술 > 문화시설 > 미술관", Theme.EXHIBITION, True),
+    ("문화,예술 > 문화시설 > 도서관", Theme.EXHIBITION, True),
+    ("문화,예술 > 문화시설 > 아쿠아리움", Theme.NATURE, True),
+    ("여행 > 관광,명소 > 테마파크", Theme.PLAY, False),
+    ("여행 > 관광,명소 > 동물원", Theme.NATURE, False),
+    ("여행 > 관광,명소 > 아쿠아리움", Theme.NATURE, True),
+    ("여행 > 관광,명소 > 수목원,식물원", Theme.NATURE, False),
+    ("여행 > 공원", Theme.NATURE, False),
+    ("여행 > 관광,명소", Theme.NATURE, False),
+]
+
 
 def tour_theme(place: TourPlace) -> Theme | None:
     for prefix, theme in _TOUR_THEMES:
@@ -58,3 +75,11 @@ def restaurant_is_suitable(place: KakaoPlace) -> bool:
 
 def cafe_is_suitable(place: KakaoPlace) -> bool:
     return not any(w in place.category for w in ("스터디카페", "보드게임", "만화카페", "룸카페"))
+
+
+def kakao_outing_kind(place: KakaoPlace) -> tuple[Theme, bool] | None:
+    """카카오 장소가 나들이 장소이면 (테마, 실내 여부)."""
+    for prefix, theme, indoor in _KAKAO_OUTING_CATEGORIES:
+        if place.category.startswith(prefix):
+            return theme, indoor
+    return None
