@@ -1,5 +1,6 @@
 package io.github.haeyeonyou.familytrip.ui
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.haeyeonyou.familytrip.AppContainer
@@ -9,6 +10,7 @@ import io.github.haeyeonyou.familytrip.data.CourseRequest
 import io.github.haeyeonyou.familytrip.data.CourseResponse
 import io.github.haeyeonyou.familytrip.data.LatLng
 import io.github.haeyeonyou.familytrip.data.ParseRequest
+import io.github.haeyeonyou.familytrip.data.PendingPreset
 import io.github.haeyeonyou.familytrip.data.SavedCourse
 import io.github.haeyeonyou.familytrip.data.ScheduleRequest
 import io.github.haeyeonyou.familytrip.data.ScheduleStop
@@ -38,8 +40,14 @@ data class TripUiState(
     val message: String? = null,
     /** 한 번 등록한 가족 정보. 없으면 등록을 권한다. */
     val profile: FamilyProfile? = null,
+    /** 폰에서 보내 아직 적용하지 않은 공조 프리셋 (#62) */
+    val pendingPreset: PendingPreset? = null,
+    /** 프리셋 적용 결과 문구 */
+    val presetMessage: String? = null,
+    val applyingPreset: Boolean = false,
 )
 
+private const val TAG = "TripViewModel"
 private const val MIN_STAY_MINUTES = 10
 private const val MAX_STAY_MINUTES = 300
 
@@ -50,6 +58,41 @@ class TripViewModel(private val container: AppContainer) : ViewModel() {
 
     val vehicle = container.vehicle.state
     val guide = container.guide.state
+
+    init {
+        checkPendingPreset()
+    }
+
+    /** 로그인한 계정으로 폰에서 보낸 프리셋이 있는지 본다 (앱 시작, 로그인 직후). */
+    fun checkPendingPreset() {
+        if (container.account.token == null) return
+        viewModelScope.launch {
+            runCatching { container.api.pendingPreset() }
+                .onSuccess { res -> _state.update { it.copy(pendingPreset = res.body().takeIf { res.isSuccessful }) } }
+                .onFailure { e -> Log.w(TAG, "pending preset check failed", e) }
+        }
+    }
+
+    /** 받은 프리셋을 차 공조에 적용하고 서버에 적용 완료로 알린다. */
+    fun applyPreset() {
+        val preset = _state.value.pendingPreset ?: return
+        viewModelScope.launch {
+            _state.update { it.copy(applyingPreset = true) }
+            val result = container.vehicle.applyClimate(preset.settings)
+            runCatching { container.api.presetApplied(preset.id) }
+            val message = buildString {
+                if (result.applied.isNotEmpty()) append("적용했어요: ${result.applied.joinToString()}")
+                if (result.failed.isNotEmpty()) {
+                    if (isNotEmpty()) append("\n")
+                    append("이 차에서 바꾸지 못한 항목: ${result.failed.joinToString()}")
+                }
+            }
+            _state.update { it.copy(pendingPreset = null, applyingPreset = false, presetMessage = message) }
+        }
+    }
+
+    /** 이번에는 적용하지 않는다. 서버에는 그대로 남아 다음에 앱을 켜면 다시 보인다. */
+    fun dismissPreset() = _state.update { it.copy(pendingPreset = null, presetMessage = null) }
 
     fun onRequestTextChange(text: String) = _state.update { it.copy(requestText = text) }
 

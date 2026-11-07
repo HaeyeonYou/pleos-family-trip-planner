@@ -134,6 +134,7 @@ class MainActivity : ComponentActivity() {
                                 isParked = vehicle.isParked,
                                 onLoggedIn = {
                                     container.account.save(it)
+                                    vm.checkPendingPreset()
                                     goHome()
                                 },
                                 onSkip = {
@@ -164,6 +165,8 @@ class MainActivity : ComponentActivity() {
                                 onEditProfile = { nav.navigate(Routes.PROFILE) },
                                 onUseProfile = vm::conditionsFromProfile,
                                 onShowRecord = { nav.navigate(Routes.EXPERIENCE) },
+                                onApplyPreset = vm::applyPreset,
+                                onDismissPreset = vm::dismissPreset,
                             )
                         }
                         composable(Routes.EXPERIENCE) {

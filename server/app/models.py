@@ -4,6 +4,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import ForeignKey, String
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base, utcnow
@@ -54,3 +55,16 @@ class CarLoginRequest(Base):
     user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), default=None)
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
     expires_at: Mapped[datetime]
+
+
+class ClimatePreset(Base):
+    """폰에서 보낸 공조 프리셋. 사용자마다 지금 보낸 것 하나를 두고, 차가 적용하면 applied_at을 채운다."""
+
+    __tablename__ = "climate_presets"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), unique=True)
+    # 설정 값은 app/presets.py의 ClimateSettings 모양 그대로 둔다 (항목이 늘어도 테이블은 그대로)
+    settings: Mapped[dict] = mapped_column(JSONB)
+    sent_at: Mapped[datetime] = mapped_column(default=utcnow)
+    applied_at: Mapped[datetime | None] = mapped_column(default=None)
