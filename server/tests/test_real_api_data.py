@@ -116,6 +116,8 @@ def test_course_with_real_data(client, conditions, origin):
     roles = [s["role"] for s in course["stops"]]
     assert "outing" in roles and roles[-1] == "home"
     assert course["route_source"] == "kakao", "카카오 길찾기 실패로 추정값 사용"
+    # 지도에 그릴 실제 도로 좌표가 온다 (장소 수보다 훨씬 많은 점)
+    assert len(course["path"]) > len(course["stops"]) * 3
 
     # 시간표는 출발 시각부터 앞으로만 흐른다
     times = [s["arrive_at"] for s in course["stops"]]
