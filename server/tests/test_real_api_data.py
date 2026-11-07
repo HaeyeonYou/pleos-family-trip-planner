@@ -129,6 +129,25 @@ def test_course_with_real_data(client, conditions, origin):
         assert place["name"] != outing["place"]["name"]
 
 
+def test_schedule_after_swapping_outing_with_real_route(client):
+    """코스를 만든 뒤 나들이 장소를 교체 후보로 바꾸면 실제 길찾기로 시간표를 다시 계산한다."""
+    req = {"conditions": {"child_ages": [4]}, "origin": {"latitude": GANGNAM[0], "longitude": GANGNAM[1]}, "departure_time": "10:30"}
+    course = client.post("/course", json=req).json()
+    alternatives = course["alternatives"].get("outing", [])
+    assert alternatives, "나들이 교체 후보가 없음"
+    stops = [{"role": s["role"], "place": s["place"]} for s in course["stops"] if s["role"] != "home"]
+    i = next(i for i, s in enumerate(stops) if s["role"] == "outing")
+    stops[i]["place"] = alternatives[0]
+
+    res = client.post("/course/schedule", json={**req, "departure_time": course["departure_at"], "stops": stops})
+    assert res.status_code == 200, res.text
+    new = res.json()
+    assert new["route_source"] == "kakao"
+    assert [s["place"]["name"] for s in new["stops"][:-1]] == [s["place"]["name"] for s in stops]
+    times = [s["arrive_at"] for s in new["stops"]]
+    assert times == sorted(times) and times[0] >= "10:30"
+
+
 def test_parse_endpoint_rule(client):
     res = client.post("/parse", json={"text": "공룡 좋아하는 5살, 수유실 있는 곳, 6시 전 귀가"})
     assert res.status_code == 200
