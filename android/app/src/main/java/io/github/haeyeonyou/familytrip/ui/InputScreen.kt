@@ -145,6 +145,15 @@ private fun ConditionsEditor(
                 }
             }
         }
+        // 가족 정보의 '반려견도 함께'가 기본값이고, 오늘 데려가지 않으면 여기서 끈다.
+        Label("반려견 함께") {
+            Switch(
+                checked = c.withPet,
+                onCheckedChange = { v ->
+                    onChange { it.copy(withPet = v, themes = if (v) it.themes else it.themes - "pet") }
+                },
+            )
+        }
         Label("실내만") {
             Switch(checked = c.indoorOnly, onCheckedChange = { v -> onChange { it.copy(indoorOnly = v) } })
         }
