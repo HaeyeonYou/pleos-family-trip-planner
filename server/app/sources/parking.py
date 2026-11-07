@@ -54,7 +54,7 @@ def fee_summary(lot: ParkingLot) -> str:
     if lot.fee_type == "무료":
         return "무료"
     parts: list[str] = []
-    if lot.base_minutes:
+    if lot.base_minutes and lot.base_fee is not None:  # 요금이 비어 있으면 '무료'로 단정하지 않는다
         parts.append(f"{lot.base_minutes}분 " + (f"{lot.base_fee:,}원" if lot.base_fee else "무료"))
     elif lot.base_fee:
         parts.append(f"기본 {lot.base_fee:,}원")
@@ -76,7 +76,9 @@ def hours_text(lot: ParkingLot, today: date) -> str:
     )[{5: 1, 6: 2}.get(today.weekday(), 0)]
     if not open_ or not close:
         return f"{label} 운영시간 정보 없음"
-    if open_ == "00:00" and close == "24:00":
+    if open_ == close:  # 00:00~00:00 처럼 시작=끝이면 값이 채워지지 않은 것
+        return f"{label} 운영시간 정보 없음"
+    if (open_, close) in (("00:00", "24:00"), ("00:00", "23:59")):
         return f"{label} 24시간"
     return f"{label} {open_}~{close}"
 
