@@ -90,10 +90,10 @@ fun CareScreen(
 
         Text("급한 케어 찾기", fontSize = 26.sp, fontWeight = FontWeight.Bold)
         if (narrow) {
-            CareKind.entries.forEach { UrgentCard(it, care.nearby[it], actions, Modifier.fillMaxWidth()) }
+            CareKind.cards.forEach { UrgentCard(it, care.nearby[it], actions, Modifier.fillMaxWidth()) }
         } else {
             Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-                CareKind.entries.forEach { UrgentCard(it, care.nearby[it], actions, Modifier.weight(1f)) }
+                CareKind.cards.forEach { UrgentCard(it, care.nearby[it], actions, Modifier.weight(1f)) }
             }
         }
         care.waypointMessage?.let { Text(it, fontSize = 20.sp, color = MaterialTheme.colorScheme.primary) }
@@ -185,7 +185,7 @@ private fun UrgentCard(kind: CareKind, result: Nearby?, actions: CareActions, mo
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            IconBadge(when (kind) { CareKind.NURSING -> "🍼"; CareKind.DIAPER -> "☺"; CareKind.REST -> "P" })
+            IconBadge(when (kind) { CareKind.NURSING -> "🍼"; CareKind.DIAPER -> "☺"; CareKind.REST -> "P"; CareKind.RESTROOM -> "WC" })
             Column(modifier = Modifier.weight(1f)) {
                 Text(kind.label, fontSize = 24.sp, fontWeight = FontWeight.Bold)
                 Text(summary(result), fontSize = 18.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)

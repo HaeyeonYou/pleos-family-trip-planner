@@ -32,6 +32,9 @@ interface NaviRepository {
      * 돌려주는 값: 경유지로 넣었으면 true, 목적지로 시작했으면 false.
      */
     fun addWaypointOrRoute(place: Place): Boolean
+
+    /** 안내 중인 경로의 경유지를 모두 뺀다. 안내 중이 아니면 false. */
+    fun removeWaypoints(): Boolean
     fun refreshCurrentLocation()
 
     /** 내장 내비 화면을 앞으로 가져온다 (안내 중 지도를 보이게). */

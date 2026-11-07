@@ -23,11 +23,15 @@ sealed interface Utterance {
     /** "그대로 가기" — 아무것도 바꾸지 않고 닫기 */
     data object KeepGoing : Utterance
 
+    /** "응", "그래" — 되물은 동작을 실행 */
+    data object Confirm : Utterance
+
     data object Unknown : Utterance
 }
 
 private val CHOOSE = Regex("(1|2|3|일|이|삼|하나|둘|셋|첫|두)\\s?(번째|번)")
 private val CANCEL = listOf("아니야", "아니에요", "아냐", "취소", "그만", "됐어", "틀렸어")
+private val YES = setOf("응", "네", "예", "그래", "그래요", "좋아", "좋아요", "맞아", "맞아요", "해줘", "해주세요", "응응", "어")
 private val KEEP_GOING = listOf("그대로", "그냥가", "그냥 가", "괜찮아", "닫아")
 
 // 겹치는 말은 급한 쪽이 먼저: "애 쌌다 배고프다"면 기저귀를 먼저 챙긴다.
@@ -46,6 +50,7 @@ fun parseUtterance(text: String): Utterance {
     val raw = text.trim()
     if (raw.isEmpty()) return Utterance.Unknown
     val compact = raw.replace(" ", "")
+    if (compact in YES) return Utterance.Confirm
     if (CANCEL.any { compact.contains(it.replace(" ", "")) }) return Utterance.Cancel
     CHOOSE.find(raw.replace("  ", " "))?.let { m ->
         val n = when (m.groupValues[1]) {
@@ -63,4 +68,7 @@ fun parseUtterance(text: String): Utterance {
 }
 
 /** 화면에 보여 줄 문장 버튼 (운전 중에도 누를 수 있다). */
-val VOICE_SAMPLES = listOf("애 잔다", "애 쌌다", "애 배고프다", "애 운다")
+val VOICE_SAMPLES = listOf(
+    "애 잔다", "애 쌌다", "애 배고프다", "애 운다",
+    "너무 더워", "기저귀 갈 데 어디 있어?", "방금 수유했어", "언제 도착해?", "반려견 빼고 다시 추천해줘", "홈으로 가줘",
+)

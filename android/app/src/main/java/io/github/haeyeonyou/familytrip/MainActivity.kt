@@ -14,7 +14,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.foundation.layout.Column
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -48,6 +50,12 @@ import io.github.haeyeonyou.familytrip.ui.NotificationOffBanner
 import io.github.haeyeonyou.familytrip.ui.ProfileScreen
 import io.github.haeyeonyou.familytrip.ui.TripViewModel
 import io.github.haeyeonyou.familytrip.ui.VoicePanel
+import io.github.haeyeonyou.familytrip.data.VoiceScreen
+import io.github.haeyeonyou.familytrip.voice.VoiceFilter
+import io.github.haeyeonyou.familytrip.voice.VoiceHost
+import io.github.haeyeonyou.familytrip.voice.VoiceTab
+import io.github.haeyeonyou.familytrip.voice.etaText
+import io.github.haeyeonyou.familytrip.voice.weatherText
 import kotlinx.coroutines.launch
 
 private object Routes {
@@ -177,6 +185,80 @@ class MainActivity : ComponentActivity() {
                     }
 
                     val voice by container.voice.state.collectAsStateWithLifecycle()
+                    // 음성 명령이 화면 기능(탭 이동·코스 조건 등)을 부르는 통로
+                    val latestState by rememberUpdatedState(state)
+                    val latestVehicle by rememberUpdatedState(vehicle)
+                    val latestGuide by rememberUpdatedState(guide)
+                    val latestRoute by rememberUpdatedState(route ?: start)
+                    DisposableEffect(vm, nav) {
+                        container.voice.host = object : VoiceHost {
+                            override val driving get() = !latestVehicle.isParked
+
+                            override fun screen() = VoiceScreen(
+                                tab = when (tabOf(latestRoute)) {
+                                    MainTab.CARE -> "care"
+                                    MainTab.GROW -> "grow"
+                                    MainTab.SETTINGS -> "settings"
+                                    else -> "home"
+                                },
+                                hasCourse = latestState.course != null,
+                                guiding = latestGuide.active,
+                                babyCare = container.care.state.value.babyCare,
+                                sleepMode = container.care.state.value.sleepMode,
+                                childMonths = latestState.profile?.ageMonths()?.minOrNull(),
+                                hasHomeOptions = latestState.options.isNotEmpty(),
+                            )
+
+                            override fun goTab(tab: VoiceTab) = openTab(
+                                when (tab) {
+                                    VoiceTab.HOME -> MainTab.HOME
+                                    VoiceTab.CARE -> MainTab.CARE
+                                    VoiceTab.GROW -> MainTab.GROW
+                                    VoiceTab.SETTINGS -> MainTab.SETTINGS
+                                },
+                            )
+
+                            override fun setFilter(filter: VoiceFilter, on: Boolean) {
+                                openTab(MainTab.HOME)
+                                vm.toggleFilter {
+                                    when (filter) {
+                                        VoiceFilter.PET -> it.copy(pet = on)
+                                        VoiceFilter.INDOOR -> it.copy(indoor = on)
+                                        VoiceFilter.NURSING_ROOM -> it.copy(nursingRoom = on)
+                                        VoiceFilter.STROLLER -> it.copy(stroller = on)
+                                        VoiceFilter.KIDS_MENU -> it.copy(kidsMenu = on)
+                                        VoiceFilter.PLAYROOM -> it.copy(playroom = on)
+                                        VoiceFilter.PARKING -> it.copy(parking = on)
+                                    }
+                                }
+                            }
+
+                            override fun anotherCourses() {
+                                openTab(MainTab.HOME)
+                                vm.anotherOptions()
+                            }
+
+                            override fun openCourse(number: Int): Boolean {
+                                val option = latestState.options.getOrNull(number - 1) ?: return false
+                                vm.openOption(option)
+                                nav.navigate(Routes.COURSE)
+                                return true
+                            }
+
+                            override fun startCourse(): Boolean {
+                                if (latestState.course == null) return false
+                                vm.startGuide()
+                                nav.navigate(Routes.GUIDE)
+                                return true
+                            }
+
+                            override fun etaAnswer(): String = etaText(container.navi.state.value, latestGuide)
+
+                            override fun weatherAnswer(): String = weatherText(latestState.weather)
+                        }
+                        onDispose { container.voice.host = null }
+                    }
+
                     AppShell(tab = tabOf(route ?: start), onTab = ::openTab, onMic = ::onMicClick) {
                     Box(modifier = Modifier.fillMaxSize()) {
                     NavHost(navController = nav, startDestination = start) {
@@ -258,7 +340,7 @@ class MainActivity : ComponentActivity() {
                                     onEnter = {
                                         care.reloadFeeding()
                                         care.refreshClimate()
-                                        scope.launch { CareKind.entries.forEach { care.findNearby(it) } }
+                                        scope.launch { CareKind.cards.forEach { care.findNearby(it) } }
                                     },
                                 ),
                             )

@@ -143,6 +143,13 @@ class PleosNaviRepository(context: Context) : NaviRepository {
     private var pendingDestination: Place? = null
     private var pendingAt = 0L
 
+    override fun removeWaypoints(): Boolean {
+        if (!_state.value.routing) return false
+        log("경유지 모두 빼기")
+        naviHelper.removeWaypoint(WaypointIndex.ALL)
+        return true
+    }
+
     override fun addWaypointOrRoute(place: Place): Boolean {
         if (!navReady) {
             // 내비 앱이 막 켜지는 중이라 지금 보내면 사라진다. 준비되면 보낸다.
