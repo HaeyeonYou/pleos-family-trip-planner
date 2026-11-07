@@ -2,6 +2,7 @@ package io.github.haeyeonyou.familytrip
 
 import android.app.Application
 import android.content.pm.PackageManager
+import io.github.haeyeonyou.familytrip.data.AccountStore
 import io.github.haeyeonyou.familytrip.data.CourseStore
 import io.github.haeyeonyou.familytrip.data.ProfileStore
 import io.github.haeyeonyou.familytrip.data.TripApi
@@ -27,7 +28,8 @@ class AppContainer(private val app: Application) {
     val vehicle: VehicleRepository = PleosVehicleRepository(app)
     val navi: NaviRepository = PleosNaviRepository(app)
     val location: LocationRepository = PleosLocationRepository(app)
-    val api: TripApi = TripApi.create()
+    val account = AccountStore(app)
+    val api: TripApi = TripApi.create(token = { account.token })
     val courses = CourseStore(app)
     val profile = ProfileStore(app)
     val visits = VisitStore(app)
