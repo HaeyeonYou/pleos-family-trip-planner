@@ -7,6 +7,7 @@
 """
 
 import re
+from datetime import date, datetime
 
 import httpx
 import httpx2
@@ -15,16 +16,17 @@ from fastapi.testclient import TestClient
 
 from app.config import get_settings
 from app.course import classify
-from app.course.planner import CoursePlanner
+from app.course.planner import KST, CoursePlanner
 from app.main import app, get_planner
 from app.parsing.claude import ClaudeParser
-from app.schemas import Theme
+from app.schemas import LatLng, Theme, TripConditions
 from app.sources.kakao import CATEGORY_CAFE, CATEGORY_RESTAURANT, KakaoClient
 from app.sources.tour import CONTENT_TYPE_ATTRACTION, PET, TourApiClient
 from tests.api_cache import caching_transport
 
 GANGNAM = (37.4979, 127.0276)
 SUWON = (37.2636, 127.0286)
+FIXED_NOW = datetime(2026, 11, 8, 10, 0, tzinfo=KST)  # 행사 저장본과 날짜를 맞춘다
 HHMM = re.compile(r"^\d{2}:\d{2}$")
 
 settings = get_settings()
@@ -49,7 +51,7 @@ def kakao() -> KakaoClient:
 
 @pytest.fixture(scope="module")
 def client(tour, kakao):
-    app.dependency_overrides[get_planner] = lambda: CoursePlanner(tour, kakao)
+    app.dependency_overrides[get_planner] = lambda: CoursePlanner(tour, kakao, now=FIXED_NOW)
     yield TestClient(app)
     app.dependency_overrides.clear()
 
@@ -192,3 +194,28 @@ def test_claude_parses_free_sentence_into_structured_conditions():
     assert c.max_drive_minutes == 40
     assert c.has_infant()  # 18개월
     assert any("로봇" in w or "과학" in w for w in c.interests)
+
+
+def test_festivals_are_real_and_current(tour):
+    today = date(2026, 11, 8)
+    events = tour.festivals(today, GANGNAM[0], GANGNAM[1], 20_000)
+    assert events, "수도권 반경 20km에 오늘 열리는 행사가 없음"
+    for e in events:
+        assert e.event_start <= "20261108" <= e.event_end and e.distance_m <= 20_000
+        assert (datetime.strptime(e.event_end, "%Y%m%d") - datetime.strptime(e.event_start, "%Y%m%d")).days <= 120
+    assert [e.distance_m for e in events] == sorted(e.distance_m for e in events)
+
+
+def test_leisure_candidates_keep_only_kid_friendly_kinds(tour):
+    places = tour.nearby(GANGNAM[0], GANGNAM[1], 20_000, content_type_id=28)
+    kept = [p for p in places if classify.leisure_kind(p)]
+    assert kept and all(p.cat3 in ("A03020400", "A03021300", "A03021200", "A03030700", "A03050100") for p in kept)
+    assert not any("슈터스" in p.title for p in kept)  # 사격장
+
+
+def test_course_includes_festival_candidates(tour, kakao):
+    planner = CoursePlanner(tour, kakao, now=FIXED_NOW)
+    outings = planner._rank_outings(LatLng(latitude=GANGNAM[0], longitude=GANGNAM[1]), TripConditions(), [], FIXED_NOW.date())
+    festivals = [c for c in outings if c.festival]
+    assert festivals and all(c.place.event_period for c in festivals)
+    assert festivals[0].score > min(c.score for c in outings if not c.festival)  # 축제 가점
