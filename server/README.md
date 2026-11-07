@@ -4,10 +4,29 @@
 ```bash
 cd server
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-.venv/bin/uvicorn app.main:app --reload
+.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 --no-access-log
 ```
 - 키는 저장소 루트 `.env`에서 읽습니다 (`.env.example` 참고).
 - 에뮬레이터에서는 `http://10.0.2.2:8000`으로 접속합니다.
+
+## 로그
+서버를 실행한 터미널에 요청마다 아래처럼 남습니다. 더 자세히 보려면 `LOG_LEVEL=DEBUG`.
+```
+17:11:45 INFO  app          | [a2a2d6] → POST /course
+17:11:45 INFO  app          | 코스 요청: 아이 5살 · 관심 공룡 · 반려견 · 18시 귀가 · 출발 37.413,127.095
+17:11:45 INFO  api.tour     | GET /B551011/KorPetTourService2/locationBasedList2 → 200 (196ms)
+17:11:45 INFO  course       | 나들이 후보 1곳, 상위: 성남 중앙공원(-0.4, 4.3km)
+17:11:45 INFO  api.cache    | 카카오 장소검색 저장본 사용 (1분 전 호출)
+17:11:46 INFO  course       | 코스: 17:20 출발 스시이케도(17:37) → 성남 중앙공원(18:43) → 귀가(20:59), 이동 39분, 길찾기=kakao ⚠ ...
+17:11:46 INFO  app          | [a2a2d6] ← 200 /course (778ms)
+```
+| 이름 | 내용 |
+|---|---|
+| `app` | 요청 시작·끝(같은 요청은 같은 id), 받은 조건 요약 (원문 문장은 남기지 않음) |
+| `course` | 나들이 후보 수와 상위 3곳 점수·거리, 근처 식당·카페 수, 고른 코스와 경고 |
+| `api.tour` `api.kakao` | 외부 API 경로·상태·걸린 시간 (API 키는 남기지 않음) |
+| `api.cache` | 메모리에 저장해 둔 응답을 다시 쓴 경우 (한도 절약 확인용) |
+| `app.parsing.claude` | Claude 해석 시간과 토큰 수, 실패 시 규칙 기반 대체 |
 
 ## API
 | 경로 | 설명 |

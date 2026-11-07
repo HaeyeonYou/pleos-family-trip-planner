@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 import httpx
 
+from app.logs import api_log_hooks
 from app.sources.cache import TtlCache
 
 BASE_URL = "https://apis.data.go.kr/B551011"
@@ -41,9 +42,9 @@ class TourPlace:
 class TourApiClient:
     def __init__(self, service_key: str, http: httpx.Client | None = None):
         self._key = service_key
-        self._http = http or httpx.Client(timeout=10)
-        self._list_cache = TtlCache(ttl_seconds=6 * 3600)
-        self._amenity_cache = TtlCache(ttl_seconds=24 * 3600)
+        self._http = http or httpx.Client(timeout=10, event_hooks=api_log_hooks("tour"))
+        self._list_cache = TtlCache(ttl_seconds=6 * 3600, name="TourAPI 목록")
+        self._amenity_cache = TtlCache(ttl_seconds=24 * 3600, name="TourAPI 편의정보")
 
     def nearby(
         self,

@@ -1,16 +1,53 @@
+import logging
+import time
+import uuid
 from functools import lru_cache
 
 import httpx
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request
 
 from app.config import Settings, get_settings
+from app.logs import setup_logging
 from app.course.planner import CoursePlanner, NoCourseError
 from app.parsing import get_parser
 from app.schemas import CourseRequest, CourseResponse, ParseRequest, ParseResponse, ScheduleRequest
 from app.sources.kakao import KakaoClient
 from app.sources.tour import TourApiClient
 
+setup_logging()
+log = logging.getLogger("app")
+
 app = FastAPI(title="오늘, 어디 가지? API", version="0.1.0")
+
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    """요청마다 한 줄. 같은 요청의 다른 로그와 맞춰 보도록 짧은 id를 붙인다."""
+    rid = uuid.uuid4().hex[:6]
+    started = time.perf_counter()
+    log.info("[%s] → %s %s", rid, request.method, request.url.path)
+    response = await call_next(request)
+    log.info("[%s] ← %s %s (%.0fms)", rid, response.status_code, request.url.path, (time.perf_counter() - started) * 1000)
+    return response
+
+
+def _conditions_summary(c) -> str:
+    """로그용 조건 요약. 원문 문장은 남기지 않는다."""
+    parts = []
+    if c.child_age_months:
+        parts.append("아이 " + ",".join(f"{m}개월" for m in c.child_age_months))
+    elif c.child_ages:
+        parts.append("아이 " + ",".join(f"{a}살" for a in c.child_ages))
+    for name, value in (("테마", c.themes), ("편의", c.needs), ("관심", c.interests)):
+        if value:
+            parts.append(f"{name} " + ",".join(getattr(v, "value", v) for v in value))
+    if c.with_pet:
+        parts.append("반려견")
+    if c.indoor_only:
+        parts.append("실내만")
+    if c.return_by_hour is not None:
+        parts.append(f"{c.return_by_hour}시 귀가")
+    return " · ".join(parts) or "조건 없음"
 
 
 @app.get("/health")
@@ -31,7 +68,9 @@ def health(settings: Settings = Depends(get_settings)) -> dict:
 @app.post("/parse", response_model=ParseResponse)
 def parse(req: ParseRequest, settings: Settings = Depends(get_settings)) -> ParseResponse:
     parser = get_parser(settings)
-    return ParseResponse(conditions=parser.parse(req.text), parser=parser.name)
+    conditions = parser.parse(req.text)
+    log.info("해석(%s, %d자): %s", parser.name, len(req.text), _conditions_summary(conditions))
+    return ParseResponse(conditions=conditions, parser=parser.name)
 
 
 @lru_cache
@@ -49,20 +88,24 @@ def get_planner(settings: Settings = Depends(get_settings)) -> CoursePlanner:
 
 @app.post("/course", response_model=CourseResponse)
 def course(req: CourseRequest, planner: CoursePlanner = Depends(get_planner)) -> CourseResponse:
+    log.info("코스 요청: %s · 출발 %.3f,%.3f", _conditions_summary(req.conditions), req.origin.latitude, req.origin.longitude)
     try:
         return planner.plan(req)
     except NoCourseError as e:
         raise HTTPException(404, str(e)) from e
     except httpx.HTTPError as e:
+        log.warning("외부 API 오류: %r", e)
         raise HTTPException(502, f"외부 API 오류: {type(e).__name__}") from e
 
 
 @app.post("/course/schedule", response_model=CourseResponse)
 def schedule(req: ScheduleRequest, planner: CoursePlanner = Depends(get_planner)) -> CourseResponse:
     """장소를 바꾸거나 순서를 고친 코스의 시간표를 다시 계산한다."""
+    log.info("재계산 요청: 장소 %d곳, 근처 후보=%s", len(req.stops), req.suggest_nearby)
     try:
         return planner.reschedule(req)
     except NoCourseError as e:
         raise HTTPException(404, str(e)) from e
     except httpx.HTTPError as e:
+        log.warning("외부 API 오류: %r", e)
         raise HTTPException(502, f"외부 API 오류: {type(e).__name__}") from e
