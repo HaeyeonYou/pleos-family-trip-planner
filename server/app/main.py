@@ -6,7 +6,7 @@ from fastapi import Depends, FastAPI, HTTPException
 from app.config import Settings, get_settings
 from app.course.planner import CoursePlanner, NoCourseError
 from app.parsing import get_parser
-from app.schemas import CourseRequest, CourseResponse, ParseRequest, ParseResponse
+from app.schemas import CourseRequest, CourseResponse, ParseRequest, ParseResponse, ScheduleRequest
 from app.sources.kakao import KakaoClient
 from app.sources.tour import TourApiClient
 
@@ -51,6 +51,17 @@ def get_planner(settings: Settings = Depends(get_settings)) -> CoursePlanner:
 def course(req: CourseRequest, planner: CoursePlanner = Depends(get_planner)) -> CourseResponse:
     try:
         return planner.plan(req)
+    except NoCourseError as e:
+        raise HTTPException(404, str(e)) from e
+    except httpx.HTTPError as e:
+        raise HTTPException(502, f"외부 API 오류: {type(e).__name__}") from e
+
+
+@app.post("/course/schedule", response_model=CourseResponse)
+def schedule(req: ScheduleRequest, planner: CoursePlanner = Depends(get_planner)) -> CourseResponse:
+    """장소를 바꾸거나 순서를 고친 코스의 시간표를 다시 계산한다."""
+    try:
+        return planner.reschedule(req)
     except NoCourseError as e:
         raise HTTPException(404, str(e)) from e
     except httpx.HTTPError as e:

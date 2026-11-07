@@ -15,6 +15,7 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 | `GET /health` | 상태, 설정된 키 여부 |
 | `POST /parse` | 자연어 → `TripConditions` |
 | `POST /course` | 조건 + 출발지 → 식사·나들이·카페·귀가 코스와 시간표 |
+| `POST /course/schedule` | 장소를 바꾸거나 순서를 고친 코스(`stops`) → 이동 시간·시간표 재계산 (장소는 다시 찾지 않음) |
 
 `/course` 요청 예:
 ```json

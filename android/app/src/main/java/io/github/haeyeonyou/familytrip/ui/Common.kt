@@ -50,7 +50,8 @@ fun BigOutlinedButton(text: String, onClick: () -> Unit, modifier: Modifier = Mo
 }
 
 /**
- * 주행 중이면 화면 위에 안내 띠를 띄운다. 조수석에서 조작할 수 있으므로 기능은 막지 않는다.
+ * 주행 중이면 화면 위에 안내 띠를 띄운다. 조수석에서 조작할 수 있으므로 버튼은 막지 않고,
+ * 키보드 입력만 각 화면에서 막는다.
  */
 @Composable
 fun DrivingAware(isParked: Boolean, content: @Composable () -> Unit) {

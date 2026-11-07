@@ -89,7 +89,23 @@ class CourseRequest(BaseModel):
     departure_time: str | None = Field(None, pattern=r"^\d{2}:\d{2}$", description="출발 시각 HH:MM. 없으면 지금")
 
 
+class ScheduleStop(BaseModel):
+    role: StopRole
+    place: Place
+
+
+class ScheduleRequest(BaseModel):
+    """장소를 바꾼 코스의 시간표만 다시 계산한다. 장소는 다시 찾지 않는다."""
+
+    conditions: TripConditions
+    origin: LatLng
+    home: LatLng | None = Field(None, description="귀가 지점. 없으면 출발지")
+    departure_time: str | None = Field(None, pattern=r"^\d{2}:\d{2}$", description="출발 시각 HH:MM. 없으면 지금")
+    stops: list[ScheduleStop] = Field(..., min_length=1, description="귀가를 뺀 방문 순서")
+
+
 class CourseResponse(BaseModel):
+    departure_at: str = Field("", description="출발 시각 HH:MM")
     stops: list[Stop]
     total_drive_minutes: int
     return_at: str
