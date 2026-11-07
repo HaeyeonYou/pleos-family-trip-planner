@@ -455,3 +455,14 @@
 - 근거: 내비 앱(`/system_ext/priv-app/Navi42/Navi42.apk`, 3.3.2-rc5-hotfix.3)의 `SimulationUseCase`, `LocationSourceId`(VEHICLE_LOCATION·GPS_LOCATION·LOCATION_SIMULATOR 등), 메인 화면 `combinedClickable`의 onLongClick. APK는 호스트의 AVD `system.img`(super → system_ext ext4)에서 꺼내 확인했다.
 - NMEA 재확인: 에뮬레이터가 GGA·RMC를 직접 만들어 `*47`을 붙인다 (`geo nmea`로 넣은 문장도 다시 만들어짐). RMC는 숫자만 바꿔서는 체크섬이 0x47이 될 수 없고 음수 속도('-')가 있어야 한다. GGA·RMC 둘 다 맞춰도 내비 엔진 map-matching 입력(`org(...)`, `sat(0)`)은 시흥동 그대로였다.
 - 주의: 앱 프로세스가 얼려진(frozen) 동안 NaviHelper 콜백이 전달되지 못하면, 그 뒤로 해당 프로세스의 리스너가 이벤트를 받지 못했다 (앱 재시작으로 복구). 안내 중에는 포그라운드 서비스로 얼림을 막아야 한다.
+
+## Pleos 계정 로그인 조사 (2026-11-07)
+
+- 공식 문서(개발 가이드, SDK 목록: Vehicle·NaviHelper·TTS·STT·FusedLocation, Gleo Interface)에는 서드파티 앱용 **계정 로그인·사용자 식별 API가 없다**.
+- Pleos Maven 저장소에 문서에 없는 `ai.pleos.playground.security:universal-access:0.6.0`이 있다.
+  - `UniversalAccess.create(InitSettings(appId, appKey, appName, appCode, appDeveloperIdentity))` → `initialize()` → `getToken()`이 **앱 인증 토큰**(`Token.access` 문자열 하나)을 준다. 환경: LOCAL·INT·STAGE·REAL·CORAL.
+  - **사용자 프로필(`getUserProfile`)과 외부 ID 로그인(`openIdpAuthentication`, OIDC)은 소스에서 주석 처리**되어 있어 지금은 쓸 수 없다.
+  - appId·appKey는 Pleos가 발급해야 하므로(프로젝트 생성·SDK 신청) 우리는 시험하지 못했다.
+- 에뮬레이터의 `ai.pleos.connecttokensampleapp`은 계정이 아니라 **디자인 토큰(테마) 샘플**이다.
+- 차 상태바에 프로필 선택기가 있지만, 앱이 현재 운전자 프로필을 읽는 API는 문서에 없다.
+- 결론: 지금은 Pleos 계정으로 로그인할 수 없다. 공모전 Q&A로 사용 가능 여부를 문의하고, 회원 연결은 우리 서버 방식(QR 가족 연결 등)으로 설계하되 나중에 Pleos 계정을 붙일 수 있게 둔다.
