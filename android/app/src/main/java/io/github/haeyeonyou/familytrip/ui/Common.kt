@@ -16,6 +16,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -33,6 +34,16 @@ val NEED_LABELS = mapOf(
     "kids_chair" to "유아 의자",
     "kids_zone" to "키즈존",
 )
+
+/** 세로 창으로 볼 폭. 앱 2개를 띄우면 창이 약 840dp가 된다 (가로 1개일 때 1682dp). */
+private const val NARROW_WINDOW_DP = 1200
+
+/**
+ * 화면 분할로 우리 앱이 세로 창이 됐는지. Pleos는 모든 앱이 가로·세로를 지원해야 한다 (Window Policy).
+ * 분할 창에서도 Configuration 폭은 창 폭이다.
+ */
+@Composable
+fun isNarrowWindow(): Boolean = LocalConfiguration.current.screenWidthDp < NARROW_WINDOW_DP
 
 /** 차량 화면 기준의 큰 버튼 (터치 영역 76dp 이상). */
 @Composable
