@@ -27,7 +27,7 @@ class TripConditions(BaseModel):
     max_drive_minutes: int | None = Field(None, description="편도 최대 이동 시간(분)")
     needs: list[str] = Field(
         default_factory=list,
-        description="육아 편의 조건: stroller, nursing_room, kids_chair, kids_zone",
+        description="육아 편의 조건: stroller, nursing_room, kids_chair, kids_zone, parking",
     )
     interests: list[str] = Field(
         default_factory=list,
@@ -86,7 +86,7 @@ class Place(BaseModel):
     source: str = Field(..., description="tour / kakao")
     source_id: str
     image_url: str = ""
-    amenities: dict[str, Amenity] = Field(default_factory=dict, description="stroller, nursing_room, kids_chair, pet(반려견 동반)")
+    amenities: dict[str, Amenity] = Field(default_factory=dict, description="stroller, nursing_room, kids_chair, kids_zone, parking, pet(반려견 동반)")
     amenity_notes: dict[str, str] = Field(default_factory=dict, description="편의 정보 원문")
     theme: Theme | None = Field(
         None,

@@ -26,7 +26,8 @@ def kakao(pid, name, category, dist=100.0):
 
 
 class FakeTour:
-    def __init__(self, places=None, pet_places=None, amenities=None):
+    def __init__(self, places=None, pet_places=None, amenities=None, parking=None):
+        self._parking = parking or {}
         self.places = places or {}
         self.pet_places = pet_places or []
         self._amenities = amenities or {}
@@ -36,6 +37,9 @@ class FakeTour:
         if service == PET:
             return self.pet_places
         return self.places.get(content_type_id, [])
+
+    def parking(self, content_id, content_type_id):
+        return self._parking.get(content_id, "")
 
     def amenities(self, content_id):
         self.amenity_calls += 1
