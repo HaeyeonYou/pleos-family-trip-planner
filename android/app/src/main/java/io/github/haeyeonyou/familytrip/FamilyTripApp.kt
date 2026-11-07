@@ -3,6 +3,7 @@ package io.github.haeyeonyou.familytrip
 import android.app.Application
 import android.content.pm.PackageManager
 import io.github.haeyeonyou.familytrip.data.CourseStore
+import io.github.haeyeonyou.familytrip.data.ProfileStore
 import io.github.haeyeonyou.familytrip.data.TripApi
 import io.github.haeyeonyou.familytrip.guide.GuideNotifier
 import io.github.haeyeonyou.familytrip.guide.GuideSession
@@ -27,6 +28,7 @@ class AppContainer(private val app: Application) {
     val location: LocationRepository = PleosLocationRepository(app)
     val api: TripApi = TripApi.create()
     val courses = CourseStore(app)
+    val profile = ProfileStore(app)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     val guide = GuideSession(app, navi, location, GuideNotifier(app), scope)
 

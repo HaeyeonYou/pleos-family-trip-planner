@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.InputChip
@@ -23,7 +24,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import io.github.haeyeonyou.familytrip.data.FamilyProfile
 import io.github.haeyeonyou.familytrip.data.TripConditions
+import io.github.haeyeonyou.familytrip.data.ageLabel
 
 private val EXAMPLES = listOf(
     "공룡 좋아하는 5살이랑 6시 전에 돌아올 수 있는 곳",
@@ -41,6 +44,8 @@ fun InputScreen(
     onConditionsChange: ((TripConditions) -> TripConditions) -> Unit,
     onMakeCourse: () -> Unit,
     onOpenDev: () -> Unit,
+    onEditProfile: () -> Unit,
+    onUseProfile: () -> Unit,
 ) = DrivingAware(isParked) {
     Column(
         modifier = Modifier.padding(40.dp).verticalScroll(rememberScrollState()),
@@ -50,6 +55,7 @@ fun InputScreen(
             Text("오늘, 어디 가지?", fontSize = 40.sp, modifier = Modifier.weight(1f))
             TextButton(onClick = onOpenDev) { Text("개발자 화면", fontSize = 18.sp) }
         }
+        FamilyCard(state.profile, onEdit = onEditProfile, onUse = onUseProfile)
         Text("오늘 나들이를 한 문장으로 알려 주세요", fontSize = 26.sp)
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
             // 주행 중에는 키보드 입력만 막는다 (운전자 주의분산). 예시 선택과 버튼은 그대로 쓸 수 있다.
@@ -96,7 +102,11 @@ private fun ConditionsEditor(
         )
         Label("아이") {
             Text(
-                if (c.childAges.isEmpty()) "나이 정보 없음" else c.childAges.joinToString { if (it == 0) "돌 전후" else "${it}살" },
+                when {
+                    c.childAgeMonths.isNotEmpty() -> c.childAgeMonths.joinToString { ageLabel(it) } + " (가족 정보)"
+                    c.childAges.isNotEmpty() -> c.childAges.joinToString { if (it == 0) "돌 전후" else "${it}살" }
+                    else -> "나이 정보 없음"
+                },
                 fontSize = 24.sp,
             )
         }
@@ -144,6 +154,34 @@ private fun ConditionsEditor(
                 Text(c.returnByHour?.let { "${it}시 전" } ?: "제한 없음", fontSize = 26.sp)
                 BigOutlinedButton("+", { onChange { it.copy(returnByHour = ((it.returnByHour ?: 17) + 1).coerceAtMost(22)) } })
             }
+        }
+    }
+}
+
+/** 등록한 가족 요약 (혜연 P01 가족 프로필 카드). 없으면 등록을 권한다. */
+@Composable
+private fun FamilyCard(profile: FamilyProfile?, onEdit: () -> Unit, onUse: () -> Unit) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.padding(24.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("우리 가족", fontSize = 22.sp, color = MaterialTheme.colorScheme.primary)
+                if (profile == null) {
+                    Text("가족 정보를 한 번 등록하면 매번 아이 나이를 말하지 않아도 돼요", fontSize = 22.sp)
+                } else {
+                    val parts = buildList {
+                        add("어른 ${profile.adults}명")
+                        if (profile.children.isEmpty()) add("아이 없음") else add("아이 " + profile.ageMonths().joinToString { ageLabel(it) })
+                        if (profile.petAlong) add("반려견 함께")
+                    }
+                    Text(parts.joinToString(" · "), fontSize = 24.sp)
+                }
+            }
+            if (profile != null) BigButton("이 가족으로 조건 만들기", onUse)
+            BigOutlinedButton(if (profile == null) "등록" else "수정", onEdit)
         }
     }
 }
