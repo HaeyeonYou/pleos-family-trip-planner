@@ -24,7 +24,7 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 | `parking_lots.sql` | CSV와 같은 내용. `BEGIN; INSERT ... ON CONFLICT (source, source_id) DO UPDATE SET ...; COMMIT;` |
 | `rejected.csv`, `README.md` | 좌표 누락 등으로 뺀 행과 이유, 출처·기준일·건수 |
 
-- 실제 파일은 `server/data/parking/`에 둡니다 (git 제외). 테스트용 **샘플**(실제 데이터 아님, `source=sample-std-parking`, 이름 앞 `[샘플]`)은 `server/tests/data/parking_sample.csv`.
+- 작업용 파일은 `server/data/parking/`에 둡니다 (git 제외). 실제 데이터 원본(csv.gz)은 `server/seed/`에 커밋해 두었습니다. 테스트용 **샘플**(실제 데이터 아님, `source=sample-std-parking`, 이름 앞 `[샘플]`)은 `server/tests/data/parking_sample.csv`.
 - 표는 `alembic upgrade head`로 만들어져 있어야 합니다. 열 값 규칙: `kind` 공영/민영, `lot_type` 노외/노상/부설, `fee_type` 무료/유료/혼합, 시간 `HH:MM`(`24:00` 가능), 날짜 `YYYY-MM-DD`, 좌표는 국내 범위. `(source, source_id)`가 같으면 덮어씁니다.
 
 ### 어느 쪽으로 넣나
@@ -47,7 +47,17 @@ cd server && .venv/bin/alembic upgrade head          # 표가 없으면 먼저
 psql -d pleos -v ON_ERROR_STOP=1 -f data/parking/parking_lots.sql
 psql -d pleos -c "SELECT count(*) FROM parking_lots"
 ```
-**NAS로 옮긴 뒤**: NAS의 PostgreSQL 17에 `createdb pleos` → NAS 서버 환경에서 `DATABASE_URL`을 NAS 주소로 하고 `alembic upgrade head` → 위 `psql -h <NAS 주소> -U <사용자> -d pleos -v ON_ERROR_STOP=1 -f parking_lots.sql`. 이미 로컬 DB에 적재했다면 `pg_dump --data-only -t parking_lots pleos > parking_lots_dump.sql`로 뽑아 같은 방식으로 넣어도 됩니다. SQL이 `ON CONFLICT`로 덮어쓰므로 여러 번 실행해도 건수가 늘지 않습니다.
+**NAS로 옮긴 뒤 (저장소에 실제 데이터 포함)**: 전국 17,147행(2026-11-08 수집, 출처·제외 사유는 `seed/parking_lots_README.md`)을 `server/seed/parking_lots.csv.gz`(약 1MB)로 저장소에 넣어 두었습니다. `git clone` 후 이 파일만 풀어 스크립트로 넣으면 되고, 데이터를 따로 복사할 필요가 없습니다.
+```bash
+cd server
+gunzip -k -c seed/parking_lots.csv.gz > data/parking/parking_lots.csv
+.venv/bin/alembic upgrade head          # NAS DB에 표 만들기 (DATABASE_URL을 NAS 주소로)
+.venv/bin/python scripts/load_parking.py data/parking/parking_lots.csv
+```
+- `pg_dump --data-only`로 옮기는 방법은 권하지 않습니다. `id` 시퀀스가 따라오지 않아 이후 적재 때 `id`가 겹칠 수 있습니다.
+- 데이터를 새로 받으면(다른 에이전트가 갱신) 같은 이름으로 `seed/parking_lots.csv.gz`를 바꿔 커밋하고, 위 적재 명령을 다시 실행하면 덮어쓰기됩니다.
+
+**DataGrip으로 넣을 때**: `parking_lots.csv`는 표 우클릭 → Import Data from File(`id`, `created_at`, `updated_at`은 매핑 제외)로, `parking_lots.sql`은 파일 우클릭 → Run으로 실행합니다. SQL 파일을 Import에 쓰면 `BEGIN;`이 데이터로 읽혀 오류가 납니다. Import는 `ON CONFLICT`가 없어 두 번 넣으면 중복 오류가 나므로, 다시 넣을 때는 먼저 `TRUNCATE parking_lots RESTART IDENTITY;`를 하거나 스크립트를 쓰세요.
 
 ### 근처 조회
 `GET /places/parking?lat=&lng=&radius_m=1000&limit=5` (`radius_m` 100~20000, `limit` 1~30). 가까운 순 목록:
