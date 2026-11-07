@@ -127,6 +127,13 @@ lots = await parking.nearby(db, stop.latitude, stop.longitude, radius_m=800, lim
 | `CLAUDE_MODEL` | `claude-haiku-5-5`(기본) | |
 | `DEMO_MODE` | `false`(기본) | 외부 API 대신 고정 데이터 응답 (PT 대비) |
 
+## 공공데이터 사전 적재
+어린이놀이시설·문화시설(박물관·미술관·도서관)은 `server/data/*.json`에 미리 받아 둔 것을 씁니다. 다시 받으려면:
+```bash
+cd server && .venv/bin/python -m scripts.load_public_data   # 문화시설은 호출을 천천히 해서 약 4분
+```
+인증키는 `.env`의 `DATA_GO_KR_KEY`이고, 데이터셋마다 공공데이터포털 활용신청 승인이 필요합니다. 자세한 내용은 `docs/research/course-data-sources.md`.
+
 ## 사용자 문장의 외부 전송 안내
 조건 입력 칸의 자유 문장(관심사·요청)은 `/parse`에서 해석하려고 **Anthropic(Claude API)으로 전송**됩니다(키가 설정된 경우). 키는 서버 `.env`의 `ANTHROPIC_API_KEY`에만 두고 앱에는 넣지 않습니다. 서버 로그에는 문장 원문 없이 길이·걸린 시간·토큰 수만 남깁니다. 전송을 원하지 않으면 `PARSER=rule`로 두면 서버 안의 키워드 규칙만 씁니다. Claude 호출은 모두 `app/llm.py` 한 곳을 지납니다(음성 명령 분류 등도 여기를 쓰세요).
 
