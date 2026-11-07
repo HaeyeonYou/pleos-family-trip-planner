@@ -227,11 +227,11 @@ def test_interest_search_adds_kakao_outing_places_only():
     train = kakao("t1", "철도박물관", "문화,예술 > 문화시설 > 박물관", dist=4000)
     shop = kakao("t2", "기차 장난감 가게", "쇼핑 > 완구", dist=100)
     kk = InterestKakao({"기차": [train, shop]})
-    res = plan(TripConditions(interests=["기차", "공룡", "우주"]), tour_src=FakeTour({CONTENT_TYPE_ATTRACTION: [PARK]}), kakao_src=kk)
+    res = plan(TripConditions(interests=["기차", "공룡", "우주", "곤충"]), tour_src=FakeTour({CONTENT_TYPE_ATTRACTION: [PARK]}), kakao_src=kk)
     assert res.stops[1].place.name == "철도박물관"
     names = [p.name for p in res.alternatives[StopRole.OUTING]]
     assert "기차 장난감 가게" not in names
-    assert [q for q in kk.queries if q not in ("키즈카페", "실내놀이터")] == ["기차", "공룡"]  # 최대 2개
+    assert [q for q in kk.queries if q not in ("키즈카페", "실내놀이터")] == ["기차", "공룡", "우주"]  # 최대 3개
 
 
 # 장소 교체 후 시간표 재계산
