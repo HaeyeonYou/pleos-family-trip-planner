@@ -118,7 +118,7 @@ def test_kakao_multi_waypoint_route(kakao):
 def test_course_with_real_data(client, conditions, origin):
     res = client.post(
         "/course",
-        json={"conditions": conditions, "origin": {"latitude": origin[0], "longitude": origin[1]}, "departure_time": "10:30"},
+        json={"conditions": conditions, "origin": {"latitude": origin[0], "longitude": origin[1]}, "departure_time": "10:30", "seed": 1},
     )
     assert res.status_code == 200, res.text
     course = res.json()
@@ -142,7 +142,7 @@ def test_course_with_real_data(client, conditions, origin):
 
 def test_schedule_after_swapping_outing_with_real_route(client):
     """코스를 만든 뒤 나들이 장소를 교체 후보로 바꾸면 실제 길찾기로 시간표를 다시 계산한다."""
-    req = {"conditions": {"child_ages": [4]}, "origin": {"latitude": GANGNAM[0], "longitude": GANGNAM[1]}, "departure_time": "10:30"}
+    req = {"conditions": {"child_ages": [4]}, "origin": {"latitude": GANGNAM[0], "longitude": GANGNAM[1]}, "departure_time": "10:30", "seed": 1}
     course = client.post("/course", json=req).json()
     alternatives = course["alternatives"].get("outing", [])
     assert alternatives, "나들이 교체 후보가 없음"
