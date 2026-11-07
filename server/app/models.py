@@ -1,9 +1,9 @@
 """회원·세션·차 QR 로그인 테이블."""
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
-from sqlalchemy import ForeignKey, Index, String
+from sqlalchemy import BigInteger, Date, Double, ForeignKey, Index, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -80,3 +80,44 @@ class CourseStart(Base):
     started_at: Mapped[datetime] = mapped_column(default=utcnow)
 
     __table_args__ = (Index("ix_course_starts_place_key_started_at", "place_key", "started_at"),)
+
+
+class ParkingLot(Base):
+    """주차장 (전국주차장정보표준데이터 등). 미리 받은 파일을 server/scripts/load_parking.py 또는 SQL로 넣는다."""
+
+    __tablename__ = "parking_lots"
+    __table_args__ = (
+        UniqueConstraint("source", "source_id"),
+        Index("ix_parking_lots_latitude_longitude", "latitude", "longitude"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    # 출처 구분과 그 출처의 관리번호
+    source: Mapped[str] = mapped_column(Text, server_default="std-parking")
+    source_id: Mapped[str] = mapped_column(Text)
+    name: Mapped[str] = mapped_column(Text)
+    kind: Mapped[str | None] = mapped_column(Text)  # 공영 / 민영
+    lot_type: Mapped[str | None] = mapped_column(Text)  # 노외 / 노상 / 부설
+    address_road: Mapped[str | None] = mapped_column(Text)
+    address_lot: Mapped[str | None] = mapped_column(Text)
+    latitude: Mapped[float] = mapped_column(Double)
+    longitude: Mapped[float] = mapped_column(Double)
+    capacity: Mapped[int | None] = mapped_column(Integer)
+    fee_type: Mapped[str | None] = mapped_column(Text)  # 무료 / 유료 / 혼합
+    base_minutes: Mapped[int | None] = mapped_column(Integer)
+    base_fee: Mapped[int | None] = mapped_column(Integer)
+    add_minutes: Mapped[int | None] = mapped_column(Integer)
+    add_fee: Mapped[int | None] = mapped_column(Integer)
+    day_fee: Mapped[int | None] = mapped_column(Integer)
+    # HH:MM
+    weekday_open: Mapped[str | None] = mapped_column(Text)
+    weekday_close: Mapped[str | None] = mapped_column(Text)
+    sat_open: Mapped[str | None] = mapped_column(Text)
+    sat_close: Mapped[str | None] = mapped_column(Text)
+    holiday_open: Mapped[str | None] = mapped_column(Text)
+    holiday_close: Mapped[str | None] = mapped_column(Text)
+    phone: Mapped[str | None] = mapped_column(Text)
+    provider: Mapped[str | None] = mapped_column(Text)
+    data_date: Mapped[date | None] = mapped_column(Date)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(server_default=func.now())
