@@ -121,12 +121,23 @@ def test_needs_prefer_place_with_nursing_room():
     assert outing.amenity_notes["nursing_room"] == "1층 수유실"
 
 
-def test_pet_uses_pet_service_only():
-    pet_park = tour("pp", "반려견공원", "A02020700", 1000)
+def test_pet_prefers_pet_places_and_fills_with_general_when_few():
+    pet_park = tour("pp", "반려견공원", "A02020700", 3000)
     src = FakeTour({CONTENT_TYPE_ATTRACTION: [PARK]}, pet_places=[pet_park])
     res = plan(TripConditions(with_pet=True), tour_src=src)
+    # 동반 가능 장소가 먼저, 부족하면 일반 장소를 '동반 정보 없음'으로 후보에 넣는다
     assert res.stops[1].place.name == "반려견공원"
-    assert res.alternatives[StopRole.OUTING] == []
+    assert res.stops[1].place.amenities["pet"] == Amenity.AVAILABLE
+    alternative = res.alternatives[StopRole.OUTING][0]
+    assert alternative.name == "역삼공원" and alternative.amenities["pet"] == Amenity.UNKNOWN
+
+
+def test_pet_uses_pet_places_only_when_enough():
+    pets = [tour(f"p{i}", f"반려견공원{i}", "A02020700", 1000 + i) for i in range(5)]
+    src = FakeTour({CONTENT_TYPE_ATTRACTION: [PARK]}, pet_places=pets)
+    res = plan(TripConditions(with_pet=True), tour_src=src)
+    names = [res.stops[1].place.name] + [p.name for p in res.alternatives[StopRole.OUTING]]
+    assert "역삼공원" not in names
 
 
 def test_unsuitable_places_are_excluded():
