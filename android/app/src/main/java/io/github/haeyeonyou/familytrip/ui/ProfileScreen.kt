@@ -12,6 +12,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -66,6 +67,7 @@ fun ProfileScreen(
                     order = index + 1,
                     child = child,
                     now = now,
+                    isParked = isParked,
                     onChange = { updated ->
                         profile = profile.copy(children = profile.children.toMutableList().apply { this[index] = updated })
                     },
@@ -104,13 +106,13 @@ fun ProfileScreen(
 }
 
 @Composable
-private fun ChildRow(order: Int, child: Child, now: YearMonth, onChange: (Child) -> Unit, onRemove: () -> Unit) {
+private fun ChildRow(order: Int, child: Child, now: YearMonth, isParked: Boolean, onChange: (Child) -> Unit, onRemove: () -> Unit) {
     val birth = YearMonth.of(child.birthYear, child.birthMonth)
     fun shift(months: Long) {
         val moved = birth.plusMonths(months)
         // 미래와 너무 먼 과거는 고를 수 없다.
         if (moved > now || moved < now.minusYears(MAX_CHILD_AGE_YEARS.toLong())) return
-        onChange(Child(moved.year, moved.monthValue))
+        onChange(child.copy(birthYear = moved.year, birthMonth = moved.monthValue))
     }
     val info: @Composable () -> Unit = {
         Column(modifier = Modifier.width(240.dp)) {
@@ -128,6 +130,15 @@ private fun ChildRow(order: Int, child: Child, now: YearMonth, onChange: (Child)
         BigOutlinedButton("+", { shift(1) })
     }
     Card(modifier = Modifier.fillMaxWidth()) {
+        // 이름은 키보드 입력이라 정차 중에만 바꿀 수 있다.
+        OutlinedTextField(
+            value = child.name,
+            onValueChange = { onChange(child.copy(name = it.take(10))) },
+            enabled = isParked,
+            label = { Text("이름 (선택)") },
+            singleLine = true,
+            modifier = Modifier.padding(start = 24.dp, top = 16.dp, end = 24.dp),
+        )
         if (isNarrowWindow()) {
             // 세로 창: 정보·삭제 한 줄, 연·월 버튼 한 줄
             Column(modifier = Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
