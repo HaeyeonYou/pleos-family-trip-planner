@@ -9,7 +9,7 @@ import java.time.YearMonth
 
 /** 아이 한 명. 생년월만 저장하고 나이는 그때그때 계산한다. */
 @Serializable
-data class Child(val birthYear: Int, val birthMonth: Int) {
+data class Child(val birthYear: Int, val birthMonth: Int, val name: String = "") {
     fun ageMonths(now: YearMonth = YearMonth.now()): Int =
         ((now.year - birthYear) * 12 + (now.monthValue - birthMonth)).coerceAtLeast(0)
 }
@@ -26,6 +26,9 @@ data class FamilyProfile(
     val petAlong: Boolean = false,
 ) {
     fun ageMonths(now: YearMonth = YearMonth.now()): List<Int> = children.map { it.ageMonths(now) }
+
+    /** 메뉴 아이 카드에 보일 첫째 아이 이름 */
+    val childName: String get() = children.firstOrNull()?.name.orEmpty()
 
     /**
      * 문장에 없는 정보를 프로필로 채운다. 문장에 아이 나이가 있으면 그날 사정(예: 조카와 외출)이므로 문장을 따른다.
