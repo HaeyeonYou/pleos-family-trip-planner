@@ -23,3 +23,7 @@ secrets.properties
 .venv/
 __pycache__/
 .pytest_cache/
+
+# 주차장 실제 데이터 파일 (서버가 미리 받아 쓰는 CSV/SQL, 용량이 커서 제외)
+server/data/parking/*
+!server/data/parking/.gitkeep

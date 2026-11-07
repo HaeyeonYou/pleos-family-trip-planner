@@ -15,6 +15,58 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 - 접속 주소는 `.env`의 `DATABASE_URL` (기본 `postgresql+asyncpg://localhost/pleos`), 폰이 접속할 주소는 `PUBLIC_BASE_URL` (비우면 맥 사설 IP:8000)
 - 테스트는 `pleos_test` DB를 매번 비우고 쓴다
 
+## 주차장 데이터 (`parking_lots`)
+전국주차장정보표준데이터는 지자체 250곳이 각자 올린 파일이라 API로 부르지 않고, 정제된 파일을 **미리 받아 DB에 넣어** 씁니다. 데이터 정제는 다른 에이전트가 하고, 서버는 아래 규격의 파일을 받습니다.
+
+| 파일 | 설명 |
+|---|---|
+| `parking_lots.csv` | UTF-8, 헤더 포함, 열 이름·순서는 `app/models.py`의 `ParkingLot`과 같음 (`source, source_id, name, kind, lot_type, address_road, address_lot, latitude, longitude, capacity, fee_type, base_minutes, base_fee, add_minutes, add_fee, day_fee, weekday_open, weekday_close, sat_open, sat_close, holiday_open, holiday_close, phone, provider, data_date`) |
+| `parking_lots.sql` | CSV와 같은 내용. `BEGIN; INSERT ... ON CONFLICT (source, source_id) DO UPDATE SET ...; COMMIT;` |
+| `rejected.csv`, `README.md` | 좌표 누락 등으로 뺀 행과 이유, 출처·기준일·건수 |
+
+- 실제 파일은 `server/data/parking/`에 둡니다 (git 제외). 테스트용 **샘플**(실제 데이터 아님, `source=sample-std-parking`, 이름 앞 `[샘플]`)은 `server/tests/data/parking_sample.csv`.
+- 표는 `alembic upgrade head`로 만들어져 있어야 합니다. 열 값 규칙: `kind` 공영/민영, `lot_type` 노외/노상/부설, `fee_type` 무료/유료/혼합, 시간 `HH:MM`(`24:00` 가능), 날짜 `YYYY-MM-DD`, 좌표는 국내 범위. `(source, source_id)`가 같으면 덮어씁니다.
+
+### 어느 쪽으로 넣나
+| 상황 | 방법 |
+|---|---|
+| CSV를 검증하며 넣고 싶을 때 (로컬, 에이전트가 만든 파일 확인) | `load_parking.py` — 잘못된 행을 건너뛰고 이유와 개수를 출력합니다 |
+| NAS 등 새 PostgreSQL에 그대로 옮길 때 (파이썬 환경 없이) | `parking_lots.sql`을 `psql -f`로 |
+
+**스크립트** (같은 파일을 여러 번 넣어도 안전)
+```bash
+cd server
+.venv/bin/python scripts/load_parking.py data/parking/parking_lots.csv --dry-run   # 검증만
+.venv/bin/python scripts/load_parking.py data/parking/parking_lots.csv             # 적재
+```
+접속은 `.env`의 `DATABASE_URL`(`--database-url`로 바꿈). 헤더가 규격과 다르면 고치지 않고 오류로 끝나며, UTF-8(BOM 포함)과 CP949를 읽습니다.
+
+**SQL 파일** (PostgreSQL 17)
+```bash
+cd server && .venv/bin/alembic upgrade head          # 표가 없으면 먼저
+psql -d pleos -v ON_ERROR_STOP=1 -f data/parking/parking_lots.sql
+psql -d pleos -c "SELECT count(*) FROM parking_lots"
+```
+**NAS로 옮긴 뒤**: NAS의 PostgreSQL 17에 `createdb pleos` → NAS 서버 환경에서 `DATABASE_URL`을 NAS 주소로 하고 `alembic upgrade head` → 위 `psql -h <NAS 주소> -U <사용자> -d pleos -v ON_ERROR_STOP=1 -f parking_lots.sql`. 이미 로컬 DB에 적재했다면 `pg_dump --data-only -t parking_lots pleos > parking_lots_dump.sql`로 뽑아 같은 방식으로 넣어도 됩니다. SQL이 `ON CONFLICT`로 덮어쓰므로 여러 번 실행해도 건수가 늘지 않습니다.
+
+### 근처 조회
+`GET /places/parking?lat=&lng=&radius_m=1000&limit=5` (`radius_m` 100~20000, `limit` 1~30). 가까운 순 목록:
+```json
+[{"name": "구리시청 공영주차장", "kind": "공영", "lot_type": "노외", "address": "경기도 구리시 아차산로 481", "distance_m": 120, "capacity": 180,
+  "fee_summary": "30분 1,000원·추가 10분 500원·일 최대 10,000원", "hours": "평일 07:00~22:00", "latitude": 37.5943, "longitude": 127.1296, "phone": "031-000-0008"}]
+```
+- 요금 문구: 무료는 `무료`, 기본 시간이 무료면 `60분 무료·추가 10분 300원`, 정보가 없으면 `요금 정보 없음`.
+- 운영시간은 한국 시간 오늘 요일 기준(평일/토요일/일요일·공휴일, 공휴일 달력은 없어 평일은 평일로 봄). `00:00~24:00`은 `24시간`.
+- 위경도 사각형으로 먼저 거르고(`ix_parking_lots_latitude_longitude`) 정확한 거리는 haversine으로 계산합니다.
+
+### planner 연결 방법 (아직 연결 안 함)
+코스에 주차장을 붙이는 일은 `planner.py`를 고치는 세션과 겹치지 않도록 이번에는 하지 않았습니다. 연결은 `parking.nearby`를 부르면 됩니다.
+```python
+from app.sources import parking
+lots = await parking.nearby(db, stop.latitude, stop.longitude, radius_m=800, limit=3)   # list[ParkingPlace]
+```
+`nearby`는 `AsyncSession`을 받는 `async` 함수입니다. 현재 `/course`는 동기 함수(`def`)라서, 연결할 때 `get_db`를 주입하고 엔드포인트를 `async def`로 바꾸거나 `CourseResponse`에 `parking: list[ParkingPlace]`를 더하는 변경이 함께 필요합니다.
+
 ## 모바일 웹 (`/m`)
 폰 브라우저로 여는 화면. 차 화면 QR → 회원가입·로그인 → '이 차에서 로그인', 홈에서 '차 공조 미리 설정' → '차로 보내기'.
 
@@ -45,6 +97,7 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 | `GET /auth/me`, `POST /auth/logout` | 로그인 사용자 확인, 차 세션 폐기 (`Authorization: Bearer`) |
 | `GET /presets/pending` | 폰에서 보내 아직 적용하지 않은 공조 프리셋 (없으면 204) |
 | `POST /presets/{id}/applied` | 차에서 적용 완료 표시 |
+| `GET /places/parking` | 좌표 근처 주차장(거리순, 요금·운영시간 문구 포함) |
 | `GET /health` | 상태, 설정된 키 여부 |
 | `POST /parse` | 자연어 → `TripConditions` |
 | `POST /course` | 조건 + 출발지 → 식사·나들이·카페·귀가 코스와 시간표 |
