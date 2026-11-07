@@ -35,6 +35,9 @@ val NEED_LABELS = mapOf(
     "kids_zone" to "키즈존",
 )
 
+/** 장소 카드에 보여 줄 편의 정보 이름 (육아 편의 + 반려견 동반). */
+val AMENITY_LABELS = NEED_LABELS + ("pet" to "반려견 동반")
+
 /** 세로 창으로 볼 폭. 앱 2개를 띄우면 창이 약 840dp가 된다 (가로 1개일 때 1682dp). */
 private const val NARROW_WINDOW_DP = 1200
 

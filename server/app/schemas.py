@@ -86,7 +86,7 @@ class Place(BaseModel):
     source: str = Field(..., description="tour / kakao")
     source_id: str
     image_url: str = ""
-    amenities: dict[str, Amenity] = Field(default_factory=dict, description="stroller, nursing_room, kids_chair")
+    amenities: dict[str, Amenity] = Field(default_factory=dict, description="stroller, nursing_room, kids_chair, pet(반려견 동반)")
     amenity_notes: dict[str, str] = Field(default_factory=dict, description="편의 정보 원문")
 
 

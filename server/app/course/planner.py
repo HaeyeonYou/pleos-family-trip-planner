@@ -38,6 +38,7 @@ METERS_PER_DRIVE_MINUTE = 500  # 시내 평균 30km/h 가정
 NEARBY_MEAL_RADIUS_M = 2_000
 NEARBY_CAFE_RADIUS_M = 1_500
 AMENITY_LOOKUPS = 6  # 후보 상위 몇 곳만 무장애 상세를 조회한다 (API 한도)
+MIN_PET_CANDIDATES = 5  # 반려견 동반 장소가 이보다 적으면 일반 장소도 후보로 낸다
 ALTERNATIVES = 3
 MAX_INTEREST_SEARCHES = 2  # 관심사 키워드 검색은 앞의 2개까지 (카카오 호출 수)
 
@@ -166,10 +167,10 @@ class CoursePlanner:
         if cond.max_drive_minutes:
             radius = min(MAX_RADIUS_M, cond.max_drive_minutes * METERS_PER_DRIVE_MINUTE)
 
-        candidates = self._tour_candidates(origin, radius, cond.with_pet)
-        if not cond.with_pet:
-            candidates += self._play_candidates(origin, radius)
-            candidates += self._interest_candidates(origin, radius, cond.interests, candidates)
+        if cond.with_pet:
+            candidates = self._pet_candidates(origin, radius, cond)
+        else:
+            candidates = self._general_candidates(origin, radius, cond)
         if cond.indoor_only:
             candidates = [c for c in candidates if c.indoor]
 
@@ -186,6 +187,30 @@ class CoursePlanner:
                 c.score += 2 * sum(c.place.amenities.get(n) == Amenity.AVAILABLE for n in cond.needs)
             candidates.sort(key=lambda c: c.score, reverse=True)
         return candidates
+
+    def _general_candidates(self, origin: LatLng, radius: int, cond: TripConditions) -> list[_Candidate]:
+        candidates = self._tour_candidates(origin, radius, with_pet=False)
+        candidates += self._play_candidates(origin, radius)
+        candidates += self._interest_candidates(origin, radius, cond.interests, candidates)
+        return candidates
+
+    def _pet_candidates(self, origin: LatLng, radius: int, cond: TripConditions) -> list[_Candidate]:
+        """반려견 동반 장소를 먼저 쓰고, 너무 적으면 일반 장소도 '동반 정보 없음'으로 함께 낸다.
+
+        반려동물 동반 여행 정보(KorPetTourService2)는 지역에 따라 몇 곳뿐이라
+        그것만 쓰면 아이 조건·관심사와 거의 맞지 않는 코스가 나온다.
+        """
+        pets = self._tour_candidates(origin, radius, with_pet=True)
+        for c in pets:
+            c.place.amenities["pet"] = Amenity.AVAILABLE
+        if len(pets) >= MIN_PET_CANDIDATES:
+            return pets
+        taken = {c.place.source_id for c in pets}
+        extra = [c for c in self._general_candidates(origin, radius, cond) if c.place.source_id not in taken]
+        for c in extra:
+            c.place.amenities["pet"] = Amenity.UNKNOWN
+        log.info("반려견 동반 후보 %d곳뿐이라 일반 장소 %d곳을 '동반 정보 없음'으로 더함", len(pets), len(extra))
+        return pets + extra
 
     def _tour_candidates(self, origin: LatLng, radius: int, with_pet: bool) -> list[_Candidate]:
         if with_pet:
@@ -346,6 +371,8 @@ def _score(c: _Candidate, cond: TripConditions, radius: int) -> float:
     score -= 2 * min(c.distance_m / radius, 1)  # 가까울수록 좋음
     if cond.has_infant() and c.indoor:
         score += 0.5  # 영아는 실내가 편하다
+    if cond.with_pet and c.place.amenities.get("pet") == Amenity.AVAILABLE:
+        score += 2  # 동반 가능이 확인된 곳을 먼저
     text = f"{c.place.name} {c.place.category}"
     if any(term in text for i in cond.interests for term in interests.terms(i)):
         score += 3  # 아이 관심사와 맞으면 테마 일치만큼 가점
