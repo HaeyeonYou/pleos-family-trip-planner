@@ -85,7 +85,7 @@ fun CourseOverview(
         verticalArrangement = Arrangement.spacedBy(24.dp),
     ) {
         Text(
-            "←  조건 바꾸기",
+            "←  뒤로",
             fontSize = 20.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = onBack).padding(vertical = 6.dp),
