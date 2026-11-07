@@ -42,61 +42,42 @@ enum class MainTab(val label: String, val icon: String) {
 }
 
 /**
- * 앱 전체 틀 (피그마 지수 PX의 메뉴·패널 구성을 창 전체에 적용).
+ * 앱 전체 틀 (피그마 HF: 아이콘 아래 이름이 붙은 접힌 왼쪽 메뉴). 메뉴는 펴지지 않는다.
  * PX는 내비 지도 위에 반투명 패널을 띄우지만, Pleos에서는 다른 앱 위에 겹칠 수 없어 패널을 창 전체로 쓴다 (11/7 결정).
  * 실제 지도는 화면 분할로 내장 내비를 옆에 띄워 보고, 코스 경로는 코스 화면의 미리보기 카드로 보여 준다.
- * 화면 분할(841dp)일 때는 메뉴를 아이콘만 남긴다.
  */
 @Composable
 fun AppShell(
     tab: MainTab?,
     onTab: (MainTab) -> Unit,
-    profile: FamilyProfile?,
-    feedingIntervalMinutes: Int,
     content: @Composable () -> Unit,
 ) {
-    val narrow = isNarrowWindow()
-    // 로고를 누르면 메뉴를 펴고 접는다 (HF: 아이콘 레일, PX: 이름이 있는 넓은 메뉴). 화면 분할 때는 늘 접는다.
-    var expanded by rememberSaveable { mutableStateOf(false) }
     Surface(color = TripColors.Panel, modifier = Modifier.fillMaxSize()) {
         Row(modifier = Modifier.fillMaxSize()) {
-            if (tab != null) SideMenu(tab, onTab, profile, feedingIntervalMinutes, compact = narrow || !expanded, onToggle = { expanded = !expanded })
+            if (tab != null) SideMenu(tab, onTab)
             Box(modifier = Modifier.weight(1f).fillMaxHeight()) { content() }
         }
     }
 }
 
 @Composable
-private fun SideMenu(selected: MainTab, onTab: (MainTab) -> Unit, profile: FamilyProfile?, feedingIntervalMinutes: Int, compact: Boolean, onToggle: () -> Unit) {
+private fun SideMenu(selected: MainTab, onTab: (MainTab) -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxHeight()
-            .width(if (compact) 140.dp else 280.dp)
+            .width(140.dp)
             .background(Color.White)
             .padding(vertical = 32.dp, horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
-        horizontalAlignment = if (compact) Alignment.CenterHorizontally else Alignment.Start,
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Row(
-            modifier = Modifier.clip(RoundedCornerShape(16.dp)).clickable(onClick = onToggle),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Box(
-                modifier = Modifier.size(64.dp).clip(RoundedCornerShape(18.dp)).background(TripColors.Green),
-                contentAlignment = Alignment.Center,
-            ) { Text("🌱", fontSize = 26.sp) }
-            if (!compact) {
-                Column {
-                    Text("우리 아이", fontSize = 22.sp, fontWeight = FontWeight.Bold)
-                    Text("경험 내비게이션", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-        }
+        Box(
+            modifier = Modifier.size(64.dp).clip(RoundedCornerShape(18.dp)).background(TripColors.Green),
+            contentAlignment = Alignment.Center,
+        ) { Text("🌱", fontSize = 26.sp) }
         Spacer(Modifier.size(24.dp))
-        MainTab.entries.forEach { item -> MenuItem(item, item == selected, compact) { onTab(item) } }
+        MainTab.entries.forEach { item -> MenuItem(item, item == selected) { onTab(item) } }
         Spacer(Modifier.weight(1f))
-        if (!compact) ChildCard(profile, feedingIntervalMinutes, compact = false)
         // 음성 요청 (#19, #70에서 연결)
         Box(
             modifier = Modifier.size(72.dp).clip(CircleShape).background(TripColors.Tile),
@@ -105,59 +86,21 @@ private fun SideMenu(selected: MainTab, onTab: (MainTab) -> Unit, profile: Famil
     }
 }
 
+/** HF 레일: 아이콘 아래 이름 */
 @Composable
-private fun MenuItem(tab: MainTab, selected: Boolean, compact: Boolean, onClick: () -> Unit) {
+private fun MenuItem(tab: MainTab, selected: Boolean, onClick: () -> Unit) {
     val color = if (selected) TripColors.Green else MaterialTheme.colorScheme.onSurfaceVariant
-    val base = Modifier
-        .fillMaxWidth()
-        .clip(RoundedCornerShape(24.dp))
-        .background(if (selected) TripColors.GreenSoft else Color.Transparent)
-        .clickable(onClick = onClick)
-    if (compact) {
-        // HF 레일: 아이콘 아래 이름
-        Column(
-            modifier = base.padding(vertical = 18.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            Text(tab.icon, fontSize = 30.sp, color = color)
-            Text(tab.label, fontSize = 18.sp, color = color, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal)
-        }
-    } else {
-        Row(
-            modifier = base.padding(horizontal = 20.dp, vertical = 20.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            Text(tab.icon, fontSize = 26.sp, color = color)
-            Text(tab.label, fontSize = 24.sp, color = color, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal)
-        }
-    }
-}
-
-/** 메뉴 아래 아이 카드 (피그마: "서아 · 14개월 · 수유 3시간 간격"). 수유 간격은 루틴 기능에서 채운다. */
-@Composable
-private fun ChildCard(profile: FamilyProfile?, feedingIntervalMinutes: Int, compact: Boolean) {
-    val child = profile?.children?.firstOrNull()
-    val name = profile?.childName?.takeIf { it.isNotBlank() } ?: "우리 아이"
-    Row(
-        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(TripColors.GreenSoft).padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(24.dp))
+            .background(if (selected) TripColors.GreenSoft else Color.Transparent)
+            .clickable(onClick = onClick)
+            .padding(vertical = 18.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Box(
-            modifier = Modifier.size(44.dp).clip(CircleShape).background(Color.White),
-            contentAlignment = Alignment.Center,
-        ) { Text(name.take(1), fontSize = 20.sp, color = TripColors.Green, fontWeight = FontWeight.Bold) }
-        if (!compact) {
-            Column {
-                Text(name, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                Text(
-                    child?.let { "${ageLabel(it.ageMonths())} · 수유 ${intervalLabel(feedingIntervalMinutes)} 간격" } ?: "가족 정보를 등록해 주세요",
-                    fontSize = 16.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
+        Text(tab.icon, fontSize = 30.sp, color = color)
+        Text(tab.label, fontSize = 18.sp, color = color, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal)
     }
 }

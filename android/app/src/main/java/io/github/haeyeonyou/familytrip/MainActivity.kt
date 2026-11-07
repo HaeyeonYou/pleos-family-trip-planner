@@ -163,7 +163,7 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
-                    AppShell(tab = tabOf(route ?: start), onTab = ::openTab, profile = state.profile, feedingIntervalMinutes = state.feeding.intervalMinutes) {
+                    AppShell(tab = tabOf(route ?: start), onTab = ::openTab) {
                     NavHost(navController = nav, startDestination = start) {
                         composable(Routes.LOGIN) {
                             LoginScreen(
