@@ -26,6 +26,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import io.github.haeyeonyou.familytrip.location.FUSED_LOCATION_PERMISSION
+import io.github.haeyeonyou.familytrip.ui.CourseEditActions
 import io.github.haeyeonyou.familytrip.ui.CourseScreen
 import io.github.haeyeonyou.familytrip.ui.DevScreen
 import io.github.haeyeonyou.familytrip.ui.GuideScreen
@@ -127,7 +128,15 @@ class MainActivity : ComponentActivity() {
                                     isParked = vehicle.isParked,
                                     loading = state.loading,
                                     error = state.error,
-                                    onSwap = vm::swapPlace,
+                                    message = state.message,
+                                    edit = CourseEditActions(
+                                        swap = vm::swapPlace,
+                                        move = vm::moveStop,
+                                        remove = vm::removeStop,
+                                        changeStay = vm::changeStay,
+                                        add = vm::addStop,
+                                    ),
+                                    onSave = vm::saveCourse,
                                     onStartGuide = {
                                         vm.startGuide()
                                         nav.navigate(Routes.GUIDE)

@@ -244,3 +244,33 @@ def test_reschedule_ignores_home_stop_and_warns_when_late():
     )
     assert [s.role for s in res.stops] == [StopRole.OUTING, StopRole.HOME]
     assert any("귀가하기 어려워요" in w for w in res.warnings)
+
+
+def test_reschedule_uses_given_stay_and_order():
+    stops = [
+        ScheduleStop(role=StopRole.OUTING, place=MUSEUM_PLACE, stay_minutes=90),
+        ScheduleStop(role=StopRole.MEAL, place=Place(name="한식당", latitude=37.5, longitude=127.0, source="kakao", source_id="r1")),
+    ]
+    planner = CoursePlanner(FakeTour(), FakeKakao(), now=NOW)
+    res = planner.reschedule(ScheduleRequest(conditions=TripConditions(), origin=ORIGIN, departure_time="10:30", stops=stops))
+    assert [s.place.name for s in res.stops] == ["어린이박물관", "한식당", "귀가"]
+    # 구간 20분씩, 나들이 90(지정), 식사 60(기본)
+    assert [s.arrive_at for s in res.stops] == ["10:50", "12:40", "14:00"]
+    assert res.stops[0].stay_minutes == 90
+
+
+def test_reschedule_suggests_meal_and_cafe_near_outing():
+    kakao_src = FakeKakao(
+        restaurants=[kakao("r1", "한식당", "음식점 > 한식"), kakao("r2", "국수집", "음식점 > 한식")],
+        cafes=[kakao("c2", "새 카페", "음식점 > 카페")],
+    )
+    stops = [
+        ScheduleStop(role=StopRole.MEAL, place=Place(name="한식당", latitude=37.5, longitude=127.0, source="kakao", source_id="r1")),
+        ScheduleStop(role=StopRole.OUTING, place=MUSEUM_PLACE),
+    ]
+    planner = CoursePlanner(FakeTour(), kakao_src, now=NOW)
+    res = planner.reschedule(
+        ScheduleRequest(conditions=TripConditions(), origin=ORIGIN, stops=stops, suggest_nearby=True)
+    )
+    assert [p.name for p in res.alternatives[StopRole.MEAL]] == ["국수집"]  # 이미 코스에 있는 한식당은 뺀다
+    assert [p.name for p in res.alternatives[StopRole.CAFE]] == ["새 카페"]
