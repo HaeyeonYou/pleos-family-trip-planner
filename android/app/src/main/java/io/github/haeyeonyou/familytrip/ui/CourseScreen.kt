@@ -90,13 +90,14 @@ fun CourseScreen(
                 })
             }
             course.warnings.forEach { Text("⚠ $it", fontSize = 22.sp, color = MaterialTheme.colorScheme.tertiary) }
-            if (!editing) {
-                CourseMapLayer(
-                    stops = course.stops,
-                    modifier = Modifier.fillMaxWidth().height(260.dp).clip(RoundedCornerShape(28.dp)),
-                )
+            // 넓은 창: 왼쪽 시간표 + 오른쪽 세로 지도 (HF02). 좁은 창: 지도를 위에. 편집 중에는 지도를 숨긴다.
+            val wide = !isNarrowWindow()
+            val map: @Composable (Modifier) -> Unit = { m ->
+                CourseMap(stops = course.stops, path = course.path, modifier = m.clip(RoundedCornerShape(28.dp)))
             }
-
+            if (!editing && !wide) map(Modifier.fillMaxWidth().height(320.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(20.dp)) {
             course.stops.forEachIndexed { index, stop ->
                 val isVisit = stop.role != "home"
                 StopCard(
@@ -137,6 +138,9 @@ fun CourseScreen(
                 )
             }
 
+            }
+            if (!editing && wide) map(Modifier.weight(0.9f).height(620.dp))
+            }
             if (editing) AddStopSection(course, enabled = !loading, onAdd = edit.add)
         }
         HorizontalDivider()

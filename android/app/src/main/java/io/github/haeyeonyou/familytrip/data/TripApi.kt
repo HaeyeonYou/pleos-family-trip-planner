@@ -105,6 +105,8 @@ data class CourseResponse(
     @SerialName("total_drive_minutes") val totalDriveMinutes: Int,
     @SerialName("return_at") val returnAt: String,
     @SerialName("route_source") val routeSource: String,
+    /** 출발부터 귀가까지 지도에 그릴 실제 도로 좌표 */
+    val path: List<LatLng> = emptyList(),
     val alternatives: Map<String, List<CoursePlace>> = emptyMap(),
     val warnings: List<String> = emptyList(),
 )
