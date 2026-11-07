@@ -42,12 +42,25 @@ data class ParseResponse(val conditions: TripConditions, val parser: String)
 @Serializable
 data class LatLng(val latitude: Double, val longitude: Double)
 
+/** 최근 방문 요약. 개인 정보 없이 장소 키·분야·날짜만 서버로 보낸다. */
+@Serializable
+data class VisitSummary(
+    @SerialName("place_key") val placeKey: String = "",
+    val theme: String? = null,
+    /** yyyy-MM-dd */
+    val date: String,
+)
+
 @Serializable
 data class CourseRequest(
     val conditions: TripConditions,
     val origin: LatLng,
     val home: LatLng? = null,
     @SerialName("departure_time") val departureTime: String? = null,
+    /** 최근 방문 요약. 다녀온 곳은 감점, 안 가 본 분야는 가점 */
+    val visits: List<VisitSummary> = emptyList(),
+    /** 이미 보여 준 나들이 장소 키. '다른 코스 보기'에서 뺀다 */
+    @SerialName("exclude_place_keys") val excludePlaceKeys: List<String> = emptyList(),
 )
 
 @Serializable
