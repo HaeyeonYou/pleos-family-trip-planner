@@ -1,12 +1,16 @@
 import logging
 import time
 import uuid
+from contextlib import asynccontextmanager
 from functools import lru_cache
 
 import httpx
 from fastapi import Depends, FastAPI, HTTPException, Request
 
+from app.auth import api as auth_api
+from app.auth import web as auth_web
 from app.config import Settings, get_settings
+from app.db import Database
 from app.logs import setup_logging
 from app.course.planner import CoursePlanner, NoCourseError
 from app.parsing import get_parser
@@ -17,7 +21,19 @@ from app.sources.tour import TourApiClient
 setup_logging()
 log = logging.getLogger("app")
 
-app = FastAPI(title="오늘, 어디 가지? API", version="0.1.0")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # 연결 풀은 서버 프로세스 하나에 하나. 요청마다 풀에서 연결을 빌려 쓴다.
+    app.state.db = Database(get_settings())
+    yield
+    await app.state.db.close()
+
+
+app = FastAPI(title="오늘, 어디 가지? API", version="0.1.0", lifespan=lifespan)
+app.include_router(auth_api.router)
+app.include_router(auth_web.router)
 
 
 @app.middleware("http")
