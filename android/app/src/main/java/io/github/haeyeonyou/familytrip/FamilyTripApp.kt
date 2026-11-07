@@ -1,6 +1,7 @@
 package io.github.haeyeonyou.familytrip
 
 import android.app.Application
+import com.kakao.vectormap.KakaoMapSdk
 import android.content.pm.PackageManager
 import io.github.haeyeonyou.familytrip.data.AccountStore
 import io.github.haeyeonyou.familytrip.data.CourseStore
@@ -60,6 +61,8 @@ class FamilyTripApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        // 카카오맵은 키가 있을 때만 켠다. 없으면 코스 지도는 간이 지도로 보인다.
+        if (BuildConfig.KAKAO_NATIVE_APP_KEY.isNotBlank()) KakaoMapSdk.init(this, BuildConfig.KAKAO_NATIVE_APP_KEY)
         container = AppContainer(this).also { it.startConnections() }
     }
 }

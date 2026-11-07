@@ -328,8 +328,10 @@ class CoursePlanner:
                 drive_distance_m=last.distance_m,
             )
         )
+        path = [LatLng(latitude=lat, longitude=lng) for leg in legs for lat, lng in leg.path]
         return CourseResponse(
             departure_at=departure.strftime("%H:%M"),
+            path=path,
             stops=result,
             total_drive_minutes=sum(s.drive_minutes for s in result),
             return_at=clock.strftime("%H:%M"),
@@ -423,7 +425,7 @@ def _kakao_place(p: KakaoPlace) -> Place:
 
 def _estimate_leg(a: tuple[float, float], b: tuple[float, float]) -> Leg:
     meters = _haversine_m(a, b) * 1.4  # 도로 우회 계수
-    return Leg(distance_m=round(meters), duration_s=round(meters / METERS_PER_DRIVE_MINUTE * 60))
+    return Leg(distance_m=round(meters), duration_s=round(meters / METERS_PER_DRIVE_MINUTE * 60), path=(a, b))
 
 
 def _haversine_m(a: tuple[float, float], b: tuple[float, float]) -> float:
