@@ -91,8 +91,9 @@ def health(settings: Settings = Depends(get_settings)) -> dict:
 def parse(req: ParseRequest, settings: Settings = Depends(get_settings)) -> ParseResponse:
     parser = get_parser(settings)
     conditions = parser.parse(req.text)
-    log.info("해석(%s, %d자): %s", parser.name, len(req.text), _conditions_summary(conditions))
-    return ParseResponse(conditions=conditions, parser=parser.name)
+    used = getattr(parser, "last_used", parser.name)
+    log.info("해석(%s, %d자): %s", used, len(req.text), _conditions_summary(conditions))
+    return ParseResponse(conditions=conditions, parser=used)
 
 
 @lru_cache

@@ -166,7 +166,8 @@ def test_schedule_after_swapping_outing_with_real_route(client):
     assert all(p["source_id"] not in in_course for p in new["alternatives"]["meal"])
 
 
-def test_parse_endpoint_rule(client):
+def test_parse_endpoint_rule(client, monkeypatch):
+    monkeypatch.setattr(settings, "parser", "rule")  # 이 테스트는 규칙 기반 경로를 확인한다
     res = client.post("/parse", json={"text": "공룡 좋아하는 5살, 수유실 있는 곳, 6시 전 귀가"})
     assert res.status_code == 200
     c = res.json()["conditions"]
@@ -180,3 +181,14 @@ def test_claude_parser_matches_rule_parser():
     assert c.child_ages == [5]
     assert c.return_by_hour == 18
     assert set(c.interests) >= {"공룡", "기차"}
+
+
+def test_claude_parses_free_sentence_into_structured_conditions():
+    """규칙으로는 못 읽는 자유 문장도 구조화한다 (실제 응답 저장본 재생)."""
+    parser = ClaudeParser(key("anthropic_api_key"), settings.claude_model, http_client=anthropic_http)
+    c = parser.parse("우리 둘째가 18개월인데 비 오는 날이라 밖은 힘들어. 로봇 좋아하는 형이랑 같이 갈 만한 실내 놀 곳, 차로 40분 안쪽이면 좋겠어")
+    assert parser.last_used == "claude"
+    assert c.indoor_only is True
+    assert c.max_drive_minutes == 40
+    assert c.has_infant()  # 18개월
+    assert any("로봇" in w or "과학" in w for w in c.interests)
