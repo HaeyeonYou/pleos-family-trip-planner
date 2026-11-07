@@ -28,6 +28,8 @@ fun CareScreen(
     isParked: Boolean,
     onApplyPreset: () -> Unit,
     onDismissPreset: () -> Unit,
+    onFed: () -> Unit,
+    onInterval: (Int) -> Unit,
 ) = DrivingAware(isParked) {
     val months = state.profile?.ageMonths()?.minOrNull()
     Column(
@@ -43,7 +45,7 @@ fun CareScreen(
             body = if (months == null) "가족 정보에 아이를 등록하면 나이에 맞춰 알려 드려요" else "아이 나이에 맞춘 권장값이에요",
         )
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            Tile("수유 타이머", "다음 수유 시각 알림 · 준비 중", Modifier.weight(1f))
+            FeedingCard(state.feeding, onFed = onFed, onInterval = onInterval, modifier = Modifier.weight(1f))
             Tile("수면 모드", "\"애 잔다\" → 안내 음성·알림 줄이기 · 준비 중", Modifier.weight(1f))
         }
         Text("급한 케어 찾기", fontSize = 26.sp, fontWeight = FontWeight.Bold)

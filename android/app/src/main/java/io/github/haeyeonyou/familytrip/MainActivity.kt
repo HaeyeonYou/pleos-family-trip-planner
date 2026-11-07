@@ -158,7 +158,7 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
-                    AppShell(tab = tabOf(route ?: start), onTab = ::openTab, profile = state.profile) {
+                    AppShell(tab = tabOf(route ?: start), onTab = ::openTab, profile = state.profile, feedingIntervalMinutes = state.feeding.intervalMinutes) {
                     NavHost(navController = nav, startDestination = start) {
                         composable(Routes.LOGIN) {
                             LoginScreen(
@@ -195,6 +195,8 @@ class MainActivity : ComponentActivity() {
                                 isParked = vehicle.isParked,
                                 onApplyPreset = vm::applyPreset,
                                 onDismissPreset = vm::dismissPreset,
+                                onFed = vm::markFed,
+                                onInterval = vm::setFeedingInterval,
                             )
                         }
                         composable(Routes.SETTINGS) {
@@ -242,6 +244,7 @@ class MainActivity : ComponentActivity() {
                                     loading = state.loading,
                                     error = state.error,
                                     message = state.message,
+                                    feeding = state.feeding,
                                     edit = CourseEditActions(
                                         swap = vm::swapPlace,
                                         move = vm::moveStop,

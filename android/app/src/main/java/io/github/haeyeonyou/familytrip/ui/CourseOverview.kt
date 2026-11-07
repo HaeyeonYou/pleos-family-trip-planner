@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.haeyeonyou.familytrip.data.CourseResponse
 import io.github.haeyeonyou.familytrip.data.CourseStop
+import io.github.haeyeonyou.familytrip.data.FeedingRoutine
 import java.time.Duration
 import java.time.LocalTime
 
@@ -49,6 +50,7 @@ fun CourseOverview(
     loading: Boolean,
     error: String?,
     message: String?,
+    feeding: FeedingRoutine,
     onStartGuide: () -> Unit,
     onEdit: () -> Unit,
     onSave: () -> Unit,
@@ -63,7 +65,7 @@ fun CourseOverview(
                 path = course.path,
                 modifier = Modifier.fillMaxWidth().height(if (wide) 420.dp else 300.dp).clip(RoundedCornerShape(32.dp)),
             )
-            ArrivalCard(course, outing)
+            ArrivalCard(course, outing, feeding)
             AlternativeRow(onEdit)
             if (loading) CircularProgressIndicator()
             ErrorText(error)
@@ -193,9 +195,10 @@ private fun AmenityChips(stop: CourseStop) {
     }
 }
 
-/** 도착 정보 (HF02는 "도착 10:40 · 다음 수유 12:30"). 수유 루틴(#67) 전까지는 도착·귀가로 보여 준다. */
+/** 도착 정보 (HF02: 도착 시각과 도착 기준 다음 수유까지 여유). */
 @Composable
-private fun ArrivalCard(course: CourseResponse, outing: CourseStop) {
+private fun ArrivalCard(course: CourseResponse, outing: CourseStop, feeding: FeedingRoutine) {
+    val now = rememberNow()
     Row(
         modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(TripColors.GreenSoft).padding(24.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -204,7 +207,11 @@ private fun ArrivalCard(course: CourseResponse, outing: CourseStop) {
         Text("◷", fontSize = 28.sp, color = TripColors.Green)
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text("${outing.place.name} 도착 ${outing.arriveAt} · 귀가 ${course.returnAt}", fontSize = 22.sp, fontWeight = FontWeight.Bold)
-            Text("수유 시간을 등록하면 다음 수유까지 여유를 알려 드려요", fontSize = 18.sp, color = TripColors.Green)
+            Text(
+                feedingSlackText(feeding, outing.arriveAt, now) ?: "케어 탭에서 수유 시각을 기록하면 도착 때 다음 수유까지 여유를 알려 드려요",
+                fontSize = 18.sp,
+                color = TripColors.Green,
+            )
         }
     }
 }

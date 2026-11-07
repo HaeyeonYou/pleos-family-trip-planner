@@ -52,6 +52,7 @@ fun AppShell(
     tab: MainTab?,
     onTab: (MainTab) -> Unit,
     profile: FamilyProfile?,
+    feedingIntervalMinutes: Int,
     content: @Composable () -> Unit,
 ) {
     val narrow = isNarrowWindow()
@@ -59,14 +60,14 @@ fun AppShell(
     var expanded by rememberSaveable { mutableStateOf(false) }
     Surface(color = TripColors.Panel, modifier = Modifier.fillMaxSize()) {
         Row(modifier = Modifier.fillMaxSize()) {
-            if (tab != null) SideMenu(tab, onTab, profile, compact = narrow || !expanded, onToggle = { expanded = !expanded })
+            if (tab != null) SideMenu(tab, onTab, profile, feedingIntervalMinutes, compact = narrow || !expanded, onToggle = { expanded = !expanded })
             Box(modifier = Modifier.weight(1f).fillMaxHeight()) { content() }
         }
     }
 }
 
 @Composable
-private fun SideMenu(selected: MainTab, onTab: (MainTab) -> Unit, profile: FamilyProfile?, compact: Boolean, onToggle: () -> Unit) {
+private fun SideMenu(selected: MainTab, onTab: (MainTab) -> Unit, profile: FamilyProfile?, feedingIntervalMinutes: Int, compact: Boolean, onToggle: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxHeight()
@@ -95,7 +96,7 @@ private fun SideMenu(selected: MainTab, onTab: (MainTab) -> Unit, profile: Famil
         Spacer(Modifier.size(24.dp))
         MainTab.entries.forEach { item -> MenuItem(item, item == selected, compact) { onTab(item) } }
         Spacer(Modifier.weight(1f))
-        if (!compact) ChildCard(profile, compact = false)
+        if (!compact) ChildCard(profile, feedingIntervalMinutes, compact = false)
         // 음성 요청 (#19, #70에서 연결)
         Box(
             modifier = Modifier.size(72.dp).clip(CircleShape).background(TripColors.Tile),
@@ -136,7 +137,7 @@ private fun MenuItem(tab: MainTab, selected: Boolean, compact: Boolean, onClick:
 
 /** 메뉴 아래 아이 카드 (피그마: "서아 · 14개월 · 수유 3시간 간격"). 수유 간격은 루틴 기능에서 채운다. */
 @Composable
-private fun ChildCard(profile: FamilyProfile?, compact: Boolean) {
+private fun ChildCard(profile: FamilyProfile?, feedingIntervalMinutes: Int, compact: Boolean) {
     val child = profile?.children?.firstOrNull()
     val name = profile?.childName?.takeIf { it.isNotBlank() } ?: "우리 아이"
     Row(
@@ -152,7 +153,7 @@ private fun ChildCard(profile: FamilyProfile?, compact: Boolean) {
             Column {
                 Text(name, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                 Text(
-                    child?.let { ageLabel(it.ageMonths()) } ?: "가족 정보를 등록해 주세요",
+                    child?.let { "${ageLabel(it.ageMonths())} · 수유 ${intervalLabel(feedingIntervalMinutes)} 간격" } ?: "가족 정보를 등록해 주세요",
                     fontSize = 16.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
