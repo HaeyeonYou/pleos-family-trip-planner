@@ -7,7 +7,7 @@ from functools import lru_cache
 import httpx
 from fastapi import Depends, FastAPI, HTTPException, Request
 
-from app import care, places, presets, weather
+from app import care, places, presets, voice, weather
 from app.course import starts
 from app.auth import api as auth_api
 from app.auth import web as auth_web
@@ -42,6 +42,7 @@ app.include_router(presets.router)
 app.include_router(weather.router)
 app.include_router(starts.router)
 app.include_router(care.router)
+app.include_router(voice.router)
 app.include_router(places.router)
 
 
