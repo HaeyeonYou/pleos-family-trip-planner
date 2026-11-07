@@ -56,6 +56,8 @@ class TourSource(Protocol):
 
     def amenities(self, content_id: str) -> dict[str, str]: ...
 
+    def parking(self, content_id: str, content_type_id: int) -> str: ...
+
 
 class KakaoSource(Protocol):
     def by_category(self, code: str, latitude: float, longitude: float, radius_m: int, size: int = ...) -> list[KakaoPlace]: ...
@@ -76,6 +78,7 @@ class _Candidate:
     indoor: bool
     distance_m: float
     score: float = 0.0
+    content_type_id: int = 0  # TourAPI 분류 (주차 정보 조회에 쓴다)
 
 
 class CoursePlanner:
@@ -205,8 +208,15 @@ class CoursePlanner:
         for c in candidates[:AMENITY_LOOKUPS]:
             if c.place.source == "tour":
                 _attach_amenities(c.place, self._tour.amenities(c.place.source_id))
+        for c in candidates:
+            if c.theme == Theme.PLAY:  # 키즈카페 등 놀이시설은 키즈존(놀이방)이 있는 곳
+                c.place.amenities["kids_zone"] = Amenity.AVAILABLE
         if cond.needs:
-            for c in candidates[:AMENITY_LOOKUPS]:
+            if "parking" in cond.needs:
+                for c in candidates[:AMENITY_LOOKUPS]:
+                    if c.place.source == "tour":
+                        _attach_parking(c.place, self._tour.parking(c.place.source_id, c.content_type_id))
+            for c in candidates:
                 c.score += 2 * sum(c.place.amenities.get(n) == Amenity.AVAILABLE for n in cond.needs)
             candidates.sort(key=lambda c: c.score, reverse=True)
         return candidates
@@ -256,6 +266,7 @@ class CoursePlanner:
                     theme=classify.tour_theme(p),
                     indoor=classify.tour_is_indoor(p),
                     distance_m=p.distance_m,
+                    content_type_id=p.content_type_id,
                 )
             )
         return result
@@ -418,6 +429,14 @@ def _attach_amenities(place: Place, raw: dict[str, str]) -> None:
             place.amenity_notes[name] = text
     if raw.get("infant_etc"):
         place.amenity_notes["infant_etc"] = raw["infant_etc"]
+
+
+def _attach_parking(place: Place, text: str) -> None:
+    """주차 안내가 적혀 있으면 있음(불가·없음이라고 적힌 경우는 제외), 비었으면 정보 없음."""
+    available = bool(text) and not any(w in text for w in ("불가", "없음", "없습니다", "불가능"))
+    place.amenities["parking"] = Amenity.AVAILABLE if available else Amenity.UNKNOWN
+    if text:
+        place.amenity_notes["parking"] = text
 
 
 def _tour_place(p: TourPlace) -> Place:
