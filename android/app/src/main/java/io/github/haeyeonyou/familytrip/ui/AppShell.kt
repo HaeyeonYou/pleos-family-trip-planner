@@ -22,12 +22,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import io.github.haeyeonyou.familytrip.data.CourseStop
 import io.github.haeyeonyou.familytrip.data.FamilyProfile
 import io.github.haeyeonyou.familytrip.data.ageLabel
 
@@ -39,38 +37,24 @@ enum class MainTab(val label: String, val icon: String) {
     SETTINGS("설정", "☰"),
 }
 
-/** 한 창일 때 지도를 보이게 남겨 두는 왼쪽 폭. */
-private val MAP_STRIP = 360.dp
-
 /**
- * 앱 전체 틀 (피그마 지수 PX00 레이어 구조).
- * - 한 창(1682dp): 우리 창 안에 지도 레이어(L0)를 깔고, 그 위에 반투명 앱 패널(L2)을 띄운다.
- * - 화면 분할(841dp, 내비 지도는 옆 창): 지도 없이 패널만, 메뉴는 아이콘만.
- * Pleos에서는 다른 앱(내장 내비) 위에 겹칠 수 없어서, 지도는 우리 창 안에 그린다.
+ * 앱 전체 틀 (피그마 지수 PX의 메뉴·패널 구성을 창 전체에 적용).
+ * PX는 내비 지도 위에 반투명 패널을 띄우지만, Pleos에서는 다른 앱 위에 겹칠 수 없어 패널을 창 전체로 쓴다 (11/7 결정).
+ * 실제 지도는 화면 분할로 내장 내비를 옆에 띄워 보고, 코스 경로는 코스 화면의 미리보기 카드로 보여 준다.
+ * 화면 분할(841dp)일 때는 메뉴를 아이콘만 남긴다.
  */
 @Composable
 fun AppShell(
     tab: MainTab?,
     onTab: (MainTab) -> Unit,
     profile: FamilyProfile?,
-    mapStops: List<CourseStop>,
     content: @Composable () -> Unit,
 ) {
     val narrow = isNarrowWindow()
-    Box(modifier = Modifier.fillMaxSize().background(TripColors.MapGround)) {
-        if (!narrow) CourseMapLayer(stops = mapStops, modifier = Modifier.fillMaxSize())
-        Surface(
-            color = TripColors.Panel.copy(alpha = if (narrow) 1f else 0.94f),
-            shape = RoundedCornerShape(if (narrow) 0.dp else 40.dp),
-            modifier = Modifier
-                .fillMaxHeight()
-                .then(if (narrow) Modifier.fillMaxWidth() else Modifier.padding(start = MAP_STRIP, top = 24.dp, end = 24.dp, bottom = 24.dp))
-                .then(if (narrow) Modifier else Modifier.shadow(24.dp, RoundedCornerShape(40.dp), clip = false)),
-        ) {
-            Row(modifier = Modifier.fillMaxSize()) {
-                if (tab != null) SideMenu(tab, onTab, profile, compact = narrow)
-                Box(modifier = Modifier.weight(1f).fillMaxHeight()) { content() }
-            }
+    Surface(color = TripColors.Panel, modifier = Modifier.fillMaxSize()) {
+        Row(modifier = Modifier.fillMaxSize()) {
+            if (tab != null) SideMenu(tab, onTab, profile, compact = narrow)
+            Box(modifier = Modifier.weight(1f).fillMaxHeight()) { content() }
         }
     }
 }
