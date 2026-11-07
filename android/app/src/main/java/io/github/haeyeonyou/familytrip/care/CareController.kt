@@ -17,6 +17,7 @@ import io.github.haeyeonyou.familytrip.navi.Place
 import io.github.haeyeonyou.familytrip.vehicle.ClimateReading
 import io.github.haeyeonyou.familytrip.vehicle.VehicleRepository
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -29,6 +30,15 @@ enum class CareKind(val api: String, val label: String) {
     NURSING("nursing", "수유실"),
     DIAPER("diaper", "기저귀 교환대"),
     REST("rest", "정차 공간"),
+
+    /** 음성으로만 찾는다 (케어 화면 카드에는 없다) */
+    RESTROOM("restroom", "화장실"),
+    ;
+
+    companion object {
+        /** 케어 화면에 카드로 보이는 종류 */
+        val cards: List<CareKind> = listOf(NURSING, DIAPER, REST)
+    }
 }
 
 /** 가까운 곳 찾기 결과. */
@@ -129,9 +139,9 @@ class CareController(
      * 베이비케어를 켜면 [preset](가족 공조 프리셋)이 있으면 그 값을, 없으면 기본값
      * (24°C, 약한 바람, 시트·핸들 열선 끔)을 차에 적용한다. 끄면 켜기 전 설정으로 되돌린다.
      */
-    fun setBabyCare(on: Boolean, preset: PendingPreset? = null, onApplied: (() -> Unit)? = null) {
-        if (_state.value.babyCareBusy) return
-        scope.launch {
+    fun setBabyCare(on: Boolean, preset: PendingPreset? = null, onApplied: (() -> Unit)? = null): Job {
+        if (_state.value.babyCareBusy) return scope.launch { }
+        return scope.launch {
             _state.update { it.copy(babyCareBusy = true, climateMessage = null) }
             val used = if (on) enableBabyCare(preset) else { disableBabyCare(); false }
             if (used && preset != null) runCatching { api.presetApplied(preset.id) }

@@ -33,6 +33,17 @@ data class ClimateReading(
     val fanSpeed: Int? = null,
 )
 
+/** 공조에서 바꿀 항목만 담는다. null인 항목은 건드리지 않는다. */
+data class ClimateChange(
+    val power: Boolean? = null,
+    val temperature: Float? = null,
+    val fanSpeed: Int? = null,
+    val ac: Boolean? = null,
+    val driverSeatHeat: Int? = null,
+    val passengerSeatHeat: Int? = null,
+    val steeringWheelHeat: Int? = null,
+)
+
 interface VehicleRepository {
     val state: StateFlow<VehicleState>
     fun start()
@@ -46,4 +57,7 @@ interface VehicleRepository {
 
     /** 다른 설정은 건드리지 않고 풍량만 [level]단으로 바꾼다 (지원 구역의 범위 안으로 맞춤). 바꾸면 true. */
     suspend fun setFanSpeed(level: Int): Boolean
+
+    /** [change]에 담긴 항목만 차에 적용한다 (음성 명령용). 지원하지 않는 항목은 failed에 담긴다. */
+    suspend fun applyClimateChange(change: ClimateChange): ClimateApplyResult
 }
