@@ -28,6 +28,8 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import io.github.haeyeonyou.familytrip.location.FUSED_LOCATION_PERMISSION
 import io.github.haeyeonyou.familytrip.ui.AppShell
+import io.github.haeyeonyou.familytrip.care.CareKind
+import io.github.haeyeonyou.familytrip.ui.CareActions
 import io.github.haeyeonyou.familytrip.ui.CareScreen
 import io.github.haeyeonyou.familytrip.ui.CourseEditActions
 import io.github.haeyeonyou.familytrip.ui.FamilyTripTheme
@@ -190,11 +192,28 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         composable(Routes.CARE) {
+                            val care = container.care
+                            val careState by care.state.collectAsStateWithLifecycle()
                             CareScreen(
                                 state = state,
+                                care = careState,
                                 isParked = vehicle.isParked,
-                                onApplyPreset = vm::applyPreset,
-                                onDismissPreset = vm::dismissPreset,
+                                actions = CareActions(
+                                    // 폰에서 보낸 공조 프리셋이 있으면 그 값으로 베이비케어를 맞춘다.
+                                    onBabyCare = { on -> care.setBabyCare(on, state.pendingPreset, onApplied = vm::dismissPreset) },
+                                    onSleepMode = care::setSleepMode,
+                                    onFed = care::markFed,
+                                    onInterval = care::setFeedingInterval,
+                                    onFind = { kind -> scope.launch { care.findNearby(kind) } },
+                                    onAddWaypoint = { place -> care.addWaypoint(place) },
+                                    onApplyPreset = vm::applyPreset,
+                                    onDismissPreset = vm::dismissPreset,
+                                    onEnter = {
+                                        care.reloadFeeding()
+                                        care.refreshClimate()
+                                        scope.launch { CareKind.entries.forEach { care.findNearby(it) } }
+                                    },
+                                ),
                             )
                         }
                         composable(Routes.SETTINGS) {

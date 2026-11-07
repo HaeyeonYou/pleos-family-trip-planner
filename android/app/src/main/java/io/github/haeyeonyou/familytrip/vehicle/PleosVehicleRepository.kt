@@ -11,6 +11,7 @@ import ai.pleos.playground.vehicle.listener.RangeRemainingListener
 import android.content.Context
 import android.util.Log
 import io.github.haeyeonyou.familytrip.data.ClimateSettings
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeout
 import kotlin.coroutines.resume
@@ -93,13 +94,18 @@ class PleosVehicleRepository(context: Context) : VehicleRepository {
         val applied = mutableListOf<String>()
         val failed = mutableListOf<String>()
         suspend fun step(label: String, block: suspend () -> Unit) {
-            try {
-                withTimeout(SDK_TIMEOUT_MS) { block() }
-                applied += label
-            } catch (e: Exception) {
-                Log.w(TAG, "climate $label failed", e)
-                failed += label
+            // 공조를 막 켠 직후에는 항목이 잠깐 준비되지 않아 실패할 수 있어 한 번 더 시도한다.
+            repeat(2) { attempt ->
+                try {
+                    withTimeout(SDK_TIMEOUT_MS) { block() }
+                    applied += label
+                    return
+                } catch (e: Exception) {
+                    Log.w(TAG, "climate $label failed (try ${attempt + 1})", e)
+                    if (attempt == 0) delay(RETRY_DELAY_MS)
+                }
             }
+            failed += label
         }
 
         val hvac = vehicle.getHVAC()
@@ -166,6 +172,39 @@ class PleosVehicleRepository(context: Context) : VehicleRepository {
         return ClimateApplyResult(applied, failed)
     }
 
+    override suspend fun setFanSpeed(level: Int): Boolean {
+        val hvac = vehicle.getHVAC()
+        val zones = capability(emptyMap()) { ok, fail -> hvac.checkHvacFanSpeedCapabilities({ _, m -> ok(m) }, fail) }
+        if (zones.isEmpty()) return false
+        return runCatching {
+            withTimeout(SDK_TIMEOUT_MS) {
+                zones.forEach { (area, bounds) ->
+                    val value = level.coerceIn(bounds.minValue, bounds.maxValue)
+                    sdk<Unit> { ok, fail -> hvac.setHvacFanSpeed(area, value, { _, _ -> ok(Unit) }, fail) }
+                }
+            }
+        }.onFailure { Log.w(TAG, "setFanSpeed failed", it) }.isSuccess
+    }
+
+    override suspend fun readClimate(): ClimateReading {
+        val hvac = vehicle.getHVAC()
+        val tempZones = capability(emptyMap()) { ok, fail -> hvac.checkHvacTemperatureCapabilities({ _, m -> ok(m) }, fail) }
+        val area = tempZones.keys.firstOrNull() ?: return ClimateReading(supported = false)
+        val temperature = runCatching {
+            withTimeout(SDK_TIMEOUT_MS) { sdk<Float?> { ok, fail -> hvac.getHvacTemperature(area, TemperatureUnit.CELSIUS, ok, fail) } }
+        }.getOrNull()
+        val powerZones = capability(emptyList()) { ok, fail -> hvac.checkHvacPowerCapabilities({ _, l -> ok(l) }, fail) }
+        val power = powerZones.firstOrNull()?.let { zone ->
+            runCatching { withTimeout(SDK_TIMEOUT_MS) { sdk<Boolean?> { ok, fail -> hvac.getHvacPowerState(zone, ok, fail) } } }.getOrNull()
+        }
+        val fanZones = capability(emptyMap()) { ok, fail -> hvac.checkHvacFanSpeedCapabilities({ _, m -> ok(m) }, fail) }
+        val fan = fanZones.keys.firstOrNull()?.let { zone ->
+            runCatching { withTimeout(SDK_TIMEOUT_MS) { sdk<Int?> { ok, fail -> hvac.getHvacFanSpeed(zone, ok, fail) } } }.getOrNull()
+        }
+        // 공조가 꺼져 있으면 설정 온도는 'PropertyNotAvailable'로 읽히지 않는다. 지원 구역이 있으면 지원 차량으로 본다.
+        return ClimateReading(supported = true, power = power, temperature = temperature, fanSpeed = fan)
+    }
+
     private fun reportError(where: String, e: Exception?) {
         Log.w(TAG, "$where failed", e)
         _state.update { it.copy(lastError = "$where: ${e?.message ?: e?.javaClass?.simpleName}") }
@@ -174,6 +213,7 @@ class PleosVehicleRepository(context: Context) : VehicleRepository {
     private companion object {
         const val TAG = "PleosVehicle"
         const val SDK_TIMEOUT_MS = 3_000L
+        const val RETRY_DELAY_MS = 800L
     }
 }
 
