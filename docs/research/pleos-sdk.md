@@ -440,6 +440,18 @@
 - 내장 내비(`ai.umos.maps.android.navigation.app`, Mapbox 기반)의 현재 위치는 성남 수정구 시흥동(37.41272, 127.09468)에 고정되어 있다.
 - `adb emu geo fix`로 넣은 GPS는 Android GPS provider와 내비 앱에 전달되지만, 내비는 이 값을 쓰지 않는다.
 - Virtual Console의 ACCEL은 차속만 바꾸고 위치는 바꾸지 않는다. Motion 도메인에 좌표 항목이 없다.
-- 그래서 에뮬레이터에서는 `onDestinationArrived`가 발생하지 않는다. 실차에서의 동작은 [미확인].
+- 그래서 `geo fix`만으로는 `onDestinationArrived`가 발생하지 않는다. 내비 주행 시뮬레이션을 쓰면 발생한다 (아래 11/7 절).
 - 원인 (추가 분석): 내장 내비는 `GpsLocationSourceRepositoryImpl`에서 GNSS NMEA 원문을 읽고 체크섬을 검사한다. 에뮬레이터는 GPGGA/GPRMC를 항상 `*47`로 내보내서 체크섬이 맞지 않아 거부된다. 체크섬을 맞춘 유효 NMEA를 연속으로 넣어도 내비 엔진 위치는 바뀌지 않았다.
 - 반면 `adb emu geo fix`는 Android GPS·fused provider에 반영되고, Pleos FusedLocation 서비스가 fused provider를 구독하므로 **FusedLocation SDK를 쓰는 앱은 위치 주입으로 테스트할 수 있다** (출처: github.com/Pleos-Playground/pleos-sample-fusedlocation-app README).
+
+## 내비 주행 시뮬레이션 (2026-11-07 확인)
+
+- 내장 내비에 주행 시뮬레이션 기능이 있다. 내비 화면 오른쪽 아래 **설정(톱니) 버튼을 2초 이상 길게 누르면** '주행 시뮬레이션' 창(시작/정지/종료)이 뜬다.
+- 경로 안내 중 '시작'을 누르면 차가 경로를 따라 움직인다. 실제보다 빠르다 (1.8km, 예상 9분 경로가 약 2분에 도착).
+- 이때 나오는 것:
+  - 왼쪽 Driving view의 턴바이턴 카드, NaviHelper `onTBTInfo`, 현재 위치·남은 거리
+  - 목적지에서 `onDestinationArrived` (우리 앱 `PleosNavi` 로그에 "목적지 도착" 확인)
+- 시뮬레이션 위치는 내비 엔진 안에서만 쓴다. Android 위치·FusedLocation은 바뀌지 않으므로 FusedLocation 근접 알림은 `geo fix`(tools/geo_drive.py)로 따로 움직여야 한다.
+- 근거: 내비 앱(`/system_ext/priv-app/Navi42/Navi42.apk`, 3.3.2-rc5-hotfix.3)의 `SimulationUseCase`, `LocationSourceId`(VEHICLE_LOCATION·GPS_LOCATION·LOCATION_SIMULATOR 등), 메인 화면 `combinedClickable`의 onLongClick. APK는 호스트의 AVD `system.img`(super → system_ext ext4)에서 꺼내 확인했다.
+- NMEA 재확인: 에뮬레이터가 GGA·RMC를 직접 만들어 `*47`을 붙인다 (`geo nmea`로 넣은 문장도 다시 만들어짐). RMC는 숫자만 바꿔서는 체크섬이 0x47이 될 수 없고 음수 속도('-')가 있어야 한다. GGA·RMC 둘 다 맞춰도 내비 엔진 map-matching 입력(`org(...)`, `sat(0)`)은 시흥동 그대로였다.
+- 주의: 앱 프로세스가 얼려진(frozen) 동안 NaviHelper 콜백이 전달되지 못하면, 그 뒤로 해당 프로세스의 리스너가 이벤트를 받지 못했다 (앱 재시작으로 복구). 안내 중에는 포그라운드 서비스로 얼림을 막아야 한다.
