@@ -1,0 +1,6 @@
+{
+ "request": "POST api.anthropic.com/v1/messages?",
+ "status": 200,
+ "content_type": "application/json",
+ "body": "{\"model\":\"claude-haiku-5-5\",\"id\":\"msg_011CgoxHAiGBSdXHBvVLE4XJ\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"{\\\"action\\\":\\\"climate\\\",\\\"temperature_delta\\\":-2,\\\"confidence\\\":0.9,\\\"reply\\\":\\\"차 안을 조금 시원하게 맞춰 드릴게요.\\\"}\"}],\"container\":null,\"stop_reason\":\"end_turn\",\"stop_sequence\":null,\"stop_details\":null,\"usage\":{\"input_tokens\":3632,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0,\"cache_creation\":{\"ephemeral_5m_input_tokens\":0,\"ephemeral_1h_input_tokens\":0},\"output_tokens\":59,\"output_tokens_details\":{\"thinking_tokens\":0},\"service_tier\":\"standard\",\"inference_geo\":\"global\",\"speed\":\"standard\"},\"diagnostics\":null}"
+}
