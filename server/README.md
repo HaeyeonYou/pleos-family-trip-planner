@@ -9,6 +9,15 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 - 키는 저장소 루트 `.env`에서 읽습니다 (`.env.example` 참고).
 - 에뮬레이터에서는 `http://10.0.2.2:8000`으로 접속합니다.
 
+## DB (PostgreSQL)
+- 로컬: `brew install postgresql@17 && brew services start postgresql@17`, `createdb pleos && createdb pleos_test`
+- 테이블 만들기·바꾸기: `.venv/bin/alembic upgrade head` (모델을 바꾸면 `alembic revision --autogenerate -m "설명"`)
+- 접속 주소는 `.env`의 `DATABASE_URL` (기본 `postgresql+asyncpg://localhost/pleos`), 폰이 접속할 주소는 `PUBLIC_BASE_URL` (비우면 맥 사설 IP:8000)
+- 테스트는 `pleos_test` DB를 매번 비우고 쓴다
+
+## 모바일 웹 (`/m`)
+폰 브라우저로 여는 화면. 차 화면 QR → 회원가입·로그인 → '이 차에서 로그인', 홈에서 '차 공조 미리 설정' → '차로 보내기'.
+
 ## 로그
 서버를 실행한 터미널에 요청마다 아래처럼 남습니다. 더 자세히 보려면 `LOG_LEVEL=DEBUG`.
 ```
@@ -31,6 +40,11 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 ## API
 | 경로 | 설명 |
 |---|---|
+| `POST /auth/car-login` | 차 QR 로그인 요청 생성 (코드, QR 이미지 주소, 폴링 비밀값) |
+| `POST /auth/car-login/{id}/poll` | 폰 승인 여부. 승인되면 차 세션 토큰을 한 번만 줌 |
+| `GET /auth/me`, `POST /auth/logout` | 로그인 사용자 확인, 차 세션 폐기 (`Authorization: Bearer`) |
+| `GET /presets/pending` | 폰에서 보내 아직 적용하지 않은 공조 프리셋 (없으면 204) |
+| `POST /presets/{id}/applied` | 차에서 적용 완료 표시 |
 | `GET /health` | 상태, 설정된 키 여부 |
 | `POST /parse` | 자연어 → `TripConditions` |
 | `POST /course` | 조건 + 출발지 → 식사·나들이·카페·귀가 코스와 시간표 |
