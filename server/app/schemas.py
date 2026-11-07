@@ -7,7 +7,7 @@ class Theme(str, Enum):
     NATURE = "nature"        # 자연
     EXPERIENCE = "experience"  # 체험
     EXHIBITION = "exhibition"  # 전시
-    PLAY = "play"            # 놀이
+    PLAY = "play"            # 쇼핑·놀이 (키즈카페, 테마파크, 복합쇼핑몰)
     PET = "pet"              # 반려동물 동반
 
 

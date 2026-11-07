@@ -14,9 +14,11 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.config import get_settings
+from app.course import classify
 from app.course.planner import CoursePlanner
 from app.main import app, get_planner
 from app.parsing.claude import ClaudeParser
+from app.schemas import Theme
 from app.sources.kakao import CATEGORY_CAFE, CATEGORY_RESTAURANT, KakaoClient
 from app.sources.tour import CONTENT_TYPE_ATTRACTION, PET, TourApiClient
 from tests.api_cache import caching_transport
@@ -84,6 +86,13 @@ def test_kakao_category_and_keyword_search(kakao):
         assert found and all(p.name and p.category for p in found)
     kids = kakao.by_keyword("키즈카페", *GANGNAM, radius_m=5000, size=5)
     assert any("키즈카페" in p.category or "키즈카페" in p.name for p in kids)
+
+
+def test_shopping_mall_is_play_outing(kakao):
+    # 경험 우주 '쇼핑·놀이' 분야: 복합쇼핑몰은 실내 놀이 나들이로 분류한다.
+    malls = kakao.by_keyword("복합쇼핑몰", *SUWON, radius_m=10000, size=3)
+    assert malls
+    assert all(classify.kakao_outing_kind(p) == (Theme.PLAY, True) for p in malls)
 
 
 def test_kakao_multi_waypoint_route(kakao):
