@@ -1,9 +1,12 @@
 package io.github.haeyeonyou.familytrip.ui
 
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import io.github.haeyeonyou.familytrip.care.CareTone
+import io.github.haeyeonyou.familytrip.care.ToneState
 
 /**
  * 피그마 지수 페이지 PX·컴포넌트 기준 색 (밝은 패널, 초록 강조, 짙은 남색 주 버튼).
@@ -12,11 +15,15 @@ import androidx.compose.ui.graphics.Color
 object TripColors {
     val Green = Color(0xFF0E8A5F)
     val GreenSoft = Color(0xFFE3F3EC)
-    val Ink = Color(0xFF1F2530)
-    val InkSoft = Color(0xFF5D6675)
-    val Panel = Color(0xFFF7F8FA)
-    val Tile = Color(0xFFEDEFF2)
-    val Line = Color(0xFFDDE1E6)
+
+    // 케어 톤(수면·기저귀·수유·달래기)에 따라 바뀌는 색. 읽는 곳은 자동으로 다시 그려진다.
+    val Ink get() = ToneState.current.ink
+    val InkSoft get() = ToneState.current.inkSoft
+    val Panel get() = ToneState.current.panel
+    val Tile get() = ToneState.current.tile
+    val Line get() = ToneState.current.line
+    /** 카드 배경 (기본 흰색) */
+    val Card get() = ToneState.current.card
     val Amber = Color(0xFFF5A524)
     val AmberSoft = Color(0xFFFFF4E0)
     val Route = Color(0xFF4F5BF2)
@@ -36,24 +43,48 @@ object TripColors {
     val MapWater = Color(0xFFCFE0F2)
 }
 
-private val colors = lightColorScheme(
-    primary = TripColors.Green,
-    onPrimary = Color.White,
-    primaryContainer = TripColors.GreenSoft,
-    onPrimaryContainer = Color(0xFF0A5A3E),
-    secondary = TripColors.Ink,
-    onSecondary = Color.White,
-    tertiary = Color(0xFFB45309),
-    tertiaryContainer = TripColors.AmberSoft,
-    onTertiaryContainer = Color(0xFF7A3E00),
-    background = TripColors.Panel,
-    surface = TripColors.Panel,
-    onSurface = TripColors.Ink,
-    surfaceVariant = TripColors.Tile,
-    onSurfaceVariant = TripColors.InkSoft,
-    outline = TripColors.Line,
-    outlineVariant = TripColors.Line,
-)
+/** 톤에 맞는 색 구성. 수면은 어두운 구성, 나머지는 밝은 구성에 패널 색만 바꾼다. */
+private fun colorsFor(tone: CareTone) = if (tone.dark) {
+    darkColorScheme(
+        primary = tone.accent,
+        onPrimary = Color(0xFF0B1020),
+        primaryContainer = Color(0xFF26324F),
+        onPrimaryContainer = tone.ink,
+        secondary = tone.ink,
+        onSecondary = tone.panel,
+        tertiary = Color(0xFFF0B45A),
+        tertiaryContainer = Color(0xFF3A2E16),
+        onTertiaryContainer = Color(0xFFFFE2A8),
+        background = tone.panel,
+        surface = tone.panel,
+        onBackground = tone.ink,
+        onSurface = tone.ink,
+        surfaceVariant = tone.tile,
+        onSurfaceVariant = tone.inkSoft,
+        outline = tone.line,
+        outlineVariant = tone.line,
+    )
+} else {
+    lightColorScheme(
+        primary = TripColors.Green,
+        onPrimary = Color.White,
+        primaryContainer = TripColors.GreenSoft,
+        onPrimaryContainer = Color(0xFF0A5A3E),
+        secondary = tone.ink,
+        onSecondary = Color.White,
+        tertiary = Color(0xFFB45309),
+        tertiaryContainer = TripColors.AmberSoft,
+        onTertiaryContainer = Color(0xFF7A3E00),
+        background = tone.panel,
+        surface = tone.panel,
+        onBackground = tone.ink,
+        onSurface = tone.ink,
+        surfaceVariant = tone.tile,
+        onSurfaceVariant = tone.inkSoft,
+        outline = tone.line,
+        outlineVariant = tone.line,
+    )
+}
 
 @Composable
-fun FamilyTripTheme(content: @Composable () -> Unit) = MaterialTheme(colorScheme = colors, content = content)
+fun FamilyTripTheme(content: @Composable () -> Unit) = MaterialTheme(colorScheme = colorsFor(ToneState.current), content = content)

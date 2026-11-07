@@ -3,7 +3,9 @@ package io.github.haeyeonyou.familytrip.navi
 import ai.pleos.playground.navi.constants.NaviErrorCode
 import ai.pleos.playground.navi.constants.NavigationStatus
 import ai.pleos.playground.navi.constants.RouteOption
+import ai.pleos.playground.navi.constants.WaypointIndex
 import ai.pleos.playground.navi.data.CurrentLocationInfo
+import ai.pleos.playground.navi.data.RequestWaypointInfo
 import ai.pleos.playground.navi.data.DestinationArrivedInfo
 import ai.pleos.playground.navi.data.DrivingInfo
 import ai.pleos.playground.navi.data.NavigationScreenRequest
@@ -126,6 +128,18 @@ class PleosNaviRepository(context: Context) : NaviRepository {
     }
 
     override fun cancelRoute() = naviHelper.cancelRoute()
+
+    override fun addWaypointOrRoute(place: Place): Boolean {
+        if (!_state.value.routing) {
+            requestRoute(place)
+            return false
+        }
+        log("경유지 추가: ${place.name}")
+        naviHelper.addWaypoint(
+            RequestWaypointInfo(place.latitude, place.longitude, place.name, WaypointIndex.FIRST, "", "", "", "")
+        )
+        return true
+    }
 
     override fun refreshCurrentLocation() = naviHelper.getCurrentLocationInfo()
 

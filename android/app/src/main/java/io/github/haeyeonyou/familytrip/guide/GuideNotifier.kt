@@ -26,6 +26,25 @@ class GuideNotifier(private val context: Context) {
                 description = "도착과 다음 장소 안내"
             },
         )
+        manager.createNotificationChannel(
+            NotificationChannel(QUIET_CHANNEL_ID, "코스 안내 (수면 모드)", NotificationManager.IMPORTANCE_LOW).apply {
+                description = "아이가 잘 때: 소리와 팝업 없이 조용히 알려요"
+                setSound(null, null)
+                enableVibration(false)
+            },
+        )
+    }
+
+    /** 수면 모드에서는 소리·팝업 없는 채널로 알린다. */
+    @Volatile
+    var quiet: Boolean = false
+
+    /** 수면 모드 중 도착 5분 전에 한 번, 조용히 알린다. */
+    fun notifyArrivingSoon(minutes: Int) {
+        manager.notify(
+            NOTIFICATION_ID_SOON,
+            base().setContentTitle("${minutes}분 뒤 도착해요").setContentText("아이가 자고 있어요. 도착 전에 조용히 알려 드려요.").build(),
+        )
     }
 
     fun notifyArrived(stop: CourseStop, next: CourseStop?) {
@@ -51,7 +70,7 @@ class GuideNotifier(private val context: Context) {
 
     fun clear() = manager.cancel(NOTIFICATION_ID)
 
-    private fun base() = Notification.Builder(context, CHANNEL_ID)
+    private fun base() = Notification.Builder(context, if (quiet) QUIET_CHANNEL_ID else CHANNEL_ID)
         .setSmallIcon(android.R.drawable.ic_dialog_map)
         .setCategory(Notification.CATEGORY_NAVIGATION)
         .setContentIntent(openAppIntent())
@@ -73,7 +92,9 @@ class GuideNotifier(private val context: Context) {
 
     companion object {
         const val CHANNEL_ID = "trip_guide"
+        const val QUIET_CHANNEL_ID = "trip_guide_quiet"
         const val NOTIFICATION_ID = 1
+        const val NOTIFICATION_ID_SOON = 2
         const val ACTION_NEXT = "io.github.haeyeonyou.familytrip.action.GUIDE_NEXT"
     }
 }

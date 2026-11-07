@@ -186,6 +186,26 @@ data class ClimateSettings(
 @Serializable
 data class PendingPreset(val id: String, val settings: ClimateSettings, @SerialName("sent_at") val sentAt: String)
 
+// 급한 케어 찾기 (서버 app/care.py)
+
+@Serializable
+data class CarePlace(
+    val name: String,
+    val address: String = "",
+    val latitude: Double,
+    val longitude: Double,
+    @SerialName("distance_m") val distanceM: Int,
+    @SerialName("drive_minutes") val driveMinutes: Int,
+    val category: String = "",
+    /** 가는 길에서 더 가야 하는 시간(분). 가는 곳을 모르면 null. */
+    @SerialName("detour_minutes") val detourMinutes: Int? = null,
+    @SerialName("on_route") val onRoute: Boolean = false,
+    val note: String = "",
+)
+
+@Serializable
+data class CareNearby(val kind: String, val places: List<CarePlace>)
+
 interface TripApi {
     @POST("parse")
     suspend fun parse(@Body request: ParseRequest): ParseResponse
@@ -225,6 +245,17 @@ interface TripApi {
     /** 아직 적용하지 않은 프리셋. 없으면 204 (body null). */
     @GET("presets/pending")
     suspend fun pendingPreset(): Response<PendingPreset>
+
+    /** 수유실(nursing)·기저귀 교환대(diaper)·잠깐 세울 곳(rest)을 현재 위치 근처에서 찾는다. 가는 곳을 주면 경로 위 우선. */
+    @GET("care/nearby")
+    suspend fun careNearby(
+        @Query("kind") kind: String,
+        @Query("lat") lat: Double,
+        @Query("lng") lng: Double,
+        @Query("to_lat") toLat: Double? = null,
+        @Query("to_lng") toLng: Double? = null,
+        @Query("limit") limit: Int = 2,
+    ): CareNearby
 
     @POST("presets/{id}/applied")
     suspend fun presetApplied(@Path("id") presetId: String): Response<Unit>

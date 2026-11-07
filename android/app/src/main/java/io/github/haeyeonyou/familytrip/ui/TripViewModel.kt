@@ -24,6 +24,8 @@ import io.github.haeyeonyou.familytrip.data.TripConditions
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
@@ -99,6 +101,12 @@ class TripViewModel(private val container: AppContainer) : ViewModel() {
     val guide = container.guide.state
 
     init {
+        // 케어 탭에서 수유를 기록하면 홈의 수유 카드도 같은 값을 본다.
+        viewModelScope.launch {
+            container.care.state.map { it.feeding }.distinctUntilChanged().collect { f ->
+                _state.update { it.copy(feeding = f) }
+            }
+        }
         checkPendingPreset()
     }
 

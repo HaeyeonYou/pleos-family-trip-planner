@@ -71,7 +71,7 @@ fun FeedingCard(
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(28.dp))
-            .background(Color.White)
+            .background(TripColors.Card)
             .border(1.dp, TripColors.Line, RoundedCornerShape(28.dp))
             .padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
