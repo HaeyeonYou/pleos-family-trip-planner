@@ -7,7 +7,12 @@ import io.github.haeyeonyou.familytrip.AppContainer
 import io.github.haeyeonyou.familytrip.data.CoursePlace
 import io.github.haeyeonyou.familytrip.data.FamilyProfile
 import io.github.haeyeonyou.familytrip.data.FeedingRoutine
+import io.github.haeyeonyou.familytrip.data.CourseOption
 import io.github.haeyeonyou.familytrip.data.CourseRequest
+import io.github.haeyeonyou.familytrip.data.StartBody
+import io.github.haeyeonyou.familytrip.data.WeatherInfo
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import io.github.haeyeonyou.familytrip.data.CourseResponse
 import io.github.haeyeonyou.familytrip.data.LatLng
 import io.github.haeyeonyou.familytrip.data.ParseRequest
@@ -48,7 +53,36 @@ data class TripUiState(
     val applyingPreset: Boolean = false,
     /** 수유 루틴 (#67). 기기에만 저장 */
     val feeding: FeedingRoutine = FeedingRoutine(),
+    val homeFilters: HomeFilters = HomeFilters(),
+    /** 홈 추천을 만든 조건 (코스를 열면 이 조건으로 편집한다) */
+    val courseConditions: TripConditions? = null,
+    /** 홈 추천 코스 (서버 /course/suggest) */
+    val options: List<CourseOption> = emptyList(),
+    val optionsLoading: Boolean = false,
+    val optionsError: String? = null,
+    val weather: WeatherInfo? = null,
+    /** 장소 키 → 최근 1시간 안에 시작한 수 */
+    val going: Map<String, Int> = emptyMap(),
 )
+
+/** 홈 필터 칩 (HF01). 칩을 바꾸면 추천을 다시 계산한다. */
+data class HomeFilters(
+    val nursingRoom: Boolean = false,
+    val stroller: Boolean = false,
+    val pet: Boolean = false,
+    val indoor: Boolean = false,
+    val kidsMenu: Boolean = false,
+    val playroom: Boolean = false,
+    val parking: Boolean = false,
+) {
+    fun needs(): List<String> = buildList {
+        if (nursingRoom) add("nursing_room")
+        if (stroller) add("stroller")
+        if (kidsMenu) add("kids_chair")
+        if (playroom) add("kids_zone")
+        if (parking) add("parking")
+    }
+}
 
 private const val TAG = "TripViewModel"
 private const val MIN_STAY_MINUTES = 10
@@ -56,7 +90,9 @@ private const val MAX_STAY_MINUTES = 300
 
 class TripViewModel(private val container: AppContainer) : ViewModel() {
 
-    private val _state = MutableStateFlow(TripUiState(profile = container.profile.load(), feeding = container.feeding.load()))
+    private val _state = MutableStateFlow(container.profile.load().let { profile ->
+        TripUiState(profile = profile, feeding = container.feeding.load(), homeFilters = defaultFilters(profile))
+    })
     val state: StateFlow<TripUiState> = _state.asStateFlow()
 
     val vehicle = container.vehicle.state
@@ -108,6 +144,80 @@ class TripViewModel(private val container: AppContainer) : ViewModel() {
         _state.update { it.copy(feeding = updated) }
     }
 
+    // 홈 추천 (HF01)
+
+    private var homeJob: Job? = null
+    private var indoorTouched = false
+
+    /** 홈에 들어올 때: 추천이 없으면 새로 받고, 있으면 날씨·'가는 중' 수만 갱신한다. */
+    fun loadHome() {
+        if (_state.value.options.isEmpty() && !_state.value.optionsLoading) refreshOptions(0) else refreshGoing()
+    }
+
+    fun toggleFilter(change: (HomeFilters) -> HomeFilters) {
+        indoorTouched = true
+        _state.update { it.copy(homeFilters = change(it.homeFilters)) }
+        refreshOptions(400)
+    }
+
+    fun retryHome() = refreshOptions(0)
+
+    private fun refreshOptions(debounceMs: Long) {
+        homeJob?.cancel()
+        homeJob = viewModelScope.launch {
+            _state.update { it.copy(optionsLoading = true, optionsError = null) }
+            delay(debounceMs)
+            val origin = currentOrigin()
+            // 날씨: 비·눈이면 실내를 먼저 (칩을 직접 바꾸지 않았을 때). 실패해도 추천은 계속한다.
+            runCatching { container.api.weather(origin.latitude, origin.longitude) }
+                .onSuccess { w ->
+                    _state.update { it.copy(weather = w) }
+                    if (w.rainy && !indoorTouched && !_state.value.homeFilters.indoor) {
+                        _state.update { it.copy(homeFilters = it.homeFilters.copy(indoor = true)) }
+                    }
+                }
+                .onFailure { e -> Log.w(TAG, "weather failed", e) }
+            val s = _state.value
+            val filters = s.homeFilters
+            val base = s.profile?.applyTo(TripConditions()) ?: TripConditions()
+            val conditions = base.copy(withPet = filters.pet, indoorOnly = filters.indoor, needs = filters.needs())
+            try {
+                val res = container.api.suggest(CourseRequest(conditions = conditions, origin = origin))
+                _state.update { it.copy(options = res.options, optionsLoading = false, courseConditions = conditions) }
+                refreshGoing()
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: HttpException) {
+                val message = if (e.code() == 404) "조건에 맞는 코스를 찾지 못했어요. 칩을 줄여 보세요" else "서버 오류 (${e.code()})"
+                _state.update { it.copy(options = emptyList(), optionsLoading = false, optionsError = message) }
+            } catch (e: Exception) {
+                _state.update { it.copy(options = emptyList(), optionsLoading = false, optionsError = "서버에 연결하지 못했어요") }
+            }
+        }
+    }
+
+    private fun refreshGoing() {
+        val keys = _state.value.options.map { it.placeKey }.distinct()
+        if (keys.isEmpty()) return
+        viewModelScope.launch {
+            runCatching { container.api.going(keys.joinToString(",")) }
+                .onSuccess { going -> _state.update { it.copy(going = going) } }
+                .onFailure { e -> Log.w(TAG, "going failed", e) }
+        }
+    }
+
+    /** 홈 카드를 눌러 코스 상세로 들어간다. */
+    fun openOption(option: CourseOption) = _state.update {
+        it.copy(
+            course = option.course,
+            conditions = it.courseConditions ?: it.conditions,
+            courseOrigin = currentOrigin(),
+            savedCourseId = null,
+            error = null,
+            message = null,
+        )
+    }
+
     fun onRequestTextChange(text: String) = _state.update { it.copy(requestText = text) }
 
     fun parse() {
@@ -129,7 +239,9 @@ class TripViewModel(private val container: AppContainer) : ViewModel() {
 
     fun saveProfile(profile: FamilyProfile) {
         container.profile.save(profile)
-        _state.update { it.copy(profile = profile, conditions = it.conditions?.let(profile::applyTo)) }
+        _state.update {
+            it.copy(profile = profile, conditions = it.conditions?.let(profile::applyTo), homeFilters = defaultFilters(profile), options = emptyList())
+        }
     }
 
     fun updateConditions(transform: (TripConditions) -> TripConditions) =
@@ -265,7 +377,15 @@ class TripViewModel(private val container: AppContainer) : ViewModel() {
 
     /** 첫 장소부터 안내. 안내 상태는 앱 단위 GuideSession이 가진다 (앱이 뒤에 있어도 도착 알림). */
     fun startGuide() {
-        _state.value.course?.let { container.guide.start(it.stops) }
+        val course = _state.value.course ?: return
+        container.guide.start(course.stops)
+        // '지금 N대 가는 중' 집계: 나들이 장소 키만 서버에 알린다 (실패해도 안내는 계속).
+        course.stops.firstOrNull { it.role == "outing" }?.place?.let { place ->
+            viewModelScope.launch {
+                runCatching { container.api.recordStart(StartBody("${place.source}:${place.sourceId}")) }
+                    .onFailure { e -> Log.w(TAG, "record start failed", e) }
+            }
+        }
     }
 
     fun goToNext() = container.guide.goToNext()
@@ -296,4 +416,10 @@ class TripViewModel(private val container: AppContainer) : ViewModel() {
             }
         }
     }
+}
+
+/** 가족 정보로 정하는 칩 기본값: 36개월 미만이면 수유실·유모차, 반려견이 함께면 반려동물. */
+private fun defaultFilters(profile: FamilyProfile?): HomeFilters {
+    val infant = profile?.ageMonths()?.minOrNull()?.let { it < 36 } == true
+    return HomeFilters(nursingRoom = infant, stroller = infant, pet = profile?.petAlong == true)
 }
