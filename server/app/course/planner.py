@@ -4,6 +4,7 @@
 LLM은 쓰지 않는다. 조건 해석은 /parse가, 여기서는 규칙으로만 검증·조합한다.
 """
 
+import logging
 import math
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -28,6 +29,8 @@ from app.sources.kakao import CATEGORY_CAFE, CATEGORY_RESTAURANT, KakaoPlace, Le
 from app.sources.tour import CONTENT_TYPE_ATTRACTION, CONTENT_TYPE_CULTURE, PET, TourPlace
 
 KST = ZoneInfo("Asia/Seoul")
+
+log = logging.getLogger("course")
 
 DEFAULT_RADIUS_M = 10_000
 MAX_RADIUS_M = 20_000
@@ -86,11 +89,18 @@ class CoursePlanner:
 
         outings = self._rank_outings(origin, cond)
         if not outings:
+            log.info("나들이 후보 없음 → 404")
             raise NoCourseError("조건에 맞는 나들이 장소를 찾지 못했어요")
+        log.info(
+            "나들이 후보 %d곳, 상위: %s",
+            len(outings),
+            ", ".join(f"{c.place.name}({c.score:.1f}, {c.distance_m / 1000:.1f}km)" for c in outings[:3]),
+        )
         outing = outings[0].place
 
         meals = self._nearby_kakao(CATEGORY_RESTAURANT, outing, NEARBY_MEAL_RADIUS_M, classify.restaurant_is_suitable)
         cafes = self._nearby_kakao(CATEGORY_CAFE, outing, NEARBY_CAFE_RADIUS_M, classify.cafe_is_suitable)
+        log.info("근처 식당 %d곳, 카페 %d곳 (거른 뒤)", len(meals), len(cafes))
         if not meals:
             warnings.append("나들이 장소 근처에서 식당을 찾지 못해 식사를 뺐어요")
 
@@ -116,6 +126,7 @@ class CoursePlanner:
             StopRole.CAFE: cafes[1 : 1 + ALTERNATIVES],
         }
         course.warnings = warnings
+        log.info("코스: %s", describe(course))
         return course
 
     def reschedule(self, req: ScheduleRequest) -> CourseResponse:
@@ -132,6 +143,7 @@ class CoursePlanner:
             course.warnings = [f"{cond.return_by_hour}시까지 귀가하기 어려워요 (예상 {course.return_at})"]
         if req.suggest_nearby:
             course.alternatives = self._nearby_alternatives(stops)
+        log.info("재계산: %s", describe(course))
         return course
 
     def _nearby_alternatives(self, stops: list[tuple[StopRole, Place]]) -> dict[StopRole, list[Place]]:
@@ -314,6 +326,15 @@ class CoursePlanner:
         if back < departure:  # 자정을 넘긴 경우
             back += timedelta(days=1)
         return back > departure.replace(hour=return_by_hour, minute=0)
+
+
+def describe(course: CourseResponse) -> str:
+    """로그용 한 줄 요약: 장소 순서, 출발·귀가, 이동 시간, 길찾기 출처, 경고."""
+    route = " → ".join(f"{s.place.name}({s.arrive_at})" for s in course.stops)
+    text = f"{course.departure_at} 출발 {route}, 이동 {course.total_drive_minutes}분, 길찾기={course.route_source}"
+    if course.warnings:
+        text += " ⚠ " + " / ".join(course.warnings)
+    return text
 
 
 def _score(c: _Candidate, cond: TripConditions, radius: int) -> float:
