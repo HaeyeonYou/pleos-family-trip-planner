@@ -28,6 +28,7 @@ from app.schemas import (
     TripConditions,
     VisitSummary,
 )
+from app.sources.public_data import PublicData
 from app.sources.kakao import CATEGORY_CAFE, CATEGORY_RESTAURANT, KakaoPlace, Leg
 from app.sources.tour import CONTENT_TYPE_ATTRACTION, CONTENT_TYPE_CULTURE, CONTENT_TYPE_LEISURE, PET, TourPlace
 
@@ -43,6 +44,7 @@ NEARBY_CAFE_RADIUS_M = 1_500
 AMENITY_LOOKUPS = 6  # 후보 상위 몇 곳만 무장애 상세를 조회한다 (API 한도)
 MIN_PET_CANDIDATES = 5  # 반려견 동반 장소가 이보다 적으면 일반 장소도 후보로 낸다
 ALTERNATIVES = 3
+PUBLIC_FACILITY_LIMIT = 10  # 박물관·미술관·도서관은 가까운 10곳까지 후보로
 SUGGESTIONS = 3  # 홈에 보여 줄 추천 코스 수
 MAX_INTEREST_SEARCHES = 3  # 관심사 키워드 검색은 앞의 3개까지 (카카오 호출 수)
 
@@ -84,6 +86,7 @@ class _Candidate:
     score: float = 0.0
     content_type_id: int = 0  # TourAPI 분류 (주차 정보 조회에 쓴다)
     festival: bool = False
+    library: bool = False  # 도서관은 목적지로는 약해 점수를 조금 낮춘다
     looked_up: bool = False  # 육아 편의 상세를 이미 조회했는지
 
     @property
@@ -92,7 +95,8 @@ class _Candidate:
 
 
 class CoursePlanner:
-    def __init__(self, tour: TourSource, kakao: KakaoSource, now: datetime | None = None):
+    def __init__(self, tour: TourSource, kakao: KakaoSource, now: datetime | None = None, public: PublicData | None = None):
+        self._public = public
         self._tour = tour
         self._kakao = kakao
         self._now = now
@@ -278,8 +282,53 @@ class CoursePlanner:
         candidates += self._play_candidates(origin, radius)
         candidates += self._leisure_candidates(origin, radius)
         candidates += self._festival_candidates(origin, radius)
+        candidates += self._public_candidates(origin, radius, candidates, cond)
         candidates += self._interest_candidates(origin, radius, cond.interests, candidates)
         return candidates
+
+    def _public_candidates(self, origin: LatLng, radius: int, existing: list[_Candidate], cond: TripConditions) -> list[_Candidate]:
+        """공공데이터포털: 놀이터가 있는 공공 공원, 박물관·미술관·도서관, 오늘 열리는 아이 동반 전시·공연.
+
+        소스 하나가 실패해도 코스는 나온다. 이미 있는 장소(이름이 같은 것)는 건너뛴다.
+        """
+        if self._public is None:
+            return []
+        seen = {classify.normalize_name(c.place.name) for c in existing}
+        result: list[_Candidate] = []
+
+        def add(c: _Candidate) -> None:
+            key = classify.normalize_name(c.place.name)
+            if key and key not in seen:
+                seen.add(key)
+                result.append(c)
+
+        try:
+            for p in classify.best_playgrounds(self._public.playgrounds(origin.latitude, origin.longitude, radius)):
+                place = Place(name=p.name, latitude=p.latitude, longitude=p.longitude, address=p.address, category=p.group,
+                              source="public", source_id=p.source_id)
+                place.amenities["kids_zone"] = Amenity.AVAILABLE  # 어린이놀이시설이 등록된 곳
+                add(_Candidate(place=place, theme=Theme.NATURE, indoor=p.indoor, distance_m=p.distance_m, looked_up=True))
+            for p in self._public.facilities(origin.latitude, origin.longitude, radius)[:PUBLIC_FACILITY_LIMIT]:
+                kind = classify.culture_facility_theme(p.group, p.name)
+                if kind is None:
+                    continue
+                place = Place(name=p.name, latitude=p.latitude, longitude=p.longitude, category=p.group,
+                              source="public", source_id=p.source_id)
+                c = _Candidate(place=place, theme=kind[0], indoor=kind[1], distance_m=p.distance_m, looked_up=True)
+                if p.group == "도서관":
+                    c.library = True
+                add(c)
+            for e in self._public.events(self._today(), origin.latitude, origin.longitude, radius):
+                if not classify.culture_event_is_family(e.title, e.place):
+                    continue
+                place = Place(name=e.title, latitude=e.latitude, longitude=e.longitude, address=e.place, category=f"{e.realm} 행사",
+                              source="public", source_id=f"event{e.seq}", image_url=e.image_url,
+                              event_period=f"{_dash(e.start)}~{_dash(e.end)}")
+                add(_Candidate(place=place, theme=Theme.EXHIBITION, indoor=True, distance_m=e.distance_m, festival=True, looked_up=True))
+        except Exception as e:  # noqa: BLE001 - 공공데이터 장애가 코스 생성을 막지 않는다
+            log.warning("공공데이터 후보 일부를 못 가져옴: %s", type(e).__name__)
+        log.info("공공데이터 후보 %d곳 추가", len(result))
+        return result
 
     def _leisure_candidates(self, origin: LatLng, radius: int) -> list[_Candidate]:
         """레포츠 중 스케이트장·물놀이장·눈썰매장처럼 아이와 갈 만한 곳."""
@@ -500,11 +549,15 @@ def describe(course: CourseResponse) -> str:
 
 def _score(c: _Candidate, cond: TripConditions, radius: int) -> float:
     score = ranking.FESTIVAL_BONUS if c.festival else 0.0
+    if c.library:
+        score -= 0.5
     if cond.themes and c.theme in cond.themes:
         score += 3
     if c.place.image_url:
         score += 0.5  # 정보가 충실한 장소를 우선
     score -= ranking.DISTANCE_WEIGHT * min(c.distance_m / radius, 1)  # 가까울수록 좋음 (비중은 낮게)
+    if c.place.amenities.get("kids_zone") == Amenity.AVAILABLE and (cond.child_ages or cond.child_age_months):
+        score += 0.4  # 놀이시설이 등록된 곳은 아이 동반에 맞다 (공공데이터 장소는 사진이 없어 받는 +0.5를 보완)
     if cond.has_infant() and c.indoor:
         score += 0.5  # 영아는 실내가 편하다
     if cond.with_pet and c.place.amenities.get("pet") == Amenity.AVAILABLE:

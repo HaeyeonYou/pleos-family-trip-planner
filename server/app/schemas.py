@@ -83,7 +83,7 @@ class Place(BaseModel):
     longitude: float
     address: str = ""
     category: str = ""
-    source: str = Field(..., description="tour / kakao")
+    source: str = Field(..., description="tour / kakao / public(공공데이터포털)")
     source_id: str
     image_url: str = ""
     amenities: dict[str, Amenity] = Field(default_factory=dict, description="stroller, nursing_room, kids_chair, kids_zone, parking, pet(반려견 동반)")
