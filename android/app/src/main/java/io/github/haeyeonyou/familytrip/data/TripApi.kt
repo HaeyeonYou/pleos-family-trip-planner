@@ -59,6 +59,8 @@ data class CoursePlace(
     /** stroller, nursing_room, kids_chair → available / unknown */
     val amenities: Map<String, String> = emptyMap(),
     @SerialName("amenity_notes") val amenityNotes: Map<String, String> = emptyMap(),
+    /** 나들이 장소의 경험 분야 (nature, exhibition, experience, play). 경험 지도에 쓴다. */
+    val theme: String? = null,
 )
 
 @Serializable

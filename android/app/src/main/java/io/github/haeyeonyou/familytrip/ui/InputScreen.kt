@@ -46,6 +46,7 @@ fun InputScreen(
     onOpenDev: () -> Unit,
     onEditProfile: () -> Unit,
     onUseProfile: () -> Unit,
+    onShowRecord: () -> Unit,
 ) = DrivingAware(isParked) {
     Column(
         modifier = Modifier.padding(40.dp).verticalScroll(rememberScrollState()),
@@ -53,6 +54,7 @@ fun InputScreen(
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("오늘, 어디 가지?", fontSize = 40.sp, modifier = Modifier.weight(1f))
+            BigOutlinedButton("경험 기록", onShowRecord)
             TextButton(onClick = onOpenDev) { Text("개발자 화면", fontSize = 18.sp) }
         }
         FamilyCard(state.profile, onEdit = onEditProfile, onUse = onUseProfile)
