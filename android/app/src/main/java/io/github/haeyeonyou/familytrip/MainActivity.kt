@@ -151,6 +151,8 @@ class MainActivity : ComponentActivity() {
                             MainTab.GROW -> Routes.EXPERIENCE
                             MainTab.SETTINGS -> Routes.SETTINGS
                         }
+                        // 그로우에서 연 코스 화면 등 그 탭의 하위 화면에 있으면 탭 화면까지 되돌아간다.
+                        if (nav.popBackStack(target, inclusive = false)) return
                         nav.navigate(target) {
                             popUpTo(Routes.INPUT) { saveState = true }
                             launchSingleTop = true
@@ -219,8 +221,14 @@ class MainActivity : ComponentActivity() {
                             // 화면에 들어올 때마다 차 안 기록을 다시 읽는다.
                             ExperienceScreen(
                                 visits = remember { container.visits.all() },
+                                courses = remember { container.courses.all() },
+                                childName = state.profile?.childName.orEmpty(),
                                 isParked = vehicle.isParked,
-                                onBack = { nav.popBackStack() },
+                                onOpenCourse = {
+                                    vm.openSavedCourse(it)
+                                    nav.navigate(Routes.COURSE)
+                                },
+                                onPlan = ::goHome,
                             )
                         }
                         composable(Routes.PROFILE) {
