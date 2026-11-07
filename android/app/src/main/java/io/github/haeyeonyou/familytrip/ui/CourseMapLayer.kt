@@ -23,21 +23,20 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.haeyeonyou.familytrip.data.CourseStop
 
 /**
- * 지도 레이어 (PX00 L0). 실제 지도 SDK(카카오맵, #40)를 붙이기 전까지는 도로 격자 위에
- * 코스 장소를 위경도 비율대로 놓고 경로를 잇는 간이 지도를 그린다. 패널에 가리지 않는 왼쪽 띠에 맞춘다.
+ * 코스 경로 미리보기 (HF02 경로 카드). 실제 지도 SDK(카카오맵, #40)를 붙이기 전까지는 도로 격자 위에
+ * 코스 장소를 위경도 비율대로 놓고 경로를 잇는 간이 지도다. 키가 생기면 이 자리를 실제 지도로 바꾼다.
  */
 @Composable
-fun CourseMapLayer(stops: List<CourseStop>, modifier: Modifier = Modifier, visibleWidth: Dp = 360.dp) {
+fun CourseMapLayer(stops: List<CourseStop>, modifier: Modifier = Modifier) {
     BoxWithConstraints(modifier = modifier) {
         val density = LocalDensity.current
         val heightPx = with(density) { maxHeight.toPx() }
-        val stripPx = with(density) { visibleWidth.toPx() }
+        val stripPx = with(density) { maxWidth.toPx() }
         val places = stops.filter { it.role != "home" }
         val points = project(places, stripPx, heightPx, density.density)
 
@@ -115,8 +114,8 @@ private fun project(stops: List<CourseStop>, stripPx: Float, heightPx: Float, de
     val margin = 70f * density
     val left = margin * 0.6f
     val right = stripPx - margin * 2.2f
-    val top = heightPx * 0.22f
-    val bottom = heightPx * 0.82f
+    val top = heightPx * 0.15f
+    val bottom = heightPx * 0.8f
     val latSpan = (lats.max() - lats.min()).takeIf { it > 1e-6 } ?: 1.0
     val lngSpan = (lngs.max() - lngs.min()).takeIf { it > 1e-6 } ?: 1.0
     return stops.map {

@@ -90,6 +90,12 @@ fun CourseScreen(
                 })
             }
             course.warnings.forEach { Text("⚠ $it", fontSize = 22.sp, color = MaterialTheme.colorScheme.tertiary) }
+            if (!editing) {
+                CourseMapLayer(
+                    stops = course.stops,
+                    modifier = Modifier.fillMaxWidth().height(260.dp).clip(RoundedCornerShape(28.dp)),
+                )
+            }
 
             course.stops.forEachIndexed { index, stop ->
                 val isVisit = stop.role != "home"

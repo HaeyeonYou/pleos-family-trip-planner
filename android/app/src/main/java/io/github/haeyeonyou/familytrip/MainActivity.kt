@@ -144,8 +144,6 @@ class MainActivity : ComponentActivity() {
                     fun goHome() = nav.navigate(Routes.INPUT) { popUpTo(0) }
                     val backStack by nav.currentBackStackEntryAsState()
                     val route = backStack?.destination?.route
-                    // 지도 레이어에는 안내 중이면 안내 코스, 아니면 지금 보고 있는 코스를 그린다.
-                    val mapStops = guide.stops.ifEmpty { state.course?.stops.orEmpty() }
                     fun openTab(tab: MainTab) {
                         val target = when (tab) {
                             MainTab.HOME -> if (guide.active) Routes.GUIDE else Routes.INPUT
@@ -160,7 +158,7 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
-                    AppShell(tab = tabOf(route ?: start), onTab = ::openTab, profile = state.profile, mapStops = mapStops) {
+                    AppShell(tab = tabOf(route ?: start), onTab = ::openTab, profile = state.profile) {
                     NavHost(navController = nav, startDestination = start) {
                         composable(Routes.LOGIN) {
                             LoginScreen(
