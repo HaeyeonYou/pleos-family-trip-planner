@@ -69,13 +69,15 @@ gunzip -k -c seed/parking_lots.csv.gz > data/parking/parking_lots.csv
 - 운영시간은 한국 시간 오늘 요일 기준(평일/토요일/일요일·공휴일, 공휴일 달력은 없어 평일은 평일로 봄). `00:00~24:00`은 `24시간`.
 - 위경도 사각형으로 먼저 거르고(`ix_parking_lots_latitude_longitude`) 정확한 거리는 haversine으로 계산합니다.
 
-### planner 연결 방법 (아직 연결 안 함)
-코스에 주차장을 붙이는 일은 `planner.py`를 고치는 세션과 겹치지 않도록 이번에는 하지 않았습니다. 연결은 `parking.nearby`를 부르면 됩니다.
-```python
-from app.sources import parking
-lots = await parking.nearby(db, stop.latitude, stop.longitude, radius_m=800, limit=3)   # list[ParkingPlace]
-```
-`nearby`는 `AsyncSession`을 받는 `async` 함수입니다. 현재 `/course`는 동기 함수(`def`)라서, 연결할 때 `get_db`를 주입하고 엔드포인트를 `async def`로 바꾸거나 `CourseResponse`에 `parking: list[ParkingPlace]`를 더하는 변경이 함께 필요합니다.
+### 코스 연결 (`Stop.parking`)
+`/course`, `/course/schedule`, `/course/suggest`(홈 추천)의 각 경유지(식사·나들이·카페, 귀가 제외)에 가까운 주차장이 `parking` 목록으로 들어갑니다.
+- 조회: 장소 반경 500m 안 가까운 12곳 → 아래 규칙으로 정렬해 **상위 3곳**만 응답합니다. 같은 요청에서 같은 장소는 한 번만 조회합니다.
+- 항목: `name, kind(공영/민영), distance_m, walk_minutes(직선거리/67m·분, 앱은 "약"), capacity, fee_summary, free, hours, open_at_arrival, latitude, longitude`.
+- 정렬(`app/course/parking_rank.py`, 순수 함수): 거리(m)를 점수로 보고 낮을수록 앞. 무료 −150, 공영 −80, 영유아 동반이면 거리 ×1.6, **도착 시각에 운영하지 않으면 맨 뒤 + `open_at_arrival=false`**. 운영시간을 모르면 `null`(운영 안 한다고 단정하지 않음).
+- `parking` 목록이 비어 있으면 "근처에 주차장이 없다"가 아니라 "표에 정보가 없다"입니다 (표는 전국 공영·민영 신고분).
+- 조건 `parking`(주차 필요): 후보 장소 근처에 표의 주차장이 있으면 그것으로 `amenities.parking`을 채우고 **TourAPI 주차 호출은 하지 않습니다**. 없을 때만 TourAPI 정보로 대체합니다.
+- 연결 방식: `CoursePlanner(parking=DbParkingSource(db))`. planner는 동기 코드라 `def` 엔드포인트의 작업 스레드에서 `anyio.from_thread`로 서버 이벤트 루프의 DB 풀을 씁니다. 조회가 실패해도 코스는 나오고 `parking`만 비웁니다.
+- 테스트: `tests/test_course_parking.py` (정렬 규칙, 대체 경로, 재계산·추천 일관성, pleos_test DB 연동).
 
 ## 모바일 웹 (`/m`)
 폰 브라우저로 여는 화면. 차 화면 QR → 회원가입·로그인 → '이 차에서 로그인', 홈에서 '차 공조 미리 설정' → '차로 보내기'.

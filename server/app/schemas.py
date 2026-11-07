@@ -95,9 +95,26 @@ class Place(BaseModel):
     )
 
 
+class StopParking(BaseModel):
+    """장소 근처 주차장 한 곳. 정렬 규칙은 app/course/parking_rank.py."""
+
+    name: str
+    kind: str | None = Field(None, description="공영 / 민영")
+    distance_m: int = Field(..., description="장소에서 주차장까지 직선거리(m)")
+    walk_minutes: int = Field(..., description="걸어서 약 N분 (직선거리 기준 어림)")
+    capacity: int | None = Field(None, description="주차 구획 수. 모르면 없음")
+    fee_summary: str = Field("", description="요금 한 줄 (예: 30분 400원·추가 10분 200원). 무료면 '무료'")
+    free: bool = False
+    hours: str = Field("", description="도착 날짜 요일 기준 운영시간")
+    open_at_arrival: bool | None = Field(None, description="도착 시각에 운영하는지. 운영시간을 모르면 없음(운영 안 한다고 단정하지 않음)")
+    latitude: float
+    longitude: float
+
+
 class Stop(BaseModel):
     role: StopRole
     place: Place
+    parking: list[StopParking] = Field(default_factory=list, description="근처 주차장(최대 3곳, 추천순). 정보가 없으면 빈 목록 — '주차장 없음'이 아니다")
     arrive_at: str = Field(..., description="도착 시각 HH:MM")
     depart_at: str | None = Field(None, description="출발 시각 HH:MM, 귀가는 없음")
     stay_minutes: int = 0

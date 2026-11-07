@@ -15,6 +15,7 @@ from app.config import Settings, get_settings
 from app.db import Database
 from app.logs import setup_logging
 from app.course.planner import CoursePlanner, NoCourseError
+from app.sources.parking import DbParkingSource
 from app.parsing import get_parser
 from app.schemas import CourseRequest, CourseResponse, ParseRequest, ParseResponse, ScheduleRequest, SuggestResponse
 from app.sources.kakao import KakaoClient
@@ -109,11 +110,11 @@ def _public(data_go_kr_key: str) -> PublicData:
     return PublicData(data_go_kr_key)
 
 
-def get_planner(settings: Settings = Depends(get_settings)) -> CoursePlanner:
+def get_planner(request: Request, settings: Settings = Depends(get_settings)) -> CoursePlanner:
     if not settings.data_go_kr_key or not settings.kakao_rest_api_key:
         raise HTTPException(503, "DATA_GO_KR_KEY, KAKAO_REST_API_KEY가 필요합니다")
     tour, kakao = _sources(settings.data_go_kr_key, settings.kakao_rest_api_key)
-    return CoursePlanner(tour, kakao, public=_public(settings.data_go_kr_key))
+    return CoursePlanner(tour, kakao, public=_public(settings.data_go_kr_key), parking=DbParkingSource(request.app.state.db))
 
 
 @app.post("/course", response_model=CourseResponse)

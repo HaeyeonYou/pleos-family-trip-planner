@@ -13,7 +13,7 @@ from typing import Protocol
 from zoneinfo import ZoneInfo
 
 from app import interests
-from app.course import classify, ranking
+from app.course import classify, parking_rank, ranking
 from app.schemas import (
     Amenity,
     CourseOption,
@@ -28,6 +28,7 @@ from app.schemas import (
     TripConditions,
     VisitSummary,
 )
+from app.sources.parking import ParkingPlace
 from app.sources.public_data import PublicData
 from app.sources.kakao import CATEGORY_CAFE, CATEGORY_RESTAURANT, KakaoPlace, Leg
 from app.sources.tour import CONTENT_TYPE_ATTRACTION, CONTENT_TYPE_CULTURE, CONTENT_TYPE_LEISURE, PET, TourPlace
@@ -65,6 +66,10 @@ class TourSource(Protocol):
     def parking(self, content_id: str, content_type_id: int) -> str: ...
 
 
+class ParkingSource(Protocol):
+    def near(self, latitude: float, longitude: float, radius_m: int, limit: int, today: date) -> list[ParkingPlace]: ...
+
+
 class KakaoSource(Protocol):
     def by_category(self, code: str, latitude: float, longitude: float, radius_m: int, size: int = ...) -> list[KakaoPlace]: ...
 
@@ -95,8 +100,17 @@ class _Candidate:
 
 
 class CoursePlanner:
-    def __init__(self, tour: TourSource, kakao: KakaoSource, now: datetime | None = None, public: PublicData | None = None):
+    def __init__(
+        self,
+        tour: TourSource,
+        kakao: KakaoSource,
+        now: datetime | None = None,
+        public: PublicData | None = None,
+        parking: ParkingSource | None = None,
+    ):
         self._public = public
+        self._parking = parking
+        self._parking_cache: dict[tuple[float, float, date], list[ParkingPlace]] = {}
         self._tour = tour
         self._kakao = kakao
         self._now = now
@@ -268,8 +282,30 @@ class CoursePlanner:
             _attach_amenities(c.place, self._tour.amenities(c.place.source_id))
 
     def _lookup_parking(self, c: _Candidate) -> None:
-        if c.place.source == "tour" and "parking" not in c.place.amenities:
+        """주차 필요 조건. 주차장 표에 가까운 곳이 있으면 그걸 쓰고(외부 API 호출 없음), 없을 때만 TourAPI 정보로 대체한다."""
+        if "parking" in c.place.amenities:
+            return
+        lots = self._lots_near(c.place, self._today())
+        if lots:
+            c.place.amenities["parking"] = Amenity.AVAILABLE
+            c.place.amenity_notes["parking"] = f"근처 주차장 {len(lots)}곳 (가장 가까운 곳 {lots[0].distance_m}m)"
+        elif c.place.source == "tour":
             _attach_parking(c.place, self._tour.parking(c.place.source_id, c.content_type_id))
+
+    def _lots_near(self, place: Place, today: date) -> list[ParkingPlace]:
+        """장소 둘레 주차장 후보(가까운 순). 같은 요청 안에서 같은 장소는 한 번만 조회한다. 조회 실패는 빈 목록."""
+        if self._parking is None:
+            return []
+        key = (round(place.latitude, 5), round(place.longitude, 5), today)
+        if key not in self._parking_cache:
+            try:
+                self._parking_cache[key] = self._parking.near(
+                    place.latitude, place.longitude, parking_rank.PARKING_RADIUS_M, parking_rank.PARKING_FETCH, today
+                )
+            except Exception as e:  # noqa: BLE001 - 주차장 조회 실패가 코스 생성을 막지 않는다
+                log.warning("주차장 조회 실패: %s", type(e).__name__)
+                self._parking_cache[key] = []
+        return self._parking_cache[key]
 
     def _ensure_amenities(self, c: _Candidate, cond: TripConditions) -> None:
         """가중 선택으로 상위 조회 범위 밖의 후보가 뽑혀도 편의 정보를 붙인다."""
@@ -472,6 +508,7 @@ class CoursePlanner:
 
         result: list[Stop] = []
         clock = departure
+        infant = cond.has_infant()
         for i, ((role, place), leg) in enumerate(zip(stops, legs)):
             drive = math.ceil(leg.duration_s / 60)
             clock += timedelta(minutes=drive)
@@ -479,11 +516,13 @@ class CoursePlanner:
             stay = given if given is not None else _stay_minutes(role, cond)
             arrive = clock
             clock += timedelta(minutes=stay)
+            arrive_hhmm = arrive.strftime("%H:%M")
             result.append(
                 Stop(
                     role=role,
                     place=place,
-                    arrive_at=arrive.strftime("%H:%M"),
+                    parking=parking_rank.rank(self._lots_near(place, arrive.date()), arrive_hhmm, infant),
+                    arrive_at=arrive_hhmm,
                     depart_at=clock.strftime("%H:%M"),
                     stay_minutes=stay,
                     drive_minutes=drive,
