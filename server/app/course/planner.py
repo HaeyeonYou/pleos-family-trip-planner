@@ -15,6 +15,7 @@ from app import interests
 from app.course import classify
 from app.schemas import (
     Amenity,
+    CourseOption,
     CourseRequest,
     CourseResponse,
     LatLng,
@@ -40,6 +41,7 @@ NEARBY_CAFE_RADIUS_M = 1_500
 AMENITY_LOOKUPS = 6  # 후보 상위 몇 곳만 무장애 상세를 조회한다 (API 한도)
 MIN_PET_CANDIDATES = 5  # 반려견 동반 장소가 이보다 적으면 일반 장소도 후보로 낸다
 ALTERNATIVES = 3
+SUGGESTIONS = 3  # 홈에 보여 줄 추천 코스 수
 MAX_INTEREST_SEARCHES = 2  # 관심사 키워드 검색은 앞의 2개까지 (카카오 호출 수)
 
 STAY_MINUTES = {StopRole.MEAL: 60, StopRole.OUTING: 120, StopRole.CAFE: 40}
@@ -83,12 +85,7 @@ class CoursePlanner:
         self._now = now
 
     def plan(self, req: CourseRequest) -> CourseResponse:
-        cond = req.conditions
-        origin = req.origin
-        home = req.home or origin
-        warnings: list[str] = []
-
-        outings = self._rank_outings(origin, cond)
+        outings = self._rank_outings(req.origin, req.conditions)
         if not outings:
             log.info("나들이 후보 없음 → 404")
             raise NoCourseError("조건에 맞는 나들이 장소를 찾지 못했어요")
@@ -97,10 +94,35 @@ class CoursePlanner:
             len(outings),
             ", ".join(f"{c.place.name}({c.score:.1f}, {c.distance_m / 1000:.1f}km)" for c in outings[:3]),
         )
-        outing = outings[0].place
+        return self._around(req, outings, 0)
+
+    def suggest(self, req: CourseRequest) -> list[CourseOption]:
+        """성격이 다른 코스 후보를 최대 3개 만든다 (자연·전시·놀이·체험 중 점수가 높은 나들이 장소 기준)."""
+        outings = self._rank_outings(req.origin, req.conditions)
+        if not outings:
+            raise NoCourseError("조건에 맞는 나들이 장소를 찾지 못했어요")
+        picks = _pick_varied(outings, SUGGESTIONS)
+        options = []
+        for index, label in picks:
+            course = self._around(req, outings, index)
+            options.append(_option(course, outings[index], label))
+        log.info("추천 %d개: %s", len(options), " / ".join(o.name for o in options))
+        return options
+
+    def _around(self, req: CourseRequest, outings: list[_Candidate], index: int) -> CourseResponse:
+        """고른 나들이 장소 둘레에서 식사·카페를 찾아 시간표를 만든다."""
+        cond = req.conditions
+        origin = req.origin
+        home = req.home or origin
+        warnings: list[str] = []
+        outing = outings[index].place
+        others = [c.place for i, c in enumerate(outings) if i != index]
 
         meals = self._nearby_kakao(CATEGORY_RESTAURANT, outing, NEARBY_MEAL_RADIUS_M, classify.restaurant_is_suitable)
         cafes = self._nearby_kakao(CATEGORY_CAFE, outing, NEARBY_CAFE_RADIUS_M, classify.cafe_is_suitable)
+        # 키즈카페처럼 나들이 장소가 식당·카페로도 잡히면 같은 곳을 두 번 넣지 않는다.
+        meals = [p for p in meals if p.name != outing.name]
+        cafes = [p for p in cafes if p.name != outing.name]
         log.info("근처 식당 %d곳, 카페 %d곳 (거른 뒤)", len(meals), len(cafes))
         if not meals:
             warnings.append("나들이 장소 근처에서 식당을 찾지 못해 식사를 뺐어요")
@@ -122,7 +144,7 @@ class CoursePlanner:
                 warnings.append(f"{cond.return_by_hour}시까지 귀가하기 어려워요 (예상 {course.return_at})")
 
         course.alternatives = {
-            StopRole.OUTING: [c.place for c in outings[1 : 1 + ALTERNATIVES]],
+            StopRole.OUTING: others[:ALTERNATIVES],
             StopRole.MEAL: meals[1 : 1 + ALTERNATIVES],
             StopRole.CAFE: cafes[1 : 1 + ALTERNATIVES],
         }
@@ -432,3 +454,57 @@ def _haversine_m(a: tuple[float, float], b: tuple[float, float]) -> float:
     lat1, lon1, lat2, lon2 = map(math.radians, (*a, *b))
     h = math.sin((lat2 - lat1) / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin((lon2 - lon1) / 2) ** 2
     return 2 * 6_371_000 * math.asin(math.sqrt(h))
+
+
+# 추천 코스 이름: 나들이 장소의 성격별. (분야, 실내 여부) → 이름
+_LABELS = {
+    Theme.NATURE: "자연 산책 코스",
+    Theme.EXHIBITION: "박물관·전시 코스",
+    Theme.PLAY: "실내 놀이 코스",
+    Theme.EXPERIENCE: "체험 코스",
+    Theme.PET: "반려동물 동반 코스",
+}
+
+
+def _label(c: _Candidate) -> str:
+    return _LABELS.get(c.theme, "가까운 나들이 코스") if c.theme else "가까운 나들이 코스"
+
+
+def _pick_varied(outings: list[_Candidate], count: int) -> list[tuple[int, str]]:
+    """점수 순으로 보면서 분야가 겹치지 않게 고른다. 분야가 모자라면 남은 높은 점수 장소로 채운다."""
+    picked: list[tuple[int, str]] = []
+    used_labels: set[str] = set()
+    for i, c in enumerate(outings):
+        label = _label(c)
+        if label in used_labels:
+            continue
+        used_labels.add(label)
+        picked.append((i, label))
+        if len(picked) == count:
+            return picked
+    chosen = {i for i, _ in picked}
+    for i, c in enumerate(outings):
+        if i in chosen:
+            continue
+        picked.append((i, _label(c)))
+        if len(picked) == count:
+            break
+    return picked
+
+
+def _option(course: CourseResponse, candidate: _Candidate, label: str) -> CourseOption:
+    outing_stop = next(s for s in course.stops if s.role == StopRole.OUTING)
+    visits = [s for s in course.stops if s.role != StopRole.HOME]
+    h1, m1 = map(int, course.departure_at.split(":"))
+    h2, m2 = map(int, course.return_at.split(":"))
+    total = ((h2 * 60 + m2) - (h1 * 60 + m1)) % (24 * 60)
+    # 같은 분야가 두 번 나오면 구분되도록 장소 이름을 붙인다.
+    return CourseOption(
+        name=f"{label} · {outing_stop.place.name}",
+        summary=" → ".join(s.place.name for s in visits),
+        total_minutes=total,
+        first_drive_minutes=course.stops[0].drive_minutes,
+        place_key=f"{outing_stop.place.source}:{outing_stop.place.source_id}",
+        indoor=candidate.indoor,
+        course=course,
+    )

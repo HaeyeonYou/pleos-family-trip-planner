@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import ForeignKey, String
+from sqlalchemy import ForeignKey, Index, String
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -68,3 +68,15 @@ class ClimatePreset(Base):
     settings: Mapped[dict] = mapped_column(JSONB)
     sent_at: Mapped[datetime] = mapped_column(default=utcnow)
     applied_at: Mapped[datetime | None] = mapped_column(default=None)
+
+
+class CourseStart(Base):
+    """'코스 시작'을 누른 기록. '지금 N대 가는 중' 집계용이라 장소 키와 시각만 둔다 (개인 식별 정보 없음)."""
+
+    __tablename__ = "course_starts"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    place_key: Mapped[str] = mapped_column(String(80))
+    started_at: Mapped[datetime] = mapped_column(default=utcnow)
+
+    __table_args__ = (Index("ix_course_starts_place_key_started_at", "place_key", "started_at"),)
