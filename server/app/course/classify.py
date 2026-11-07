@@ -40,7 +40,8 @@ _LEISURE_ALLOWED: dict[str, tuple[Theme, bool]] = {
 _LEISURE_EXCLUDED_WORDS = ("사격", "총", "낚시", "골프", "클럽")
 
 # 주류·성인 대상 행사는 아이 동반 코스에서 뺀다
-_EVENT_EXCLUDED_WORDS = ("맥주", "옥토버", "와인", "막걸리", "주류", "위스키", "성인")
+# 밤에 여는 행사도 낮 코스에 맞지 않아 뺀다 (행사 시각을 API가 주지 않는다)
+_EVENT_EXCLUDED_WORDS = ("맥주", "옥토버", "와인", "막걸리", "주류", "위스키", "성인", "나이트", "야간", "야행", "야경", "밤길", "별빛", "달빛", "심야")
 
 PLAY_KEYWORDS = ("키즈카페", "실내놀이터")
 
@@ -86,6 +87,8 @@ def tour_is_suitable(place: TourPlace) -> bool:
 
 def restaurant_is_suitable(place: KakaoPlace) -> bool:
     # 식사 자리라서 술집과 간식(제과, 아이스크림 등)은 뺀다.
+    if any(w in place.name for w in ("맥주", "포차", "주점", "호프", "와인바", "이자카야")):
+        return False
     return not any(w in place.category for w in ("술집", "호프", "요리주점", "칵테일", "바(BAR)", "간식"))
 
 
