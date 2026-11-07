@@ -11,6 +11,8 @@ android {
 
     defaultConfig {
         applicationId = "io.github.haeyeonyou.familytrip"
+        // 에뮬레이터 하나를 여러 작업이 나눠 쓸 때 서로 덮어쓰지 않게: -PappIdSuffix=.care
+        (project.findProperty("appIdSuffix") as String?)?.let { applicationIdSuffix = it }
         // Pleos Playground requires API 28+ (signing key rotation / lineage)
         minSdk = 28
         targetSdk = 35

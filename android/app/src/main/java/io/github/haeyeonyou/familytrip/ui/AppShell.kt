@@ -66,7 +66,7 @@ private fun SideMenu(selected: MainTab, onTab: (MainTab) -> Unit) {
         modifier = Modifier
             .fillMaxHeight()
             .width(140.dp)
-            .background(Color.White)
+            .background(TripColors.Card)
             .padding(vertical = 32.dp, horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,

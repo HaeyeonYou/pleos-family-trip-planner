@@ -12,6 +12,7 @@ NAVI_URL = "https://apis-navi.kakaomobility.com/v1/waypoints/directions"
 
 CATEGORY_RESTAURANT = "FD6"
 CATEGORY_CAFE = "CE7"
+CATEGORY_PARKING = "PK6"
 
 
 @dataclass(frozen=True)
