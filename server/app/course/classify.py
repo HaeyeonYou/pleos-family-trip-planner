@@ -34,6 +34,9 @@ PLAY_KEYWORDS = ("키즈카페", "실내놀이터")
 # 관심사 키워드로 카카오에서 찾은 장소 중 나들이로 쓸 분류 → (테마, 실내)
 _KAKAO_OUTING_CATEGORIES: list[tuple[str, Theme, bool]] = [
     ("가정,생활 > 유아 > 놀이시설", Theme.PLAY, True),
+    ("교육,학문 > 유아교육 > 놀이교육", Theme.PLAY, True),  # 쇼핑몰 안 놀이 공간 (플레이타임 등)
+    ("가정,생활 > 복합쇼핑몰", Theme.PLAY, True),
+    ("가정,생활 > 백화점", Theme.PLAY, True),
     ("문화,예술 > 문화시설 > 박물관", Theme.EXHIBITION, True),
     ("문화,예술 > 문화시설 > 전시관", Theme.EXHIBITION, True),
     ("문화,예술 > 문화시설 > 과학관", Theme.EXHIBITION, True),

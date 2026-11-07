@@ -39,6 +39,8 @@ import io.github.haeyeonyou.familytrip.ui.CourseScreen
 import io.github.haeyeonyou.familytrip.ui.DevScreen
 import io.github.haeyeonyou.familytrip.ui.ExperienceScreen
 import io.github.haeyeonyou.familytrip.ui.GuideScreen
+import io.github.haeyeonyou.familytrip.ui.HomeActions
+import io.github.haeyeonyou.familytrip.ui.HomeScreen
 import io.github.haeyeonyou.familytrip.ui.InputScreen
 import io.github.haeyeonyou.familytrip.ui.LoginScreen
 import io.github.haeyeonyou.familytrip.ui.NotificationOffBanner
@@ -47,6 +49,7 @@ import io.github.haeyeonyou.familytrip.ui.TripViewModel
 import kotlinx.coroutines.launch
 
 private object Routes {
+    const val HOME = "home"
     const val INPUT = "input"
     const val COURSE = "course"
     const val GUIDE = "guide"
@@ -140,27 +143,29 @@ class MainActivity : ComponentActivity() {
                             vm.guide.value.active -> Routes.GUIDE
                             // 처음 실행·로그아웃 상태면 로그인 QR부터 (이번 실행에서 건너뛰면 묻지 않음)
                             container.account.account.value == null && !container.account.skipped -> Routes.LOGIN
-                            else -> Routes.INPUT
+                            else -> Routes.HOME
                         }
                     }
-                    fun goHome() = nav.navigate(Routes.INPUT) { popUpTo(0) }
+                    fun goHome() = nav.navigate(Routes.HOME) { popUpTo(0) }
                     val backStack by nav.currentBackStackEntryAsState()
                     val route = backStack?.destination?.route
                     fun openTab(tab: MainTab) {
                         val target = when (tab) {
-                            MainTab.HOME -> if (guide.active) Routes.GUIDE else Routes.INPUT
+                            MainTab.HOME -> if (guide.active) Routes.GUIDE else Routes.HOME
                             MainTab.CARE -> Routes.CARE
                             MainTab.GROW -> Routes.EXPERIENCE
                             MainTab.SETTINGS -> Routes.SETTINGS
                         }
+                        // 그로우에서 연 코스 화면 등 그 탭의 하위 화면에 있으면 탭 화면까지 되돌아간다.
+                        if (nav.popBackStack(target, inclusive = false)) return
                         nav.navigate(target) {
-                            popUpTo(Routes.INPUT) { saveState = true }
+                            popUpTo(Routes.HOME) { saveState = true }
                             launchSingleTop = true
                             restoreState = true
                         }
                     }
 
-                    AppShell(tab = tabOf(route ?: start), onTab = ::openTab, profile = state.profile) {
+                    AppShell(tab = tabOf(route ?: start), onTab = ::openTab) {
                     NavHost(navController = nav, startDestination = start) {
                         composable(Routes.LOGIN) {
                             LoginScreen(
@@ -175,6 +180,34 @@ class MainActivity : ComponentActivity() {
                                     container.account.skipped = true
                                     goHome()
                                 },
+                            )
+                        }
+                        composable(Routes.HOME) {
+                            HomeScreen(
+                                state = state,
+                                isParked = vehicle.isParked,
+                                rangeMeters = vehicle.rangeRemainingMeters,
+                                // 화면에 들어올 때마다 차 안 기록을 다시 읽는다.
+                                visits = remember { container.visits.all() },
+                                saved = remember { container.courses.all() },
+                                actions = HomeActions(
+                                    load = vm::loadHome,
+                                    toggleFilter = vm::toggleFilter,
+                                    retry = vm::retryHome,
+                                    openOption = {
+                                        vm.openOption(it)
+                                        nav.navigate(Routes.COURSE)
+                                    },
+                                    changeConditions = { nav.navigate(Routes.INPUT) },
+                                    openCare = { openTab(MainTab.CARE) },
+                                    openGrow = { openTab(MainTab.GROW) },
+                                    reopenCourse = {
+                                        vm.openSavedCourse(it)
+                                        nav.navigate(Routes.COURSE)
+                                    },
+                                    fed = vm::markFed,
+                                    feedingInterval = vm::setFeedingInterval,
+                                ),
                             )
                         }
                         composable(Routes.INPUT) {
@@ -238,8 +271,14 @@ class MainActivity : ComponentActivity() {
                             // 화면에 들어올 때마다 차 안 기록을 다시 읽는다.
                             ExperienceScreen(
                                 visits = remember { container.visits.all() },
+                                courses = remember { container.courses.all() },
+                                childName = state.profile?.childName.orEmpty(),
                                 isParked = vehicle.isParked,
-                                onBack = { nav.popBackStack() },
+                                onOpenCourse = {
+                                    vm.openSavedCourse(it)
+                                    nav.navigate(Routes.COURSE)
+                                },
+                                onPlan = ::goHome,
                             )
                         }
                         composable(Routes.PROFILE) {
@@ -261,6 +300,7 @@ class MainActivity : ComponentActivity() {
                                     loading = state.loading,
                                     error = state.error,
                                     message = state.message,
+                                    feeding = state.feeding,
                                     edit = CourseEditActions(
                                         swap = vm::swapPlace,
                                         move = vm::moveStop,
@@ -287,8 +327,8 @@ class MainActivity : ComponentActivity() {
                                 onShowRecord = { nav.navigate(Routes.EXPERIENCE) },
                                 onEnd = {
                                     vm.endGuide()
-                                    if (!nav.popBackStack(Routes.INPUT, inclusive = false)) {
-                                        nav.navigate(Routes.INPUT) { popUpTo(0) }
+                                    if (!nav.popBackStack(Routes.HOME, inclusive = false)) {
+                                        nav.navigate(Routes.HOME) { popUpTo(0) }
                                     }
                                 },
                             )

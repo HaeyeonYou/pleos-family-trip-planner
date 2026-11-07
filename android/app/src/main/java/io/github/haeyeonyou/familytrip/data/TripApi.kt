@@ -12,6 +12,7 @@ import retrofit2.converter.kotlinx.serialization.asConverterFactory
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.POST
+import retrofit2.http.Query
 import retrofit2.http.Path
 import retrofit2.http.Query
 import java.util.concurrent.TimeUnit
@@ -112,6 +113,37 @@ data class CourseResponse(
     val warnings: List<String> = emptyList(),
 )
 
+// 홈 추천 (서버 app/course/planner.py suggest)
+
+@Serializable
+data class CourseOption(
+    val name: String,
+    /** 경유 요약 (A → B → C) */
+    val summary: String,
+    @SerialName("total_minutes") val totalMinutes: Int,
+    @SerialName("first_drive_minutes") val firstDriveMinutes: Int,
+    /** '지금 N대 가는 중' 집계 키 (나들이 장소의 source:source_id) */
+    @SerialName("place_key") val placeKey: String,
+    val indoor: Boolean = false,
+    val course: CourseResponse,
+)
+
+@Serializable
+data class SuggestResponse(val options: List<CourseOption>)
+
+/** 기상청 실황 (서버 app/weather.py) */
+@Serializable
+data class WeatherInfo(
+    val temperature: Double? = null,
+    val condition: String = "",
+    val rainy: Boolean = false,
+    /** 시·군·구 이름 (예: 강남구). 못 구하면 빈 문자열 */
+    val region: String = "",
+)
+
+@Serializable
+data class StartBody(@SerialName("place_key") val placeKey: String)
+
 // 계정 (서버 app/auth/api.py)
 
 @Serializable
@@ -182,6 +214,20 @@ interface TripApi {
     @POST("course")
     suspend fun course(@Body request: CourseRequest): CourseResponse
 
+    @POST("course/suggest")
+    suspend fun suggest(@Body request: CourseRequest): SuggestResponse
+
+    @GET("weather")
+    suspend fun weather(@Query("lat") latitude: Double, @Query("lng") longitude: Double): WeatherInfo
+
+    /** 코스 시작을 서버가 센다 (장소 키만 보냄). */
+    @POST("course/starts")
+    suspend fun recordStart(@Body body: StartBody): Response<Unit>
+
+    /** 장소 키별로 최근 1시간 안에 시작한 수 */
+    @GET("course/going")
+    suspend fun going(@Query("keys") keys: String): Map<String, Int>
+
     @POST("course/schedule")
     suspend fun schedule(@Body request: ScheduleRequest): CourseResponse
 
@@ -225,7 +271,7 @@ interface TripApi {
                     chain.proceed(request ?: chain.request())
                 }
                 // Claude 파서 첫 호출이 8초 안팎이라 여유를 둔다.
-                .readTimeout(30, TimeUnit.SECONDS)
+                .readTimeout(60, TimeUnit.SECONDS)
                 .build()
             return Retrofit.Builder()
                 .baseUrl(baseUrl)

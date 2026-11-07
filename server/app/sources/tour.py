@@ -24,6 +24,10 @@ AMENITY_FIELDS = {
 }
 
 
+# 소개정보(detailIntro2)의 주차 필드는 분류마다 이름이 다르다.
+PARKING_FIELDS = {CONTENT_TYPE_ATTRACTION: "parking", CONTENT_TYPE_CULTURE: "parkingculture"}
+
+
 @dataclass(frozen=True)
 class TourPlace:
     content_id: str
@@ -45,6 +49,7 @@ class TourApiClient:
         self._http = http or httpx.Client(timeout=10, event_hooks=api_log_hooks("tour"))
         self._list_cache = TtlCache(ttl_seconds=6 * 3600, name="TourAPI 목록")
         self._amenity_cache = TtlCache(ttl_seconds=24 * 3600, name="TourAPI 편의정보")
+        self._parking_cache = TtlCache(ttl_seconds=24 * 3600, name="TourAPI 주차정보")
 
     def nearby(
         self,
@@ -64,6 +69,17 @@ class TourApiClient:
     def amenities(self, content_id: str) -> dict[str, str]:
         """영유아가족 편의 원문. 무장애 정보가 없는 장소는 빈 dict."""
         return self._amenity_cache.get_or_load(content_id, lambda: self._fetch_amenities(content_id))
+
+    def parking(self, content_id: str, content_type_id: int) -> str:
+        """주차 안내 원문 (소개정보). 분류에 주차 필드가 없거나 비어 있으면 빈 문자열."""
+        field = PARKING_FIELDS.get(content_type_id)
+        if field is None:
+            return ""
+        return self._parking_cache.get_or_load(content_id, lambda: self._fetch_parking(content_id, content_type_id, field))
+
+    def _fetch_parking(self, content_id: str, content_type_id: int, field: str) -> str:
+        items = self._items(f"{KOR}/detailIntro2", {"contentId": content_id, "contentTypeId": content_type_id})
+        return (items[0].get(field) or "").strip() if items else ""
 
     def _fetch_nearby(
         self,

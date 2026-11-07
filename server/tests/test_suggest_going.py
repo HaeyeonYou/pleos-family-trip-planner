@@ -64,3 +64,20 @@ def test_going_counts_only_recent_starts_per_place():
         assert (await client.post("/course/starts", json={"place_key": ""})).status_code == 422
 
     run(scenario)
+
+
+def test_parking_need_prefers_place_with_parking_info():
+    near = PARK
+    far = dataclasses.replace(PARK, content_id="far", title="주차장있는공원", distance_m=4000)
+    src = FakeTour({CONTENT_TYPE_ATTRACTION: [near, far]}, parking={"far": "무료 주차 50대", near.content_id: "주차 불가"})
+    options = suggest(TripConditions(needs=["parking"]), tour_src=src)
+    outing = options[0].course.stops[1].place
+    assert outing.name == "주차장있는공원"
+    assert outing.amenities["parking"].value == "available" and outing.amenity_notes["parking"] == "무료 주차 50대"
+
+
+def test_kids_zone_need_prefers_play_facility():
+    play = [kakao("k1", "키즈카페A", "가정,생활 > 유아 > 놀이시설 > 키즈카페", dist=3000)]
+    options = suggest(TripConditions(needs=["kids_zone"]), tour_src=FakeTour({CONTENT_TYPE_ATTRACTION: [PARK]}), kakao_src=FakeKakao(play=play))
+    outing = options[0].course.stops[1].place
+    assert outing.name == "키즈카페A" and outing.amenities["kids_zone"].value == "available"

@@ -36,10 +36,10 @@ class AppContainer(private val app: Application) {
     val courses = CourseStore(app)
     val profile = ProfileStore(app)
     val visits = VisitStore(app)
+    val feeding = FeedingStore(app)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val notifier = GuideNotifier(app)
     val guide = GuideSession(app, navi, location, notifier, visits, scope)
-    val feeding = FeedingStore(app)
     val care = CareController(app, vehicle, navi, location, api, guide, notifier, feeding, scope)
 
     private var locationStarted = false
