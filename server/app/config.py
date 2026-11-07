@@ -16,8 +16,8 @@ class Settings(BaseSettings):
     kma_api_hub_key: str = ""
     anthropic_api_key: str = ""
 
-    # 자연어 → 조건 변환 방식. rule: 키워드 규칙, claude: Claude API
-    parser: Literal["rule", "claude"] = "rule"
+    # 자연어 → 조건 변환 방식. auto: 키가 있으면 Claude(실패 시 규칙), rule: 키워드 규칙만, claude: Claude 필수
+    parser: Literal["auto", "rule", "claude"] = "auto"
     claude_model: str = "claude-haiku-5-5"
 
     # 외부 API 대신 고정 데이터로 응답 (PT 현장 장애 대비)

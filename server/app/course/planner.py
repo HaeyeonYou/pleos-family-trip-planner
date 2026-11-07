@@ -44,7 +44,7 @@ AMENITY_LOOKUPS = 6  # 후보 상위 몇 곳만 무장애 상세를 조회한다
 MIN_PET_CANDIDATES = 5  # 반려견 동반 장소가 이보다 적으면 일반 장소도 후보로 낸다
 ALTERNATIVES = 3
 SUGGESTIONS = 3  # 홈에 보여 줄 추천 코스 수
-MAX_INTEREST_SEARCHES = 2  # 관심사 키워드 검색은 앞의 2개까지 (카카오 호출 수)
+MAX_INTEREST_SEARCHES = 3  # 관심사 키워드 검색은 앞의 3개까지 (카카오 호출 수)
 
 STAY_MINUTES = {StopRole.MEAL: 60, StopRole.OUTING: 120, StopRole.CAFE: 40}
 INFANT_OUTING_MINUTES = 90  # 만 2세 이하는 나들이를 짧게
