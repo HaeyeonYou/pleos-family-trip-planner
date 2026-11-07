@@ -15,7 +15,7 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 | `GET /health` | 상태, 설정된 키 여부 |
 | `POST /parse` | 자연어 → `TripConditions` |
 | `POST /course` | 조건 + 출발지 → 식사·나들이·카페·귀가 코스와 시간표 |
-| `POST /course/schedule` | 장소를 바꾸거나 순서를 고친 코스(`stops`) → 이동 시간·시간표 재계산 (장소는 다시 찾지 않음) |
+| `POST /course/schedule` | 장소를 바꾸거나 순서를 고친 코스(`stops`, 체류 시간 `stay_minutes` 선택) → 이동 시간·시간표 재계산 (장소는 다시 찾지 않음). `suggest_nearby: true`면 나들이 장소 근처 식사·카페 후보를 `alternatives`로 줌 |
 
 `/course` 요청 예:
 ```json

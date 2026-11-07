@@ -72,7 +72,12 @@ data class CourseStop(
 )
 
 @Serializable
-data class ScheduleStop(val role: String, val place: CoursePlace)
+data class ScheduleStop(
+    val role: String,
+    val place: CoursePlace,
+    /** 사용자가 바꾼 체류 시간. 없으면 서버가 역할 기본값을 쓴다. */
+    @SerialName("stay_minutes") val stayMinutes: Int? = null,
+)
 
 /** 장소를 바꾼 코스의 시간표만 다시 계산한다 (서버가 장소를 다시 찾지 않음). */
 @Serializable
@@ -82,6 +87,8 @@ data class ScheduleRequest(
     val home: LatLng? = null,
     @SerialName("departure_time") val departureTime: String? = null,
     val stops: List<ScheduleStop>,
+    /** 나들이 장소 근처 식사·카페 후보를 새로 찾아 받는다 (나들이를 바꿨을 때). */
+    @SerialName("suggest_nearby") val suggestNearby: Boolean = false,
 )
 
 @Serializable
