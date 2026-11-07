@@ -6,6 +6,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
+import retrofit2.Response
 import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
 import retrofit2.http.Body
@@ -133,6 +134,24 @@ data class CarLoginPoll(@SerialName("poll_secret") val pollSecret: String)
 @Serializable
 data class CarLoginStatus(val status: String, val token: String? = null, val user: AccountUser? = null)
 
+// 공조 프리셋 (서버 app/presets.py)
+
+@Serializable
+data class ClimateSettings(
+    val name: String = "우리 가족 설정",
+    val power: Boolean = true,
+    val temperature: Float = 23f,
+    @SerialName("fan_speed") val fanSpeed: Int = 3,
+    val ac: Boolean = false,
+    @SerialName("air_cleaner") val airCleaner: Boolean = false,
+    @SerialName("driver_seat_heat") val driverSeatHeat: Int = 0,
+    @SerialName("passenger_seat_heat") val passengerSeatHeat: Int = 0,
+    @SerialName("steering_wheel_heat") val steeringWheelHeat: Int = 0,
+)
+
+@Serializable
+data class PendingPreset(val id: String, val settings: ClimateSettings, @SerialName("sent_at") val sentAt: String)
+
 interface TripApi {
     @POST("parse")
     suspend fun parse(@Body request: ParseRequest): ParseResponse
@@ -154,6 +173,13 @@ interface TripApi {
 
     @POST("auth/logout")
     suspend fun logout()
+
+    /** 아직 적용하지 않은 프리셋. 없으면 204 (body null). */
+    @GET("presets/pending")
+    suspend fun pendingPreset(): Response<PendingPreset>
+
+    @POST("presets/{id}/applied")
+    suspend fun presetApplied(@Path("id") presetId: String): Response<Unit>
 
     companion object {
         /** [token]이 있으면 모든 요청에 차 세션 토큰을 붙인다 (로그인한 사용자 기능). */
