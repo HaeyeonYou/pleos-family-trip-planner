@@ -1,4 +1,5 @@
 import logging
+import time
 
 import anthropic
 import httpx
@@ -31,6 +32,7 @@ class ClaudeParser:
         self._fallback = RuleBasedParser()
 
     def parse(self, text: str) -> TripConditions:
+        started = time.perf_counter()
         try:
             response = self._client.messages.parse(
                 model=self._model,
@@ -47,7 +49,12 @@ class ClaudeParser:
         if response.stop_reason == "refusal" or response.parsed_output is None:
             log.warning("Claude 응답 사용 불가(stop_reason=%s), 규칙 기반으로 대체", response.stop_reason)
             return self._fallback.parse(text)
-        log.info("Claude usage: in=%s out=%s", response.usage.input_tokens, response.usage.output_tokens)
+        log.info(
+            "Claude 해석 %.0fms (토큰 in=%s out=%s)",
+            (time.perf_counter() - started) * 1000,
+            response.usage.input_tokens,
+            response.usage.output_tokens,
+        )
         result = response.parsed_output
         # 사전 단어로 맞춰 코스 생성의 관련어 검색이 동작하게 한다. 사전에 없으면 그대로 둔다.
         result.interests = list(dict.fromkeys(interests.normalize(w) or w for w in result.interests))
