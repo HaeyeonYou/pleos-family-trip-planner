@@ -13,10 +13,12 @@ import math
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
+import anyio.from_thread
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db import Database
 from app.models import ParkingLot
 
 EARTH_RADIUS_M = 6_371_000
@@ -32,6 +34,8 @@ class ParkingPlace(BaseModel):
     capacity: int | None
     fee_summary: str  # "30분 1,000원·추가 10분 500원·일 최대 10,000원"
     hours: str  # 오늘 요일 기준: "평일 09:00~18:00"
+    open_time: str | None = None  # 오늘 요일 기준 시작 HH:MM. 운영시간 정보가 없으면 None
+    close_time: str | None = None  # 끝 HH:MM ("24:00" 가능)
     latitude: float
     longitude: float
     phone: str | None = None
@@ -67,16 +71,22 @@ def fee_summary(lot: ParkingLot) -> str:
     return "·".join(parts)
 
 
-def hours_text(lot: ParkingLot, today: date) -> str:
-    """오늘 요일에 맞는 운영시간. 토요일은 sat_*, 일요일은 holiday_*, 그 외는 weekday_*. 공휴일 달력은 없어 평일로 본다."""
+def hours_range(lot: ParkingLot, today: date) -> tuple[str, str | None, str | None]:
+    """오늘 요일 기준 (구분 이름, 시작, 끝). 토요일은 sat_*, 일요일은 holiday_*, 그 외는 weekday_*. 공휴일 달력은 없어 평일로 본다.
+    시작=끝이거나 비어 있으면 값이 채워지지 않은 것이라 (이름, None, None)."""
     label, open_, close = (
         ("평일", lot.weekday_open, lot.weekday_close),
         ("토요일", lot.sat_open, lot.sat_close),
         ("일요일·공휴일", lot.holiday_open, lot.holiday_close),
     )[{5: 1, 6: 2}.get(today.weekday(), 0)]
-    if not open_ or not close:
-        return f"{label} 운영시간 정보 없음"
-    if open_ == close:  # 00:00~00:00 처럼 시작=끝이면 값이 채워지지 않은 것
+    if not open_ or not close or open_ == close:  # 00:00~00:00 처럼 시작=끝이면 값이 채워지지 않은 것
+        return label, None, None
+    return label, open_, close
+
+
+def hours_text(lot: ParkingLot, today: date) -> str:
+    label, open_, close = hours_range(lot, today)
+    if open_ is None or close is None:
         return f"{label} 운영시간 정보 없음"
     if (open_, close) in (("00:00", "24:00"), ("00:00", "23:59")):
         return f"{label} 24시간"
@@ -113,6 +123,8 @@ async def nearby(
             capacity=lot.capacity,
             fee_summary=fee_summary(lot),
             hours=hours_text(lot, today),
+            open_time=hours_range(lot, today)[1],
+            close_time=hours_range(lot, today)[2],
             latitude=lot.latitude,
             longitude=lot.longitude,
             phone=lot.phone,
@@ -120,3 +132,20 @@ async def nearby(
         for dist, lot in found
         if dist <= radius_m
     ][:limit]
+
+
+class DbParkingSource:
+    """동기 코스 계획(planner)이 쓰는 주차장 조회. 요청 스레드에서 서버의 이벤트 루프로 넘겨 같은 연결 풀을 쓴다.
+
+    planner는 FastAPI의 `def` 엔드포인트(작업 스레드)에서 돈다. 그 밖(스크립트 등)에서는 쓰지 않는다.
+    """
+
+    def __init__(self, db: Database):
+        self._db = db
+
+    def near(self, latitude: float, longitude: float, radius_m: int, limit: int, today: date) -> list[ParkingPlace]:
+        return anyio.from_thread.run(self._near, latitude, longitude, radius_m, limit, today)
+
+    async def _near(self, latitude: float, longitude: float, radius_m: int, limit: int, today: date) -> list[ParkingPlace]:
+        async with self._db.sessions() as session:
+            return await nearby(session, latitude, longitude, radius_m, limit, today)
