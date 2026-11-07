@@ -466,3 +466,15 @@
 - 에뮬레이터의 `ai.pleos.connecttokensampleapp`은 계정이 아니라 **디자인 토큰(테마) 샘플**이다.
 - 차 상태바에 프로필 선택기가 있지만, 앱이 현재 운전자 프로필을 읽는 API는 문서에 없다.
 - 결론: 지금은 Pleos 계정으로 로그인할 수 없다. 공모전 Q&A로 사용 가능 여부를 문의하고, 회원 연결은 우리 서버 방식(QR 가족 연결 등)으로 설계하되 나중에 Pleos 계정을 붙일 수 있게 둔다.
+
+## 외부(모바일)에서 차 제어 가능 여부 (2026-11-07)
+
+- **차 안 앱(Vehicle SDK 2.3.2)은 제어 API가 있다**: `setHvacTemperature`·`setHvacPower`·`setHvacFanSpeed`·`setHvacSeatTemperature`(시트 열선)·`setHvacSteeringWheelHeat`, `setDoorLock`, `setWindowPosition`, 각종 라이트, `setEvChargeSwitch`·`setEvChargePercentLimit` 등.
+  - 권한 `pleos.car.permission.CONTROL_CAR_*` (CLIMATE, DOORS, WINDOWS, LIGHTS, ENERGY 등). 에뮬레이터에서는 보호 수준이 `normal`이라 선언만 하면 받지만, 실차는 "Pleos App Market과 사전 협의·승인된 범위"에서만 쓸 수 있다.
+  - **시동(원격 시동) API는 없다.**
+  - 앱은 인포테인먼트가 켜져 있을 때만 돈다. 시동이 꺼진 주차 상태에서는 앱이 돌지 않아 **블루링크·기아 커넥트처럼 타기 전에 미리 공조를 켜는 원격 제어는 차 안 앱으로 할 수 없다.**
+- **클라우드 API**:
+  - Vehicle Data API: 현대·기아·제네시스 커넥티드카 텔레매틱스 데이터 **조회 전용**(배터리·위치·운행·공조 상태 등), OAuth 2.0, **2026년 8월 기준 유럽만 제공**.
+  - Fleet API: 플릿 운영사용 차량·단말기 관리와 데이터 조회·Webhook. 원격 제어 기능은 목록에 없다.
+- 원격 시동·원격 공조는 현대·기아의 자체 서비스(블루링크·기아 커넥트, 차량 통신 모듈 경유)이고 서드파티에 열려 있지 않다.
+- **우리 앱에서 가능한 범위**: (1) 차가 켜져 있을 때 폰(동승 가족)에서 보낸 요청을 서버 경유로 차 안 앱이 받아 공조 등을 제어, (2) 폰에서 미리 정해 둔 프리셋을 다음 시동 때 차 안 앱이 바로 적용, (3) 타기 전 원격 공조는 블루링크·기아 커넥트 앱으로 연결(딥링크).
