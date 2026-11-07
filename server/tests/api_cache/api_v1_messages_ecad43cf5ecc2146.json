@@ -1,0 +1,6 @@
+{
+ "request": "POST api.anthropic.com/v1/messages?",
+ "status": 200,
+ "content_type": "application/json",
+ "body": "{\"model\":\"claude-haiku-5-5\",\"id\":\"msg_011Cgoqx9TdyW4qGAqAzkhaT\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"{\\\"child_ages\\\":[5],\\\"child_age_months\\\":[],\\\"adults\\\":null,\\\"with_pet\\\":false,\\\"themes\\\":[],\\\"indoor_only\\\":false,\\\"return_by_hour\\\":18,\\\"max_drive_minutes\\\":null,\\\"needs\\\":[],\\\"interests\\\":[\\\"공룡\\\",\\\"기차\\\"]}\"}],\"container\":null,\"stop_reason\":\"end_turn\",\"stop_sequence\":null,\"stop_details\":null,\"usage\":{\"input_tokens\":2036,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0,\"cache_creation\":{\"ephemeral_5m_input_tokens\":0,\"ephemeral_1h_input_tokens\":0},\"output_tokens\":92,\"output_tokens_details\":{\"thinking_tokens\":0},\"service_tier\":\"standard\",\"inference_geo\":\"global\",\"speed\":\"standard\"},\"diagnostics\":null}"
+}
