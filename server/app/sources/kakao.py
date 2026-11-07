@@ -30,6 +30,12 @@ class KakaoPlace:
 class Leg:
     distance_m: int
     duration_s: int
+    # 지도에 그릴 경로 좌표 (위도, 경도). 추정 구간은 출발·도착 두 점뿐.
+    path: tuple[tuple[float, float], ...] = ()
+
+
+# 지도 미리보기용이라 구간마다 이 정도 점이면 충분하다 (응답 크기 절약).
+MAX_PATH_POINTS = 120
 
 
 class KakaoClient:
@@ -54,14 +60,15 @@ class KakaoClient:
             "destination": to_xy(points[-1]),
             "waypoints": [to_xy(p) | {"name": f"w{i}"} for i, p in enumerate(points[1:-1])],
             "priority": "RECOMMEND",
-            "summary": True,
+            # 지도에 실제 길을 그리려고 도로 좌표(vertexes)까지 받는다.
+            "summary": False,
         }
         res = self._http.post(NAVI_URL, json=body, headers=self._headers)
         res.raise_for_status()
         route = res.json()["routes"][0]
         if route["result_code"] != 0:
             raise ValueError(f"route failed: {route.get('result_msg')}")
-        return [Leg(distance_m=s["distance"], duration_s=s["duration"]) for s in route["sections"]]
+        return [Leg(distance_m=s["distance"], duration_s=s["duration"], path=_section_path(s)) for s in route["sections"]]
 
     def _search(self, kind: str, params: dict, latitude: float, longitude: float) -> list[KakaoPlace]:
         params = params | {"x": longitude, "y": latitude, "sort": "distance"}
@@ -86,3 +93,18 @@ def _to_place(doc: dict) -> KakaoPlace:
         distance_m=float(doc.get("distance") or 0),
         url=doc.get("place_url", ""),
     )
+
+
+def _section_path(section: dict) -> tuple[tuple[float, float], ...]:
+    """구간의 도로 좌표 [x1, y1, x2, y2, ...]를 (위도, 경도) 점으로, 너무 많으면 고르게 줄인다."""
+    points = [
+        (v[i + 1], v[i])
+        for road in section.get("roads", [])
+        for v in [road.get("vertexes", [])]
+        for i in range(0, len(v) - 1, 2)
+    ]
+    if len(points) <= MAX_PATH_POINTS:
+        return tuple(points)
+    step = len(points) / (MAX_PATH_POINTS - 1)
+    thinned = [points[round(i * step)] for i in range(MAX_PATH_POINTS - 1)] + [points[-1]]
+    return tuple(thinned)

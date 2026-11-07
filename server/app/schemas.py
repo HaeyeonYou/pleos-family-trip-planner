@@ -134,5 +134,6 @@ class CourseResponse(BaseModel):
     total_drive_minutes: int
     return_at: str
     route_source: str = Field(..., description="kakao: 실제 길찾기 / estimate: 직선거리 추정")
+    path: list[LatLng] = Field(default_factory=list, description="출발부터 귀가까지 지도에 그릴 경로 좌표")
     alternatives: dict[StopRole, list[Place]] = Field(default_factory=dict, description="장소 교체 후보")
     warnings: list[str] = Field(default_factory=list)
