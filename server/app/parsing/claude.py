@@ -1,10 +1,7 @@
 import logging
-import time
-
-import anthropic
-import httpx
 
 from app import interests
+from app.llm import LlmClient
 from app.parsing.rule_based import RuleBasedParser
 from app.schemas import TripConditions
 
@@ -24,38 +21,24 @@ _SYSTEM = """\
 
 
 class ClaudeParser:
+    """Claude로 해석하고, 실패·3초 초과 시 규칙 기반으로 되돌아간다."""
+
     name = "claude"
 
-    def __init__(self, api_key: str, model: str, http_client: httpx.Client | None = None):
-        self._client = anthropic.Anthropic(api_key=api_key, timeout=15.0, max_retries=1, http_client=http_client)
-        self._model = model
+    def __init__(self, api_key: str, model: str, http_client=None, timeout_s: float | None = None):
+        kwargs = {} if timeout_s is None else {"timeout_s": timeout_s}
+        self._llm = LlmClient(api_key, model, http_client=http_client, **kwargs)
         self._fallback = RuleBasedParser()
+        self.last_used = "claude"  # 마지막 호출이 실제로 쓴 방식 (claude / rule)
 
     def parse(self, text: str) -> TripConditions:
-        started = time.perf_counter()
-        try:
-            response = self._client.messages.parse(
-                model=self._model,
-                max_tokens=2000,
-                system=_SYSTEM.format(vocabulary=", ".join(interests.INTEREST_TERMS)),
-                messages=[{"role": "user", "content": text}],
-                output_format=TripConditions,
-            )
-        except anthropic.APIError as e:
-            # 네트워크 장애나 크레딧 소진이어도 앱은 동작해야 하므로 규칙 기반으로 대체
-            log.warning("Claude 호출 실패, 규칙 기반으로 대체: %s", e)
-            return self._fallback.parse(text)
-
-        if response.stop_reason == "refusal" or response.parsed_output is None:
-            log.warning("Claude 응답 사용 불가(stop_reason=%s), 규칙 기반으로 대체", response.stop_reason)
-            return self._fallback.parse(text)
-        log.info(
-            "Claude 해석 %.0fms (토큰 in=%s out=%s)",
-            (time.perf_counter() - started) * 1000,
-            response.usage.input_tokens,
-            response.usage.output_tokens,
+        result = self._llm.structured(
+            "문장 해석", _SYSTEM.format(vocabulary=", ".join(interests.INTEREST_TERMS)), text, TripConditions
         )
-        result = response.parsed_output
+        if result is None:
+            self.last_used = "rule"
+            return self._fallback.parse(text)
+        self.last_used = "claude"
         # 사전 단어로 맞춰 코스 생성의 관련어 검색이 동작하게 한다. 사전에 없으면 그대로 둔다.
         result.interests = list(dict.fromkeys(interests.normalize(w) or w for w in result.interests))
         return result
