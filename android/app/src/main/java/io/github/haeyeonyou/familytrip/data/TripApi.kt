@@ -9,7 +9,9 @@ import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
 import retrofit2.http.Body
+import retrofit2.http.GET
 import retrofit2.http.POST
+import retrofit2.http.Path
 import java.util.concurrent.TimeUnit
 
 // 서버 app/schemas.py와 같은 구조. 필드 이름은 서버의 snake_case를 따른다.
@@ -106,6 +108,31 @@ data class CourseResponse(
     val warnings: List<String> = emptyList(),
 )
 
+// 계정 (서버 app/auth/api.py)
+
+@Serializable
+data class AccountUser(@SerialName("login_id") val loginId: String, @SerialName("display_name") val displayName: String)
+
+@Serializable
+data class CarLoginStart(@SerialName("device_name") val deviceName: String)
+
+@Serializable
+data class CarLoginStarted(
+    @SerialName("request_id") val requestId: String,
+    val code: String,
+    @SerialName("login_url") val loginUrl: String,
+    @SerialName("qr_url") val qrUrl: String,
+    @SerialName("poll_secret") val pollSecret: String,
+    @SerialName("expires_at") val expiresAt: String,
+)
+
+@Serializable
+data class CarLoginPoll(@SerialName("poll_secret") val pollSecret: String)
+
+/** pending: 폰 승인 대기, approved: 로그인 완료(token은 이때 한 번만), expired: 만료 */
+@Serializable
+data class CarLoginStatus(val status: String, val token: String? = null, val user: AccountUser? = null)
+
 interface TripApi {
     @POST("parse")
     suspend fun parse(@Body request: ParseRequest): ParseResponse
@@ -116,10 +143,27 @@ interface TripApi {
     @POST("course/schedule")
     suspend fun schedule(@Body request: ScheduleRequest): CourseResponse
 
+    @POST("auth/car-login")
+    suspend fun startCarLogin(@Body request: CarLoginStart): CarLoginStarted
+
+    @POST("auth/car-login/{id}/poll")
+    suspend fun pollCarLogin(@Path("id") requestId: String, @Body request: CarLoginPoll): CarLoginStatus
+
+    @GET("auth/me")
+    suspend fun me(): AccountUser
+
+    @POST("auth/logout")
+    suspend fun logout()
+
     companion object {
-        fun create(baseUrl: String = BuildConfig.SERVER_URL): TripApi {
+        /** [token]이 있으면 모든 요청에 차 세션 토큰을 붙인다 (로그인한 사용자 기능). */
+        fun create(baseUrl: String = BuildConfig.SERVER_URL, token: () -> String? = { null }): TripApi {
             val json = Json { ignoreUnknownKeys = true }
             val http = OkHttpClient.Builder()
+                .addInterceptor { chain ->
+                    val request = token()?.let { chain.request().newBuilder().header("Authorization", "Bearer $it").build() }
+                    chain.proceed(request ?: chain.request())
+                }
                 // Claude 파서 첫 호출이 8초 안팎이라 여유를 둔다.
                 .readTimeout(30, TimeUnit.SECONDS)
                 .build()

@@ -1,0 +1,5 @@
+{% extends "base.html" %}
+{% block body %}
+<p>{{ message }}</p>
+{% if link %}<a class="button secondary" href="{{ link }}">{{ link_text }}</a>{% endif %}
+{% endblock %}

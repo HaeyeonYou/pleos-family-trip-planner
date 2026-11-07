@@ -24,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import io.github.haeyeonyou.familytrip.data.AccountUser
 import io.github.haeyeonyou.familytrip.data.FamilyProfile
 import io.github.haeyeonyou.familytrip.data.TripConditions
 import io.github.haeyeonyou.familytrip.data.ageLabel
@@ -37,6 +38,9 @@ private val EXAMPLES = listOf(
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun InputScreen(
+    account: AccountUser?,
+    onLogin: () -> Unit,
+    onLogout: () -> Unit,
     state: TripUiState,
     isParked: Boolean,
     onTextChange: (String) -> Unit,
@@ -54,6 +58,12 @@ fun InputScreen(
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("오늘, 어디 가지?", fontSize = 40.sp, modifier = Modifier.weight(1f))
+            if (account != null) {
+                Text("${account.displayName}님", fontSize = 22.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                TextButton(onClick = onLogout) { Text("로그아웃", fontSize = 18.sp) }
+            } else {
+                TextButton(onClick = onLogin) { Text("로그인", fontSize = 18.sp) }
+            }
             BigOutlinedButton("경험 기록", onShowRecord)
             TextButton(onClick = onOpenDev) { Text("개발자 화면", fontSize = 18.sp) }
         }
