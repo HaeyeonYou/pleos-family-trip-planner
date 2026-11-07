@@ -39,6 +39,8 @@ _LEISURE_ALLOWED: dict[str, tuple[Theme, bool]] = {
 }
 _LEISURE_EXCLUDED_WORDS = ("사격", "총", "낚시", "골프", "클럽")
 
+_FAMILY_EVENT_WORDS = ("어린이", "아이", "키즈", "가족", "유아", "아기", "동화", "그림책", "인형극", "체험", "놀이", "과학", "패밀리")
+
 # 주류·성인 대상 행사는 아이 동반 코스에서 뺀다
 # 밤에 여는 행사도 낮 코스에 맞지 않아 뺀다 (행사 시각을 API가 주지 않는다)
 _EVENT_EXCLUDED_WORDS = ("맥주", "옥토버", "와인", "막걸리", "주류", "위스키", "성인", "나이트", "야간", "야행", "야경", "밤길", "별빛", "달빛", "심야")
@@ -113,5 +115,53 @@ def leisure_kind(place: TourPlace) -> tuple[Theme, bool] | None:
     return theme, indoor or "실내" in place.title
 
 
+# 어른 대상 공연·행사 (어린이·가족 말이 함께 있으면 통과)
+_ADULT_SHOW_WORDS = ("연극", "콘서트", "토크", "강연", "포럼", "세미나", "시상", "혁명")
+
+
 def event_is_suitable(place: TourPlace) -> bool:
-    return not any(w in place.title for w in _EVENT_EXCLUDED_WORDS)
+    if any(w in place.title for w in _EVENT_EXCLUDED_WORDS):
+        return False
+    if any(w in place.title for w in _ADULT_SHOW_WORDS):
+        return any(w in place.title for w in _FAMILY_EVENT_WORDS)
+    return True
+
+
+# 공공데이터포털 소스 (#33)
+
+_ADULT_EVENT_WORDS = ("성인", "19세", "와인", "맥주", "누드")
+_FACILITY_EXCLUDED_WORDS = ("대학", "연구소", "연구원", "도서관학", "작은도서관 분관")
+
+
+def culture_event_is_family(title: str, place: str) -> bool:
+    """오늘 열리는 전시·공연 중 아이와 갈 만한 것: 이름·장소에 어린이·가족·체험 같은 말이 있는 것만."""
+    text = f"{title} {place}"
+    return any(w in text for w in _FAMILY_EVENT_WORDS) and not any(w in text for w in _ADULT_EVENT_WORDS)
+
+
+def culture_facility_theme(group: str, name: str) -> tuple[Theme, bool] | None:
+    """박물관·미술관·도서관 → (테마, 실내). 대학·연구소 소속은 뺀다."""
+    if group not in ("박물관", "미술관", "도서관") or any(w in name for w in _FACILITY_EXCLUDED_WORDS):
+        return None
+    return Theme.EXHIBITION, True
+
+
+def normalize_name(name: str) -> str:
+    """다른 소스의 같은 장소를 찾으려고 이름을 비교용으로 줄인다."""
+    return "".join(ch for ch in name if ch.isalnum())
+
+
+PLAYGROUND_LIMIT = 10
+_DESTINATION_PARK_WORDS = ("근린", "호수", "수목원", "휴양림", "대공원", "체육공원", "생태", "숲", "공원 놀이터")
+
+
+def best_playgrounds(places: list) -> list:
+    """놀이터 있는 공원 중 나들이 장소다운 곳만 추린다 (동네 소공원 수천 곳이 후보를 덮지 않도록).
+
+    놀이시설이 여러 개 묶인 큰 공원이나 근린·호수·수목원 같은 이름을 먼저, 거리순으로 최대 PLAYGROUND_LIMIT곳.
+    """
+    def destination(p) -> bool:
+        return p.facilities >= 3 or any(w in p.name for w in _DESTINATION_PARK_WORDS)
+
+    chosen = [p for p in places if destination(p)]
+    return chosen[:PLAYGROUND_LIMIT]

@@ -11,7 +11,7 @@ from zoneinfo import ZoneInfo
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.config import Settings, get_settings
 
@@ -28,6 +28,8 @@ class Weather(BaseModel):
     temperature: float | None = None
     condition: str = ""
     rainy: bool = False
+    rain_chance: int | None = Field(None, description="앞으로 6시간 중 가장 높은 강수확률(%). 단기예보. 못 구하면 null")
+    rain_later: bool = Field(False, description="지금은 아니어도 앞으로 6시간 안에 비·눈이 올 가능성이 높음(강수확률 60% 이상)")
     region: str = ""  # 구 이름 (예: 강남구). 홈 칩의 위치 표시
     source: str = "kma"
 
@@ -75,6 +77,38 @@ def region_name(kakao_key: str, lat: float, lng: float) -> str:
         return ""
 
 
+RAIN_LATER_POP = 60  # 강수확률이 이 이상이면 '곧 비'
+OUTLOOK_HOURS = 6
+
+
+def rain_outlook(items: list[dict], now: datetime, hours: int = OUTLOOK_HOURS) -> tuple[int | None, bool]:
+    """단기예보 항목에서 앞으로 hours시간의 최대 강수확률(POP)과 '곧 비' 여부."""
+    end = now + timedelta(hours=hours)
+    pops, wet = [], False
+    for i in items:
+        when = datetime.strptime(i["fcstDate"] + i["fcstTime"], "%Y%m%d%H%M").replace(tzinfo=KST)
+        if not (now - timedelta(hours=1) < when <= end):
+            continue
+        if i["category"] == "POP":
+            pops.append(int(i["fcstValue"]))
+        elif i["category"] == "PTY" and i["fcstValue"] != "0":
+            wet = True
+    if not pops:
+        return None, False
+    top = max(pops)
+    return top, wet or top >= RAIN_LATER_POP
+
+
+def _forecast_base(now: datetime) -> datetime:
+    """단기예보 발표 시각(02·05·08·11·14·17·20·23시) 중 자료가 열린(발표 10분 뒤) 가장 최근 것."""
+    t = now - timedelta(minutes=10)
+    for back in range(0, 4):
+        c = (t - timedelta(hours=back)).replace(minute=0, second=0, microsecond=0)
+        if c.hour in (2, 5, 8, 11, 14, 17, 20, 23):
+            return c
+    return t.replace(hour=2, minute=0, second=0, microsecond=0)
+
+
 def fetch(key: str, lat: float, lng: float, now: datetime | None = None) -> Weather:
     nx, ny = to_grid(lat, lng)
     now = now or datetime.now(KST)
@@ -100,10 +134,19 @@ def fetch(key: str, lat: float, lng: float, now: datetime | None = None) -> Weat
                 log.info("하늘 상태 조회 실패: %r", e)
                 condition = "강수 없음"
         temp = obs.get("T1H")
+        chance, later = None, False
+        try:
+            fb = _forecast_base(now)
+            fcst = _items(client, "getVilageFcst", key, {"base_date": fb.strftime("%Y%m%d"), "base_time": fb.strftime("%H%M"), "nx": nx, "ny": ny, "numOfRows": 1000})
+            chance, later = rain_outlook(fcst, now)
+        except Exception as e:  # noqa: BLE001 - 예보가 없어도 실황은 준다
+            log.info("단기예보 조회 실패: %r", e)
         return Weather(
             temperature=float(temp) if temp is not None else None,
             condition=condition,
             rainy=pty != "0",
+            rain_chance=chance,
+            rain_later=later and pty == "0",
         )
 
 

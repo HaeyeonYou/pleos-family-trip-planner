@@ -1,0 +1,6 @@
+{
+ "request": "GET apis.data.go.kr/B553457/cultureinfo/period2?PageNo=13&from=20261108&serviceTp=A&to=20261108",
+ "status": 200,
+ "content_type": "application/xml",
+ "body": "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><response><header><resultCode>00</resultCode><resultMsg>정상입니다.</resultMsg></header><body><totalCount>121</totalCount><PageNo>13</PageNo><numOfrows>10</numOfrows><items><item><serviceName>공연</serviceName><seq>403803</seq><title>[대전] 빨간코 루돌프와 산타클로스 </title><startDate>20261108</startDate><endDate>20261108</endDate><place>대전평송청소년문화센터</place><realmName>뮤지컬/오페라</realmName><area>대전</area><sigungu>서구</sigungu><thumbnail>http://www.culture.go.kr/upload/rdf/26/10/rdf_2026102421311239336.png</thumbnail><gpsX>127.39184091984377</gpsX><gpsY>36.36585410272062</gpsY></item></items></body></response>"
+}
