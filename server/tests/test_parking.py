@@ -194,6 +194,14 @@ def test_fee_and_hours_text():
     run(scenario)
 
 
+def test_real_data_quirks_in_fee_and_hours():
+    # 실제 표준데이터: 기본시간만 있고 요금이 빈 행, 00:00~23:59(24시간), 00:00~00:00(미입력)
+    assert parking.fee_summary(ParkingLot(fee_type="유료", base_minutes=30)) == "요금 정보 없음"
+    lot = ParkingLot(weekday_open="00:00", weekday_close="23:59", sat_open="00:00", sat_close="00:00")
+    assert parking.hours_text(lot, MONDAY) == "평일 24시간"
+    assert parking.hours_text(lot, SATURDAY) == "토요일 운영시간 정보 없음"
+
+
 def test_fee_summary_without_data():
     assert parking.fee_summary(ParkingLot(fee_type="유료")) == "요금 정보 없음"
     assert parking.fee_summary(ParkingLot(fee_type=None, base_minutes=30, base_fee=1000)) == "30분 1,000원"
