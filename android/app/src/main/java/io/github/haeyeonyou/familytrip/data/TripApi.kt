@@ -14,7 +14,6 @@ import retrofit2.http.GET
 import retrofit2.http.POST
 import retrofit2.http.Query
 import retrofit2.http.Path
-import retrofit2.http.Query
 import java.util.concurrent.TimeUnit
 
 // 서버 app/schemas.py와 같은 구조. 필드 이름은 서버의 snake_case를 따른다.
