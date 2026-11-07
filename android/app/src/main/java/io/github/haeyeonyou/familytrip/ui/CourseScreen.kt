@@ -38,6 +38,7 @@ import coil.compose.AsyncImage
 import io.github.haeyeonyou.familytrip.data.CoursePlace
 import io.github.haeyeonyou.familytrip.data.CourseResponse
 import io.github.haeyeonyou.familytrip.data.CourseStop
+import io.github.haeyeonyou.familytrip.data.FeedingRoutine
 
 /** 코스 편집 동작. 모두 서버에서 시간표를 다시 계산한다. */
 data class CourseEditActions(
@@ -57,6 +58,7 @@ fun CourseScreen(
     loading: Boolean,
     error: String?,
     message: String?,
+    feeding: FeedingRoutine,
     edit: CourseEditActions,
     onSave: () -> Unit,
     onStartGuide: () -> Unit,
@@ -65,7 +67,7 @@ fun CourseScreen(
     var editing by remember { mutableStateOf(false) }
     if (!editing) {
         // 기본은 HF02 코스 상세. 편집(경유지 편집·대안 보기)일 때만 아래 편집 화면.
-        CourseOverview(course, loading, error, message, onStartGuide, onEdit = { editing = true }, onSave = onSave, onBack = onBack)
+        CourseOverview(course, loading, error, message, feeding, onStartGuide, onEdit = { editing = true }, onSave = onSave, onBack = onBack)
         return@DrivingAware
     }
     // 상세를 펼친 장소, 교체 후보를 펼친 장소 (각각 하나만)
