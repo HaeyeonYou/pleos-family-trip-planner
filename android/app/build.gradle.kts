@@ -65,6 +65,8 @@ dependencies {
     implementation(libs.pleos.vehicle)
     implementation(libs.pleos.navihelper)
     implementation(libs.pleos.fusedlocation)
+    implementation(libs.pleos.tts)
+    implementation(libs.pleos.stt)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.retrofit)
@@ -72,5 +74,6 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.coil.compose)
     implementation(libs.kakao.map)
+    testImplementation("junit:junit:4.13.2")
     debugImplementation(libs.androidx.ui.tooling)
 }

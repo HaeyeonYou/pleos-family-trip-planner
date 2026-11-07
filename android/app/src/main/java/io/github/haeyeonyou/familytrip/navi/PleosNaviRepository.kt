@@ -81,6 +81,13 @@ class PleosNaviRepository(context: Context) : NaviRepository {
         override fun onNavigationStatus(status: NavigationStatus) {
             log("내비 상태: $status")
             _state.update { it.copy(routing = status == NavigationStatus.ROUTE_DRIVE) }
+            navReady = status == NavigationStatus.FREE_DRIVE || status == NavigationStatus.ROUTE_DRIVE
+            // 내비가 꺼져 있다 막 켜진 경우: 기다리던 목적지를 이제 보낸다.
+            val waiting = pendingDestination
+            if (waiting != null && navReady) {
+                pendingDestination = null
+                if (System.currentTimeMillis() - pendingAt < PENDING_MS) requestRoute(waiting)
+            }
         }
 
         override fun onError(code: NaviErrorCode) = log("오류: $code")
@@ -129,7 +136,30 @@ class PleosNaviRepository(context: Context) : NaviRepository {
 
     override fun cancelRoute() = naviHelper.cancelRoute()
 
+    /** 내비가 안내 가능한 상태인지 (켜지는 중이면 false). 상태를 한 번도 못 받았으면 true로 보고 시도한다. */
+    @Volatile
+    private var navReady = false
+    private val handler = android.os.Handler(android.os.Looper.getMainLooper())
+    private var pendingDestination: Place? = null
+    private var pendingAt = 0L
+
     override fun addWaypointOrRoute(place: Place): Boolean {
+        if (!navReady) {
+            // 내비 앱이 막 켜지는 중이라 지금 보내면 사라진다. 준비되면 보낸다.
+            log("내비 준비 대기: ${place.name}")
+            pendingDestination = place
+            pendingAt = System.currentTimeMillis()
+            naviHelper.requestNavigationScreen(NavigationScreenRequest.Foreground)
+            // 이미 켜져 있어 상태 알림이 오지 않는 경우를 위해, 일정 시간 뒤에는 그대로 보낸다.
+            handler.postDelayed({
+                val waiting = pendingDestination
+                if (waiting != null) {
+                    pendingDestination = null
+                    requestRoute(waiting)
+                }
+            }, READY_FALLBACK_MS)
+            return false
+        }
         if (!_state.value.routing) {
             requestRoute(place)
             return false
@@ -154,6 +184,8 @@ class PleosNaviRepository(context: Context) : NaviRepository {
     private companion object {
         const val TAG = "PleosNavi"
         const val MAX_EVENTS = 12
+        const val PENDING_MS = 30_000L
+        const val READY_FALLBACK_MS = 6_000L
         val TIME_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss")
     }
 }
