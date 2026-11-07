@@ -19,7 +19,7 @@ from app.sources.kakao import CATEGORY_PARKING, KakaoClient, KakaoPlace
 log = logging.getLogger("care")
 router = APIRouter(prefix="/care")
 
-Kind = Literal["nursing", "diaper", "rest"]
+Kind = Literal["nursing", "diaper", "rest", "restroom"]
 
 # 도시 일반도로 평균 시속 (분 추정용). 길찾기 API를 부르지 않고 대략의 시간만 알린다.
 URBAN_KMH = 30.0
@@ -109,6 +109,12 @@ def _candidates(kind: Kind, src: KakaoSearch, lat: float, lng: float, radius_m: 
         for p in src.by_keyword("공원", lat, lng, radius_m, size=15):
             if _is_rest_candidate(p):
                 found.append((p, "공원", "공원 · 주변에 세울 곳을 확인하세요"))
+        return found
+    if kind == "restroom":
+        for q in ("공중화장실", "개방화장실"):
+            for p in src.by_keyword(q, lat, lng, radius_m, size=15):
+                if "화장실" in p.name or "화장실" in p.category:
+                    found.append((p, "화장실", "화장실"))
         return found
     queries = ["수유실", "육아종합지원센터"] if kind == "nursing" else ["백화점", "대형마트", "육아종합지원센터"]
     for q in queries:
