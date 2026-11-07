@@ -72,7 +72,21 @@ data class CourseStop(
 )
 
 @Serializable
+data class ScheduleStop(val role: String, val place: CoursePlace)
+
+/** 장소를 바꾼 코스의 시간표만 다시 계산한다 (서버가 장소를 다시 찾지 않음). */
+@Serializable
+data class ScheduleRequest(
+    val conditions: TripConditions,
+    val origin: LatLng,
+    val home: LatLng? = null,
+    @SerialName("departure_time") val departureTime: String? = null,
+    val stops: List<ScheduleStop>,
+)
+
+@Serializable
 data class CourseResponse(
+    @SerialName("departure_at") val departureAt: String = "",
     val stops: List<CourseStop>,
     @SerialName("total_drive_minutes") val totalDriveMinutes: Int,
     @SerialName("return_at") val returnAt: String,
@@ -87,6 +101,9 @@ interface TripApi {
 
     @POST("course")
     suspend fun course(@Body request: CourseRequest): CourseResponse
+
+    @POST("course/schedule")
+    suspend fun schedule(@Body request: ScheduleRequest): CourseResponse
 
     companion object {
         fun create(baseUrl: String = BuildConfig.SERVER_URL): TripApi {

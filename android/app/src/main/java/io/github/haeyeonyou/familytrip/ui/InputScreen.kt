@@ -52,11 +52,16 @@ fun InputScreen(
         }
         Text("오늘 나들이를 한 문장으로 알려 주세요", fontSize = 26.sp)
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            // 주행 중에는 키보드 입력만 막는다 (운전자 주의분산). 예시 선택과 버튼은 그대로 쓸 수 있다.
             OutlinedTextField(
                 value = state.requestText,
                 onValueChange = onTextChange,
+                enabled = isParked,
                 textStyle = TextStyle(fontSize = 24.sp),
                 placeholder = { Text(EXAMPLES[0], fontSize = 22.sp) },
+                supportingText = if (isParked) null else {
+                    { Text("주행 중에는 글자를 입력할 수 없어요. 아래 예시를 누르거나 정차 후 입력해 주세요.", fontSize = 18.sp) }
+                },
                 modifier = Modifier.weight(1f),
             )
             BigButton("조건 만들기", onParse, enabled = state.requestText.isNotBlank() && !state.loading)

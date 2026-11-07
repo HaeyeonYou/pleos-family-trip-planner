@@ -18,6 +18,7 @@ from app.schemas import (
     CourseResponse,
     LatLng,
     Place,
+    ScheduleRequest,
     Stop,
     StopRole,
     Theme,
@@ -115,6 +116,18 @@ class CoursePlanner:
             StopRole.CAFE: cafes[1 : 1 + ALTERNATIVES],
         }
         course.warnings = warnings
+        return course
+
+    def reschedule(self, req: ScheduleRequest) -> CourseResponse:
+        """사용자가 바꾼 장소·순서 그대로 이동 시간과 시간표를 다시 계산한다."""
+        cond = req.conditions
+        departure = self._departure(req.departure_time)
+        stops = [(s.role, s.place) for s in req.stops if s.role != StopRole.HOME]
+        if not stops:
+            raise NoCourseError("방문할 장소가 없어요")
+        course = self._schedule(req.origin, req.home or req.origin, stops, departure, cond)
+        if cond.return_by_hour is not None and self._late(course, departure, cond.return_by_hour):
+            course.warnings = [f"{cond.return_by_hour}시까지 귀가하기 어려워요 (예상 {course.return_at})"]
         return course
 
     # 후보 수집과 점수
@@ -259,6 +272,7 @@ class CoursePlanner:
             )
         )
         return CourseResponse(
+            departure_at=departure.strftime("%H:%M"),
             stops=result,
             total_drive_minutes=sum(s.drive_minutes for s in result),
             return_at=clock.strftime("%H:%M"),
