@@ -104,11 +104,24 @@ class Stop(BaseModel):
     drive_distance_m: int
 
 
+class VisitSummary(BaseModel):
+    """최근 방문 요약. 개인을 알 수 있는 정보 없이 장소 키·분야·날짜만 받는다."""
+
+    place_key: str = Field("", max_length=80, description="source:source_id. 모르면 비움")
+    theme: Theme | None = Field(None, description="나들이 장소의 경험 분야")
+    date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$", description="방문일 YYYY-MM-DD")
+
+
 class CourseRequest(BaseModel):
     conditions: TripConditions
     origin: LatLng
     home: LatLng | None = Field(None, description="귀가 지점. 없으면 출발지")
     departure_time: str | None = Field(None, pattern=r"^\d{2}:\d{2}$", description="출발 시각 HH:MM. 없으면 지금")
+    visits: list[VisitSummary] = Field(default_factory=list, max_length=200, description="최근 방문 요약. 다녀온 곳은 감점, 안 가 본 분야는 가점")
+    exclude_place_keys: list[str] = Field(
+        default_factory=list, max_length=200, description="이미 보여 준 나들이 장소 키. '다른 코스 보기'에서 뺀다"
+    )
+    seed: int | None = Field(None, description="후보 가중 선택의 시드. 같은 조건·시드면 같은 결과. 없으면 매번 다르게")
 
 
 class ScheduleStop(BaseModel):

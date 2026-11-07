@@ -186,7 +186,7 @@ def test_amenity_lookups_are_limited():
     many = [tour(str(i), f"공원{i}", "A02020700", 100 * i) for i in range(20)]
     src = FakeTour({CONTENT_TYPE_ATTRACTION: many})
     plan(tour_src=src)
-    assert src.amenity_calls == 6
+    assert 6 <= src.amenity_calls <= 7  # 상위 6곳 + 가중 선택으로 뽑힌 곳
 
 
 def test_no_candidates_raises():
