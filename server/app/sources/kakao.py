@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 import httpx
 
+from app.logs import api_log_hooks
 from app.sources.cache import TtlCache
 
 LOCAL_URL = "https://dapi.kakao.com/v2/local/search"
@@ -34,8 +35,8 @@ class Leg:
 class KakaoClient:
     def __init__(self, rest_api_key: str, http: httpx.Client | None = None):
         self._headers = {"Authorization": f"KakaoAK {rest_api_key}"}
-        self._http = http or httpx.Client(timeout=10)
-        self._cache = TtlCache(ttl_seconds=3600)
+        self._http = http or httpx.Client(timeout=10, event_hooks=api_log_hooks("kakao"))
+        self._cache = TtlCache(ttl_seconds=3600, name="카카오 장소검색")
 
     def by_category(self, code: str, latitude: float, longitude: float, radius_m: int, size: int = 15) -> list[KakaoPlace]:
         params = {"category_group_code": code, "radius": min(radius_m, 20000), "size": size}
