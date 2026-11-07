@@ -139,13 +139,20 @@ def test_schedule_after_swapping_outing_with_real_route(client):
     i = next(i for i, s in enumerate(stops) if s["role"] == "outing")
     stops[i]["place"] = alternatives[0]
 
-    res = client.post("/course/schedule", json={**req, "departure_time": course["departure_at"], "stops": stops})
+    res = client.post(
+        "/course/schedule",
+        json={**req, "departure_time": course["departure_at"], "stops": stops, "suggest_nearby": True},
+    )
     assert res.status_code == 200, res.text
     new = res.json()
     assert new["route_source"] == "kakao"
     assert [s["place"]["name"] for s in new["stops"][:-1]] == [s["place"]["name"] for s in stops]
     times = [s["arrive_at"] for s in new["stops"]]
     assert times == sorted(times) and times[0] >= "10:30"
+    # 바뀐 나들이 장소 근처 식사 후보를 새로 찾는다 (코스에 있는 곳은 제외)
+    in_course = {s["place"]["source_id"] for s in stops}
+    assert new["alternatives"].get("meal"), "새 나들이 장소 근처 식당 후보가 없음"
+    assert all(p["source_id"] not in in_course for p in new["alternatives"]["meal"])
 
 
 def test_parse_endpoint_rule(client):

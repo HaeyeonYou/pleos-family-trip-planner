@@ -119,16 +119,33 @@ class CoursePlanner:
         return course
 
     def reschedule(self, req: ScheduleRequest) -> CourseResponse:
-        """사용자가 바꾼 장소·순서 그대로 이동 시간과 시간표를 다시 계산한다."""
+        """사용자가 고친 장소·순서·체류 시간 그대로 이동 시간과 시간표를 다시 계산한다."""
         cond = req.conditions
         departure = self._departure(req.departure_time)
-        stops = [(s.role, s.place) for s in req.stops if s.role != StopRole.HOME]
-        if not stops:
+        given = [s for s in req.stops if s.role != StopRole.HOME]
+        if not given:
             raise NoCourseError("방문할 장소가 없어요")
-        course = self._schedule(req.origin, req.home or req.origin, stops, departure, cond)
+        stops = [(s.role, s.place) for s in given]
+        stays = [s.stay_minutes for s in given]
+        course = self._schedule(req.origin, req.home or req.origin, stops, departure, cond, stays)
         if cond.return_by_hour is not None and self._late(course, departure, cond.return_by_hour):
             course.warnings = [f"{cond.return_by_hour}시까지 귀가하기 어려워요 (예상 {course.return_at})"]
+        if req.suggest_nearby:
+            course.alternatives = self._nearby_alternatives(stops)
         return course
+
+    def _nearby_alternatives(self, stops: list[tuple[StopRole, Place]]) -> dict[StopRole, list[Place]]:
+        """나들이 장소 근처 식사·카페 후보. 이미 코스에 있는 곳은 뺀다."""
+        outing = next((p for role, p in stops if role == StopRole.OUTING), None)
+        if outing is None:
+            return {}
+        taken = {p.source_id for _, p in stops}
+        meals = self._nearby_kakao(CATEGORY_RESTAURANT, outing, NEARBY_MEAL_RADIUS_M, classify.restaurant_is_suitable)
+        cafes = self._nearby_kakao(CATEGORY_CAFE, outing, NEARBY_CAFE_RADIUS_M, classify.cafe_is_suitable)
+        return {
+            StopRole.MEAL: [p for p in meals if p.source_id not in taken][:ALTERNATIVES],
+            StopRole.CAFE: [p for p in cafes if p.source_id not in taken][:ALTERNATIVES],
+        }
 
     # 후보 수집과 점수
 
@@ -233,6 +250,7 @@ class CoursePlanner:
         stops: list[tuple[StopRole, Place]],
         departure: datetime,
         cond: TripConditions,
+        stays: list[int | None] | None = None,
     ) -> CourseResponse:
         points = [(origin.latitude, origin.longitude)]
         points += [(p.latitude, p.longitude) for _, p in stops]
@@ -241,10 +259,11 @@ class CoursePlanner:
 
         result: list[Stop] = []
         clock = departure
-        for (role, place), leg in zip(stops, legs):
+        for i, ((role, place), leg) in enumerate(zip(stops, legs)):
             drive = math.ceil(leg.duration_s / 60)
             clock += timedelta(minutes=drive)
-            stay = _stay_minutes(role, cond)
+            given = stays[i] if stays else None
+            stay = given if given is not None else _stay_minutes(role, cond)
             arrive = clock
             clock += timedelta(minutes=stay)
             result.append(
