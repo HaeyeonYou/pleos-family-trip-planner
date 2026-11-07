@@ -19,6 +19,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -51,23 +55,34 @@ fun AppShell(
     content: @Composable () -> Unit,
 ) {
     val narrow = isNarrowWindow()
+    // 로고를 누르면 메뉴를 펴고 접는다 (HF: 아이콘 레일, PX: 이름이 있는 넓은 메뉴). 화면 분할 때는 늘 접는다.
+    var expanded by rememberSaveable { mutableStateOf(false) }
     Surface(color = TripColors.Panel, modifier = Modifier.fillMaxSize()) {
         Row(modifier = Modifier.fillMaxSize()) {
-            if (tab != null) SideMenu(tab, onTab, profile, compact = narrow)
+            if (tab != null) SideMenu(tab, onTab, profile, compact = narrow || !expanded, onToggle = { expanded = !expanded })
             Box(modifier = Modifier.weight(1f).fillMaxHeight()) { content() }
         }
     }
 }
 
 @Composable
-private fun SideMenu(selected: MainTab, onTab: (MainTab) -> Unit, profile: FamilyProfile?, compact: Boolean) {
+private fun SideMenu(selected: MainTab, onTab: (MainTab) -> Unit, profile: FamilyProfile?, compact: Boolean, onToggle: () -> Unit) {
     Column(
-        modifier = Modifier.fillMaxHeight().width(if (compact) 112.dp else 260.dp).padding(vertical = 32.dp, horizontal = 16.dp),
+        modifier = Modifier
+            .fillMaxHeight()
+            .width(if (compact) 140.dp else 280.dp)
+            .background(Color.White)
+            .padding(vertical = 32.dp, horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalAlignment = if (compact) Alignment.CenterHorizontally else Alignment.Start,
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(
+            modifier = Modifier.clip(RoundedCornerShape(16.dp)).clickable(onClick = onToggle),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
             Box(
-                modifier = Modifier.size(56.dp).clip(RoundedCornerShape(16.dp)).background(TripColors.Green),
+                modifier = Modifier.size(64.dp).clip(RoundedCornerShape(18.dp)).background(TripColors.Green),
                 contentAlignment = Alignment.Center,
             ) { Text("🌱", fontSize = 26.sp) }
             if (!compact) {
@@ -80,24 +95,42 @@ private fun SideMenu(selected: MainTab, onTab: (MainTab) -> Unit, profile: Famil
         Spacer(Modifier.size(24.dp))
         MainTab.entries.forEach { item -> MenuItem(item, item == selected, compact) { onTab(item) } }
         Spacer(Modifier.weight(1f))
-        ChildCard(profile, compact)
+        if (!compact) ChildCard(profile, compact = false)
+        // 음성 요청 (#19, #70에서 연결)
+        Box(
+            modifier = Modifier.size(72.dp).clip(CircleShape).background(TripColors.Tile),
+            contentAlignment = Alignment.Center,
+        ) { Text("🎙", fontSize = 28.sp) }
     }
 }
 
 @Composable
 private fun MenuItem(tab: MainTab, selected: Boolean, compact: Boolean, onClick: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
-            .background(if (selected) TripColors.Tile else Color.Transparent)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 20.dp, vertical = 20.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = if (compact) Arrangement.Center else Arrangement.spacedBy(16.dp),
-    ) {
-        Text(tab.icon, fontSize = 26.sp, color = if (selected) TripColors.Green else MaterialTheme.colorScheme.onSurfaceVariant)
-        if (!compact) Text(tab.label, fontSize = 24.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal)
+    val color = if (selected) TripColors.Green else MaterialTheme.colorScheme.onSurfaceVariant
+    val base = Modifier
+        .fillMaxWidth()
+        .clip(RoundedCornerShape(24.dp))
+        .background(if (selected) TripColors.GreenSoft else Color.Transparent)
+        .clickable(onClick = onClick)
+    if (compact) {
+        // HF 레일: 아이콘 아래 이름
+        Column(
+            modifier = base.padding(vertical = 18.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(tab.icon, fontSize = 30.sp, color = color)
+            Text(tab.label, fontSize = 18.sp, color = color, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal)
+        }
+    } else {
+        Row(
+            modifier = base.padding(horizontal = 20.dp, vertical = 20.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Text(tab.icon, fontSize = 26.sp, color = color)
+            Text(tab.label, fontSize = 24.sp, color = color, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal)
+        }
     }
 }
 

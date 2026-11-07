@@ -63,6 +63,11 @@ fun CourseScreen(
     onBack: () -> Unit,
 ) = DrivingAware(isParked) {
     var editing by remember { mutableStateOf(false) }
+    if (!editing) {
+        // 기본은 HF02 코스 상세. 편집(경유지 편집·대안 보기)일 때만 아래 편집 화면.
+        CourseOverview(course, loading, error, message, onStartGuide, onEdit = { editing = true }, onSave = onSave, onBack = onBack)
+        return@DrivingAware
+    }
     // 상세를 펼친 장소, 교체 후보를 펼친 장소 (각각 하나만)
     var detail by remember { mutableStateOf<Int?>(null) }
     var swapping by remember { mutableStateOf<Int?>(null) }
@@ -340,7 +345,7 @@ private fun PlaceRow(place: CoursePlace, action: String, enabled: Boolean, onCli
 }
 
 /** 카카오 분류는 "음식점 > 한식"처럼 오므로 마지막 단계만 쓴다. TourAPI 분류코드는 보여 주지 않는다. */
-private fun CoursePlace.shortCategory(): String? =
+internal fun CoursePlace.shortCategory(): String? =
     category.substringAfterLast(" > ").takeIf { it.isNotBlank() && source == "kakao" }
 
 @OptIn(ExperimentalLayoutApi::class)
