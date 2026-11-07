@@ -54,6 +54,8 @@ data class HomeActions(
     val load: () -> Unit,
     val toggleFilter: (change: (HomeFilters) -> HomeFilters) -> Unit,
     val retry: () -> Unit,
+    /** 지금 보여 준 코스를 빼고 다른 코스를 받는다 */
+    val another: () -> Unit,
     val openOption: (CourseOption) -> Unit,
     val changeConditions: () -> Unit,
     val openCare: () -> Unit,
@@ -88,6 +90,12 @@ fun HomeScreen(
                 state.optionsLoading && state.options.isEmpty() -> LoadingCards(wide)
                 state.optionsError != null && state.options.isEmpty() -> ErrorCard(state.optionsError, actions.retry)
                 else -> CourseCards(state, wide, actions.openOption)
+            }
+            if (state.options.isNotEmpty()) {
+                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    if (state.optionsLoading) Text("다른 코스를 찾는 중…", fontSize = 22.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    else PillButton("다른 코스 보기", actions.another)
+                }
             }
         }
     }
