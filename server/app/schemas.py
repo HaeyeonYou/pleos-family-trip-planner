@@ -137,3 +137,19 @@ class CourseResponse(BaseModel):
     path: list[LatLng] = Field(default_factory=list, description="출발부터 귀가까지 지도에 그릴 경로 좌표")
     alternatives: dict[StopRole, list[Place]] = Field(default_factory=dict, description="장소 교체 후보")
     warnings: list[str] = Field(default_factory=list)
+
+
+class CourseOption(BaseModel):
+    """홈에 보여 줄 추천 코스 하나."""
+
+    name: str = Field(..., description="코스 이름 (분야 · 나들이 장소)")
+    summary: str = Field(..., description="경유 요약 (A → B → C)")
+    total_minutes: int = Field(..., description="출발부터 귀가까지 총 시간(분)")
+    first_drive_minutes: int = Field(..., description="첫 경유지까지 이동 시간(분)")
+    place_key: str = Field(..., description="'지금 N대 가는 중' 집계에 쓰는 나들이 장소 키 (source:source_id)")
+    indoor: bool = False
+    course: CourseResponse
+
+
+class SuggestResponse(BaseModel):
+    options: list[CourseOption]

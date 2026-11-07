@@ -7,7 +7,8 @@ from functools import lru_cache
 import httpx
 from fastapi import Depends, FastAPI, HTTPException, Request
 
-from app import presets
+from app import presets, weather
+from app.course import starts
 from app.auth import api as auth_api
 from app.auth import web as auth_web
 from app.config import Settings, get_settings
@@ -15,7 +16,7 @@ from app.db import Database
 from app.logs import setup_logging
 from app.course.planner import CoursePlanner, NoCourseError
 from app.parsing import get_parser
-from app.schemas import CourseRequest, CourseResponse, ParseRequest, ParseResponse, ScheduleRequest
+from app.schemas import CourseRequest, CourseResponse, ParseRequest, ParseResponse, ScheduleRequest, SuggestResponse
 from app.sources.kakao import KakaoClient
 from app.sources.tour import TourApiClient
 
@@ -36,6 +37,8 @@ app = FastAPI(title="오늘, 어디 가지? API", version="0.1.0", lifespan=life
 app.include_router(auth_api.router)
 app.include_router(auth_web.router)
 app.include_router(presets.router)
+app.include_router(weather.router)
+app.include_router(starts.router)
 
 
 @app.middleware("http")
@@ -122,6 +125,19 @@ def schedule(req: ScheduleRequest, planner: CoursePlanner = Depends(get_planner)
     log.info("재계산 요청: 장소 %d곳, 근처 후보=%s", len(req.stops), req.suggest_nearby)
     try:
         return planner.reschedule(req)
+    except NoCourseError as e:
+        raise HTTPException(404, str(e)) from e
+    except httpx.HTTPError as e:
+        log.warning("외부 API 오류: %r", e)
+        raise HTTPException(502, f"외부 API 오류: {type(e).__name__}") from e
+
+
+@app.post("/course/suggest", response_model=SuggestResponse)
+def suggest(req: CourseRequest, planner: CoursePlanner = Depends(get_planner)) -> SuggestResponse:
+    """홈 추천: 성격이 다른 코스 후보를 최대 3개 만든다."""
+    log.info("추천 요청: %s · 출발 %.3f,%.3f", _conditions_summary(req.conditions), req.origin.latitude, req.origin.longitude)
+    try:
+        return SuggestResponse(options=planner.suggest(req))
     except NoCourseError as e:
         raise HTTPException(404, str(e)) from e
     except httpx.HTTPError as e:
