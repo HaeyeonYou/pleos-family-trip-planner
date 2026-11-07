@@ -176,6 +176,7 @@ class CoursePlanner:
 
         for c in candidates:
             c.score = _score(c, cond, radius)
+            c.place.theme = c.theme  # 방문 기록에서 경험 분야로 쓴다
         candidates.sort(key=lambda c: c.score, reverse=True)
 
         # 상위 후보만 육아 편의 정보를 붙이고, 필요 조건이 있으면 그 결과로 다시 정렬한다.

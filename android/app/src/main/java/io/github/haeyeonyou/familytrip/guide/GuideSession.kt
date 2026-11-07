@@ -2,6 +2,7 @@ package io.github.haeyeonyou.familytrip.guide
 
 import android.content.Context
 import io.github.haeyeonyou.familytrip.data.CourseStop
+import io.github.haeyeonyou.familytrip.data.VisitStore
 import io.github.haeyeonyou.familytrip.location.LocationRepository
 import io.github.haeyeonyou.familytrip.navi.NaviRepository
 import io.github.haeyeonyou.familytrip.navi.Place
@@ -35,6 +36,7 @@ class GuideSession(
     private val navi: NaviRepository,
     private val location: LocationRepository,
     private val notifier: GuideNotifier,
+    private val visits: VisitStore,
     scope: CoroutineScope,
 ) {
     private val _state = MutableStateFlow(GuideState())
@@ -70,9 +72,13 @@ class GuideSession(
     }
 
     /** 근접 판정이 안 될 때를 위한 수동 도착. 앱 화면에서 누르므로 알림은 띄우지 않는다. */
-    fun markArrived() = _state.update { it.copy(arrived = true) }
+    fun markArrived() {
+        _state.update { it.copy(arrived = true) }
+        recordArrival()
+    }
 
     fun end() {
+        visits.departOpen()
         GuideService.stop(context)
         navi.cancelRoute()
         location.clearArrival()
@@ -82,6 +88,7 @@ class GuideSession(
 
     private fun onArrived() {
         _state.update { it.copy(arrived = true) }
+        recordArrival()
         val s = _state.value
         val current = s.current ?: return
         if (s.finished) {
@@ -93,8 +100,16 @@ class GuideSession(
         }
     }
 
+    /** 도착한 장소를 방문 기록에 남긴다 (경험 지도, #11). 귀가는 기록하지 않는다. */
+    private fun recordArrival() {
+        val stop = _state.value.current ?: return
+        if (stop.role != "home") visits.arrive(stop.place, stop.role)
+    }
+
     private fun guideTo(index: Int) {
         val stop = _state.value.stops.getOrNull(index) ?: return
+        // 다음 장소로 떠나면 앞 장소의 머문 시간이 정해진다.
+        visits.departOpen()
         notifier.clear()
         _state.update { it.copy(index = index, arrived = false) }
         // 앱이 뒤에 있어도 도착 판정이 돌도록 안내 중에는 포그라운드 서비스를 유지한다.
