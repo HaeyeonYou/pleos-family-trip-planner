@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import io.github.haeyeonyou.familytrip.AppContainer
 import io.github.haeyeonyou.familytrip.data.CoursePlace
 import io.github.haeyeonyou.familytrip.data.FamilyProfile
+import io.github.haeyeonyou.familytrip.data.FeedingRoutine
 import io.github.haeyeonyou.familytrip.data.CourseRequest
 import io.github.haeyeonyou.familytrip.data.CourseResponse
 import io.github.haeyeonyou.familytrip.data.LatLng
@@ -45,6 +46,8 @@ data class TripUiState(
     /** 프리셋 적용 결과 문구 */
     val presetMessage: String? = null,
     val applyingPreset: Boolean = false,
+    /** 수유 루틴 (#67). 기기에만 저장 */
+    val feeding: FeedingRoutine = FeedingRoutine(),
 )
 
 private const val TAG = "TripViewModel"
@@ -53,7 +56,7 @@ private const val MAX_STAY_MINUTES = 300
 
 class TripViewModel(private val container: AppContainer) : ViewModel() {
 
-    private val _state = MutableStateFlow(TripUiState(profile = container.profile.load()))
+    private val _state = MutableStateFlow(TripUiState(profile = container.profile.load(), feeding = container.feeding.load()))
     val state: StateFlow<TripUiState> = _state.asStateFlow()
 
     val vehicle = container.vehicle.state
@@ -93,6 +96,17 @@ class TripViewModel(private val container: AppContainer) : ViewModel() {
 
     /** 이번에는 적용하지 않는다. 서버에는 그대로 남아 다음에 앱을 켜면 다시 보인다. */
     fun dismissPreset() = _state.update { it.copy(pendingPreset = null, presetMessage = null) }
+
+    /** '지금 수유했어요': 마지막 수유를 지금으로 기록한다. */
+    fun markFed() = updateFeeding { it.copy(lastFedAt = System.currentTimeMillis()) }
+
+    fun setFeedingInterval(minutes: Int) = updateFeeding { it.copy(intervalMinutes = minutes) }
+
+    private fun updateFeeding(transform: (FeedingRoutine) -> FeedingRoutine) {
+        val updated = transform(_state.value.feeding)
+        container.feeding.save(updated)
+        _state.update { it.copy(feeding = updated) }
+    }
 
     fun onRequestTextChange(text: String) = _state.update { it.copy(requestText = text) }
 
