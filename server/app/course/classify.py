@@ -29,6 +29,19 @@ _ALLOWED_CULTURE_CAT3 = (
 # 아이와 가기 어려운 장소 (분류만으로 거르기 어려운 것)
 _EXCLUDED_TITLE_WORDS = ("묘역", "왕릉", "비석", "성터", "절터", "공연장", "극장", "컨벤션", "골프")
 
+# 레포츠(contentTypeId 28) 중 아이와 갈 만한 세부 분류 → (테마, 실내 여부 기본값)
+_LEISURE_ALLOWED: dict[str, tuple[Theme, bool]] = {
+    "A03020400": (Theme.PLAY, True),   # 롤러스케이트장
+    "A03021300": (Theme.PLAY, True),   # 스케이트장
+    "A03021200": (Theme.PLAY, False),  # 눈썰매장
+    "A03030700": (Theme.PLAY, False),  # 물놀이·수영장
+    "A03050100": (Theme.PLAY, True),   # 복합 레포츠
+}
+_LEISURE_EXCLUDED_WORDS = ("사격", "총", "낚시", "골프", "클럽")
+
+# 주류·성인 대상 행사는 아이 동반 코스에서 뺀다
+_EVENT_EXCLUDED_WORDS = ("맥주", "옥토버", "와인", "막걸리", "주류", "위스키", "성인")
+
 PLAY_KEYWORDS = ("키즈카페", "실내놀이터")
 
 # 관심사 키워드로 카카오에서 찾은 장소 중 나들이로 쓸 분류 → (테마, 실내)
@@ -86,3 +99,16 @@ def kakao_outing_kind(place: KakaoPlace) -> tuple[Theme, bool] | None:
         if place.category.startswith(prefix):
             return theme, indoor
     return None
+
+
+def leisure_kind(place: TourPlace) -> tuple[Theme, bool] | None:
+    """레포츠 장소가 아이 나들이에 맞으면 (테마, 실내 여부)."""
+    kind = _LEISURE_ALLOWED.get(place.cat3)
+    if kind is None or any(w in place.title for w in _LEISURE_EXCLUDED_WORDS):
+        return None
+    theme, indoor = kind
+    return theme, indoor or "실내" in place.title
+
+
+def event_is_suitable(place: TourPlace) -> bool:
+    return not any(w in place.title for w in _EVENT_EXCLUDED_WORDS)

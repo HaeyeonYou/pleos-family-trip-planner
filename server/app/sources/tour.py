@@ -1,6 +1,8 @@
 """한국관광공사 TourAPI (국문 관광정보, 무장애 여행정보, 반려동물 동반여행)."""
 
-from dataclasses import dataclass
+import math
+from dataclasses import dataclass, replace
+from datetime import date, datetime, timedelta
 
 import httpx
 
@@ -14,6 +16,7 @@ PET = "KorPetTourService2"
 
 CONTENT_TYPE_ATTRACTION = 12
 CONTENT_TYPE_CULTURE = 14
+CONTENT_TYPE_LEISURE = 28  # 레포츠 (스케이트장, 물놀이장 등)
 
 # 무장애 detailWithTour2의 영유아가족 필드. 대부분 자유 텍스트라 '있음/정보 없음'으로만 쓴다.
 AMENITY_FIELDS = {
@@ -41,6 +44,8 @@ class TourPlace:
     cat3: str
     distance_m: float
     image_url: str
+    event_start: str = ""  # 행사·축제 시작일 YYYYMMDD
+    event_end: str = ""
 
 
 class TourApiClient:
@@ -48,6 +53,7 @@ class TourApiClient:
         self._key = service_key
         self._http = http or httpx.Client(timeout=10, event_hooks=api_log_hooks("tour"))
         self._list_cache = TtlCache(ttl_seconds=6 * 3600, name="TourAPI 목록")
+        self._festival_cache = TtlCache(ttl_seconds=6 * 3600, name="TourAPI 행사")
         self._amenity_cache = TtlCache(ttl_seconds=24 * 3600, name="TourAPI 편의정보")
         self._parking_cache = TtlCache(ttl_seconds=24 * 3600, name="TourAPI 주차정보")
 
@@ -65,6 +71,34 @@ class TourApiClient:
         return self._list_cache.get_or_load(
             key, lambda: self._fetch_nearby(latitude, longitude, radius_m, content_type_id, service, rows)
         )
+
+    def festivals(self, today: date, latitude: float, longitude: float, radius_m: int) -> list[TourPlace]:
+        """오늘 열리는 행사·축제 중 반경 안의 것 (가까운 순). 전국 목록은 6시간 저장해 두고 거리만 다시 잰다.
+
+        1년 내내 열리는 상설 행사(120일 넘게 이어지는 것)는 축제로 보지 않는다.
+        """
+        all_events = self._festival_cache.get_or_load(today, lambda: self._fetch_festivals(today))
+        result = []
+        for p in all_events:
+            if not (p.event_start <= today.strftime("%Y%m%d") <= p.event_end):
+                continue
+            d = _distance_m(latitude, longitude, p.latitude, p.longitude)
+            if d <= radius_m:
+                result.append(replace(p, distance_m=d))
+        return sorted(result, key=lambda p: p.distance_m)
+
+    def _fetch_festivals(self, today: date) -> list[TourPlace]:
+        start = (today - timedelta(days=120)).strftime("%Y%m%d")
+        items = self._items(f"{KOR}/searchFestival2", {"eventStartDate": start, "numOfRows": 500, "pageNo": 1})
+        places = []
+        for item in items:
+            if not item.get("mapx") or not item.get("mapy"):
+                continue
+            begin, end = item.get("eventstartdate", ""), item.get("eventenddate", "")
+            if not begin or not end or (_ymd(end) - _ymd(begin)).days > 120:
+                continue
+            places.append(replace(_to_place(item), event_start=begin, event_end=end))
+        return places
 
     def amenities(self, content_id: str) -> dict[str, str]:
         """영유아가족 편의 원문. 무장애 정보가 없는 장소는 빈 dict."""
@@ -134,3 +168,13 @@ def _to_place(item: dict) -> TourPlace:
         distance_m=float(item.get("dist") or 0),
         image_url=item.get("firstimage", ""),
     )
+
+
+def _ymd(text: str) -> date:
+    return datetime.strptime(text, "%Y%m%d").date()
+
+
+def _distance_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    a, b, c, d = map(math.radians, (lat1, lon1, lat2, lon2))
+    h = math.sin((c - a) / 2) ** 2 + math.cos(a) * math.cos(c) * math.sin((d - b) / 2) ** 2
+    return 2 * 6_371_000 * math.asin(math.sqrt(h))
