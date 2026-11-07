@@ -94,7 +94,7 @@
   - 문서엔 없다고 했지만 실제 AAR에 기어·주행가능거리 API 있음(deprecated, 5장 참고). 차속 API는 없음(AAOS `PERF_VEHICLE_SPEED`)
 - NaviHelper
   - **경유지 최대 2개** → 구간마다 순차 안내하는 방식으로 설계
-  - `onDestinationArrived`, `onWayPointArrived` 콜백은 있음. 에뮬레이터에서는 **내비 주행 시뮬레이션**으로 도착 이벤트 수신 확인(11/7, 5장). 현재 앱의 도착 판정은 FusedLocation 근접 알림
+  - `onDestinationArrived`, `onWayPointArrived` 콜백은 있음. 에뮬레이터에서는 **내비 주행 시뮬레이션**으로 도착 이벤트 수신 확인(11/7, 5장). 앱은 근접 알림과 내비 도착 중 먼저 오는 쪽으로 판정(#43)
 - 주행 중 UX 제한: AAOS `CarUxRestrictionsManager`
 
 **외부 API** (11/5 실제 호출로 모두 200 응답 확인, 기준 강남역)
@@ -128,7 +128,7 @@ GitHub 이슈와 PR이 상세 기록이다. **고정 이슈 #24**에 전체 체�
 | 영역 | 내용 | PR/이슈 |
 |---|---|---|
 | 에뮬레이터 | Apple Silicon 부팅(S1), Vehicle SoC·주행가능거리·기어(S2), NaviHelper 경로 요청(S3) | #1 #2 #3 |
-| 도착 판정 | **FusedLocation 근접 알림**으로 앱이 판정. 11/7 내비 주행 시뮬레이션으로 `onDestinationArrived` 수신도 확인(S4) | #4 PR #28 #30 #31 |
+| 도착 판정 | **FusedLocation 근접 알림** 또는 **내비 `onDestinationArrived`** 중 먼저 오는 쪽으로 판정. 에뮬레이터에서는 내비 주행 시뮬레이션만으로 도착 알림 → 다음 안내까지 확인 | #4 #43 PR #28 #30 #31 |
 | 서버 `/course` | TourAPI(국문·무장애·반려동물) + 카카오 로컬로 후보 → 테마·실내·육아 편의·관심사 점수 → 근처 식사·카페 → 카카오 다중 경유지 길찾기로 시간표, 귀가 초과 시 카페 제외, 교체 후보 | #7 PR #34 |
 | 관심사 | `TripConditions.interests` (공룡→자연사, 물고기→아쿠아리움 등 `app/interests.py`) | #8 PR #35 |
 | Claude 파서 | 실서버 확인, 규칙 파서와 같은 결과, 약 2초(첫 호출 8초) | #12 PR #35 |
@@ -163,7 +163,8 @@ GitHub 이슈와 PR이 상세 기록이다. **고정 이슈 #24**에 전체 체�
 - **내비 주행 시뮬레이션(11/7 발견)**: 내비 화면 오른쪽 아래 **설정(톱니) 버튼을 2초 이상 길게 누르면** '주행 시뮬레이션' 창이 뜸 → 경로 안내 중 '시작'을 누르면 차가 경로를 따라 움직임
   - 왼쪽 Driving view 턴바이턴, NaviHelper 현재 위치·남은 거리, **`onDestinationArrived`가 우리 앱까지 옴** (1.8km 경로가 약 2분에 도착)
   - 시뮬레이션 위치는 내비 안에서만 움직임. FusedLocation·Android 위치는 그대로라 근접 알림 판정과는 별개
-  - 시연 영상에서 내비 지도 위 차를 움직일 때 사용
+  - 시연 영상에서 내비 지도 위 차를 움직일 때 사용. 우리 앱 안내 흐름도 시뮬레이션만으로 도착 알림 → '다음 안내 시작'까지 동작(#43)
+  - 시뮬레이션이 끝나면 내비 위치가 시작점(시흥동)으로 돌아감 → 다음 구간 경로도 시흥동에서 다시 계산됨
 - **얼려진(frozen) 앱은 NaviHelper 이벤트를 잃음**: 개발자 화면에서 안내를 걸고 앱이 뒤로 가 얼려지면 그 뒤로 경로 시작·도착 콜백이 오지 않음(앱 재시작 전까지). 안내 중에는 GuideService(포그라운드 서비스)가 얼림을 막음
 - Pleos는 **앱용 지도 SDK가 없음**. `requestNavigationScreen()`은 내장 내비 화면 전환(Foreground, OverviewRoute 등)만. 문서에 없는 `getInternalApi().updateOccupiedRegion(Rect)`은 쓰지 않음
 - 헤드업 알림은 내비 지도 위에 표시됨. **'다른 앱 위에 표시'(SYSTEM_ALERT_WINDOW)는 동작하지만 Pleos에 권한 설정 화면이 없어** 사용자가 켤 수 없음 → 쓰지 않음 (시험 코드는 `spike/38-background-display` 브랜치, 미병합)
