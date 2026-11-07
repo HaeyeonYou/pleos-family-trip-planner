@@ -17,6 +17,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -85,6 +86,15 @@ fun DrivingAware(isParked: Boolean, content: @Composable () -> Unit) {
             }
         }
         content()
+    }
+}
+
+/** PX 화면 제목 (큰 제목 + 회색 부제). */
+@Composable
+fun ScreenTitle(title: String, subtitle: String? = null) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(title, fontSize = 40.sp, fontWeight = FontWeight.Bold)
+        subtitle?.let { Text(it, fontSize = 22.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
     }
 }
 
