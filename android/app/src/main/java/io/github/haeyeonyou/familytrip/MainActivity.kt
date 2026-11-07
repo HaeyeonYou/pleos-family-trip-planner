@@ -32,6 +32,7 @@ import io.github.haeyeonyou.familytrip.ui.DevScreen
 import io.github.haeyeonyou.familytrip.ui.GuideScreen
 import io.github.haeyeonyou.familytrip.ui.InputScreen
 import io.github.haeyeonyou.familytrip.ui.NotificationOffBanner
+import io.github.haeyeonyou.familytrip.ui.ProfileScreen
 import io.github.haeyeonyou.familytrip.ui.TripViewModel
 
 private object Routes {
@@ -39,6 +40,7 @@ private object Routes {
     const val COURSE = "course"
     const val GUIDE = "guide"
     const val DEV = "dev"
+    const val PROFILE = "profile"
 }
 
 class MainActivity : ComponentActivity() {
@@ -119,6 +121,19 @@ class MainActivity : ComponentActivity() {
                                 onConditionsChange = vm::updateConditions,
                                 onMakeCourse = { vm.requestCourse { nav.navigate(Routes.COURSE) } },
                                 onOpenDev = { nav.navigate(Routes.DEV) },
+                                onEditProfile = { nav.navigate(Routes.PROFILE) },
+                                onUseProfile = vm::conditionsFromProfile,
+                            )
+                        }
+                        composable(Routes.PROFILE) {
+                            ProfileScreen(
+                                initial = state.profile,
+                                isParked = vehicle.isParked,
+                                onSave = {
+                                    vm.saveProfile(it)
+                                    nav.popBackStack()
+                                },
+                                onBack = { nav.popBackStack() },
                             )
                         }
                         composable(Routes.COURSE) {

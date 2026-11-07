@@ -274,3 +274,10 @@ def test_reschedule_suggests_meal_and_cafe_near_outing():
     )
     assert [p.name for p in res.alternatives[StopRole.MEAL]] == ["국수집"]  # 이미 코스에 있는 한식당은 뺀다
     assert [p.name for p in res.alternatives[StopRole.CAFE]] == ["새 카페"]
+
+
+def test_infant_detected_from_months():
+    assert TripConditions(child_age_months=[18]).has_infant()
+    assert not TripConditions(child_age_months=[40], child_ages=[2]).has_infant()  # 개월 정보가 우선
+    assert TripConditions(child_ages=[2]).has_infant()
+    assert not TripConditions().has_infant()

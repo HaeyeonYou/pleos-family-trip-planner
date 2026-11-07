@@ -17,6 +17,8 @@ import java.util.concurrent.TimeUnit
 @Serializable
 data class TripConditions(
     @SerialName("child_ages") val childAges: List<Int> = emptyList(),
+    /** 가족 프로필에서 계산한 개월 수. 있으면 childAges보다 정확하다. */
+    @SerialName("child_age_months") val childAgeMonths: List<Int> = emptyList(),
     val adults: Int? = null,
     @SerialName("with_pet") val withPet: Boolean = false,
     val themes: List<String> = emptyList(),

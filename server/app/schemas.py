@@ -15,6 +15,10 @@ class TripConditions(BaseModel):
     """사용자 요청을 구조화한 코스 조건. 비어 있는 값은 기본값/차량 정보로 채운다."""
 
     child_ages: list[int] = Field(default_factory=list, description="아이 나이(만 나이, 개월 수는 0)")
+    child_age_months: list[int] = Field(
+        default_factory=list,
+        description="아이 나이(개월). 앱의 가족 프로필에서 오며, 있으면 child_ages보다 정확하다",
+    )
     adults: int | None = None
     with_pet: bool = False
     themes: list[Theme] = Field(default_factory=list)
@@ -29,6 +33,20 @@ class TripConditions(BaseModel):
         default_factory=list,
         description="아이 관심사 한 단어씩 (예: 공룡, 기차, 동물, 우주, 물놀이)",
     )
+
+
+    def youngest_months(self) -> int | None:
+        """가장 어린 아이의 개월 수. 개월 정보가 없으면 만 나이로 어림한다."""
+        if self.child_age_months:
+            return min(self.child_age_months)
+        if self.child_ages:
+            return min(self.child_ages) * 12
+        return None
+
+    def has_infant(self) -> bool:
+        """만 2세 이하(36개월 미만) 아이가 있는지. 실내 선호·짧은 체류 판단에 쓴다."""
+        months = self.youngest_months()
+        return months is not None and months < 36
 
 
 class ParseRequest(BaseModel):
