@@ -28,6 +28,7 @@ fun GuideScreen(
     onNext: () -> Unit,
     onMarkArrived: () -> Unit,
     onEnd: () -> Unit,
+    onShowRecord: () -> Unit,
 ) {
     val current = state.current ?: return
     DrivingAware(isParked) {
@@ -36,7 +37,7 @@ fun GuideScreen(
             verticalArrangement = Arrangement.spacedBy(24.dp),
         ) {
             when {
-                state.finished -> Finished(onEnd)
+                state.finished -> Finished(onEnd, onShowRecord)
                 state.arrived -> Arrived(current, state.next, onNext)
                 else -> Heading(current, onShowMap, onMarkArrived)
             }
@@ -83,8 +84,9 @@ private fun Arrived(stop: CourseStop, next: CourseStop?, onNext: () -> Unit) {
 }
 
 @Composable
-private fun Finished(onEnd: () -> Unit) {
+private fun Finished(onEnd: () -> Unit, onShowRecord: () -> Unit) {
     Text("오늘 나들이 끝!", fontSize = 48.sp)
     Text("수고하셨어요. 집에 도착했어요.", fontSize = 28.sp)
-    BigButton("처음으로", onEnd)
+    BigButton("오늘의 기록 보기", onShowRecord)
+    BigOutlinedButton("처음으로", onEnd)
 }

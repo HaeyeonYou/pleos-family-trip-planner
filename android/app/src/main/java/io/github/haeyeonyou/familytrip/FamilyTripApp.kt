@@ -5,6 +5,7 @@ import android.content.pm.PackageManager
 import io.github.haeyeonyou.familytrip.data.CourseStore
 import io.github.haeyeonyou.familytrip.data.ProfileStore
 import io.github.haeyeonyou.familytrip.data.TripApi
+import io.github.haeyeonyou.familytrip.data.VisitStore
 import io.github.haeyeonyou.familytrip.guide.GuideNotifier
 import io.github.haeyeonyou.familytrip.guide.GuideSession
 import io.github.haeyeonyou.familytrip.location.FUSED_LOCATION_PERMISSION
@@ -29,8 +30,9 @@ class AppContainer(private val app: Application) {
     val api: TripApi = TripApi.create()
     val courses = CourseStore(app)
     val profile = ProfileStore(app)
+    val visits = VisitStore(app)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
-    val guide = GuideSession(app, navi, location, GuideNotifier(app), scope)
+    val guide = GuideSession(app, navi, location, GuideNotifier(app), visits, scope)
 
     private var locationStarted = false
 

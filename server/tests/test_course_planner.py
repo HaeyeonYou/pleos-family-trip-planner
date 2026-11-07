@@ -78,6 +78,7 @@ def test_builds_meal_outing_cafe_home_with_timetable():
     res = plan(tour_src=FakeTour({CONTENT_TYPE_ATTRACTION: [PARK]}), departure_time="10:30")
     assert [s.role for s in res.stops] == [StopRole.MEAL, StopRole.OUTING, StopRole.CAFE, StopRole.HOME]
     assert res.stops[1].place.name == "역삼공원"
+    assert res.stops[1].place.theme == Theme.NATURE  # 경험 지도 분야
     # 10:30 출발, 구간마다 20분, 식사 60, 나들이 120, 카페 40
     assert [s.arrive_at for s in res.stops] == ["10:50", "12:10", "14:30", "15:30"]
     assert res.return_at == "15:30"

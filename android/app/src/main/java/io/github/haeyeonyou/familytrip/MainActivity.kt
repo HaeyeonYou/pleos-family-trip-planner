@@ -29,6 +29,7 @@ import io.github.haeyeonyou.familytrip.location.FUSED_LOCATION_PERMISSION
 import io.github.haeyeonyou.familytrip.ui.CourseEditActions
 import io.github.haeyeonyou.familytrip.ui.CourseScreen
 import io.github.haeyeonyou.familytrip.ui.DevScreen
+import io.github.haeyeonyou.familytrip.ui.ExperienceScreen
 import io.github.haeyeonyou.familytrip.ui.GuideScreen
 import io.github.haeyeonyou.familytrip.ui.InputScreen
 import io.github.haeyeonyou.familytrip.ui.NotificationOffBanner
@@ -41,6 +42,7 @@ private object Routes {
     const val GUIDE = "guide"
     const val DEV = "dev"
     const val PROFILE = "profile"
+    const val EXPERIENCE = "experience"
 }
 
 class MainActivity : ComponentActivity() {
@@ -123,6 +125,15 @@ class MainActivity : ComponentActivity() {
                                 onOpenDev = { nav.navigate(Routes.DEV) },
                                 onEditProfile = { nav.navigate(Routes.PROFILE) },
                                 onUseProfile = vm::conditionsFromProfile,
+                                onShowRecord = { nav.navigate(Routes.EXPERIENCE) },
+                            )
+                        }
+                        composable(Routes.EXPERIENCE) {
+                            // 화면에 들어올 때마다 차 안 기록을 다시 읽는다.
+                            ExperienceScreen(
+                                visits = remember { container.visits.all() },
+                                isParked = vehicle.isParked,
+                                onBack = { nav.popBackStack() },
                             )
                         }
                         composable(Routes.PROFILE) {
@@ -167,6 +178,7 @@ class MainActivity : ComponentActivity() {
                                 onShowMap = container.navi::showNavigation,
                                 onNext = vm::goToNext,
                                 onMarkArrived = vm::markArrived,
+                                onShowRecord = { nav.navigate(Routes.EXPERIENCE) },
                                 onEnd = {
                                     vm.endGuide()
                                     if (!nav.popBackStack(Routes.INPUT, inclusive = false)) {
