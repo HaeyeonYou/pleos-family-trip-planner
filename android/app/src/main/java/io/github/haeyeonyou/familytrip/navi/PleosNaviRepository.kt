@@ -106,6 +106,8 @@ class PleosNaviRepository(context: Context) : NaviRepository {
 
     override fun requestRoute(destination: Place) {
         log("경로 요청: ${destination.name}")
+        // 이전 구간 도착이 새 구간 도착으로 읽히지 않게 지운다.
+        _state.update { it.copy(arrivedAt = null) }
         naviHelper.requestRoute(
             RouteInfo(
                 destination.latitude,
