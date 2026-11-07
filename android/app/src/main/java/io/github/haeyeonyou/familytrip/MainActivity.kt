@@ -207,6 +207,7 @@ class MainActivity : ComponentActivity() {
                                     load = vm::loadHome,
                                     toggleFilter = vm::toggleFilter,
                                     retry = vm::retryHome,
+                                    another = vm::anotherOptions,
                                     openOption = {
                                         vm.openOption(it)
                                         nav.navigate(Routes.COURSE)

@@ -22,6 +22,8 @@ data class Visit(
     /** 나들이 장소의 경험 분야. 식사·카페는 없음 */
     val theme: String? = null,
     val address: String = "",
+    /** 서버 장소 키 (source:source_id). 추천에서 최근 다녀온 곳을 빼는 데 쓴다. 예전 기록에는 없다. */
+    val placeKey: String? = null,
     val arrivedAt: String,
     val departedAt: String? = null,
 ) {
@@ -49,6 +51,7 @@ class VisitStore(context: Context) {
             role = role,
             theme = place.theme,
             address = place.address,
+            placeKey = "${place.source}:${place.sourceId}",
             arrivedAt = now.withNano(0).toString(),
         )
         write(visits + visit)
