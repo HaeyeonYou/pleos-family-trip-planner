@@ -8,6 +8,7 @@ import io.github.haeyeonyou.familytrip.data.CoursePlace
 import io.github.haeyeonyou.familytrip.data.FamilyProfile
 import io.github.haeyeonyou.familytrip.data.FeedingRoutine
 import io.github.haeyeonyou.familytrip.data.CourseOption
+import io.github.haeyeonyou.familytrip.data.VisitSummary
 import io.github.haeyeonyou.familytrip.data.CourseRequest
 import io.github.haeyeonyou.familytrip.data.StartBody
 import io.github.haeyeonyou.familytrip.data.WeatherInfo
@@ -155,6 +156,23 @@ class TripViewModel(private val container: AppContainer) : ViewModel() {
     // 홈 추천 (HF01)
 
     private var homeJob: Job? = null
+
+    /** 홈에서 이미 보여 준 나들이 장소 키. '다른 코스 보기'가 이 곳들을 빼고 요청한다. 조건이 바뀌면 비운다. */
+    private val shownKeys = linkedSetOf<String>()
+
+    /** 최근 90일 나들이 방문을 서버 요청용 요약으로 (기기 기록에서). 장소 키가 없는 예전 기록도 분야 가점에는 쓴다. */
+    private fun recentVisits(): List<VisitSummary> {
+        val since = java.time.LocalDate.now().minusDays(90)
+        return container.visits.all()
+            .filter { it.role == "outing" && !it.date.isBefore(since) }
+            .map { VisitSummary(placeKey = it.placeKey.orEmpty(), theme = it.theme, date = it.date.toString()) }
+    }
+
+    /** 홈 '다른 코스 보기': 지금 보여 준 장소를 빼고 다시 추천받는다. */
+    fun anotherOptions() {
+        shownKeys += _state.value.options.map { it.placeKey }
+        refreshOptions(0)
+    }
     private var indoorTouched = false
 
     /** 홈에 들어올 때: 추천이 없으면 새로 받고, 있으면 날씨·'가는 중' 수만 갱신한다. */
@@ -164,6 +182,7 @@ class TripViewModel(private val container: AppContainer) : ViewModel() {
 
     fun toggleFilter(change: (HomeFilters) -> HomeFilters) {
         indoorTouched = true
+        shownKeys.clear()
         _state.update { it.copy(homeFilters = change(it.homeFilters)) }
         refreshOptions(400)
     }
@@ -190,7 +209,10 @@ class TripViewModel(private val container: AppContainer) : ViewModel() {
             val base = s.profile?.applyTo(TripConditions()) ?: TripConditions()
             val conditions = base.copy(withPet = filters.pet, indoorOnly = filters.indoor, needs = filters.needs())
             try {
-                val res = container.api.suggest(CourseRequest(conditions = conditions, origin = origin))
+                val res = container.api.suggest(
+                    CourseRequest(conditions = conditions, origin = origin, visits = recentVisits(), excludePlaceKeys = shownKeys.toList()),
+                )
+                shownKeys += res.options.map { it.placeKey }
                 _state.update { it.copy(options = res.options, optionsLoading = false, courseConditions = conditions) }
                 refreshGoing()
             } catch (e: kotlinx.coroutines.CancellationException) {
@@ -259,7 +281,7 @@ class TripViewModel(private val container: AppContainer) : ViewModel() {
         val conditions = _state.value.conditions ?: TripConditions()
         val origin = currentOrigin()
         launchRequest {
-            val course = container.api.course(CourseRequest(conditions = conditions, origin = origin))
+            val course = container.api.course(CourseRequest(conditions = conditions, origin = origin, visits = recentVisits()))
             _state.update { it.copy(course = course, courseOrigin = origin, savedCourseId = null, message = null) }
             onSuccess()
         }
