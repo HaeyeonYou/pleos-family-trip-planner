@@ -261,7 +261,7 @@ private fun PlaceDetail(stop: CourseStop, next: CourseStop?) {
             }
             DetailLine("코스에서", position.joinToString(" · "))
             place.amenityNotes.forEach { (key, note) ->
-                DetailLine(NEED_LABELS[key] ?: if (key == "infant_etc") "유아 기타" else key, note)
+                DetailLine(AMENITY_LABELS[key] ?: if (key == "infant_etc") "유아 기타" else key, note)
             }
             if (place.amenities.values.any { it != "available" }) {
                 Text("'정보 없음'은 시설이 없다는 뜻이 아니에요. 방문 전에 확인해 주세요.", fontSize = 18.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -339,7 +339,7 @@ private fun AmenityBadges(amenities: Map<String, String>) {
     if (amenities.isEmpty()) return
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         amenities.forEach { (key, value) ->
-            val label = NEED_LABELS[key] ?: key
+            val label = AMENITY_LABELS[key] ?: key
             // '정보 없음'은 없다는 뜻이 아니므로 그대로 표시한다.
             AssistChip(onClick = {}, label = { Text(if (value == "available") "$label 있음" else "$label 정보 없음", fontSize = 18.sp) })
         }
