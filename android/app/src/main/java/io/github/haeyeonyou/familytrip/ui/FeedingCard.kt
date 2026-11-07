@@ -106,6 +106,7 @@ fun FeedingCard(
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(
                 "지금 수유했어요",
+                maxLines = 1,
                 fontSize = 22.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color.White,
@@ -116,7 +117,7 @@ fun FeedingCard(
                     .padding(horizontal = 24.dp, vertical = 16.dp),
             )
             Text(
-                if (choosing) "닫기" else "간격 변경",
+                if (choosing) "닫기" else "간격",
                 fontSize = 20.sp,
                 modifier = Modifier
                     .clip(RoundedCornerShape(20.dp))
