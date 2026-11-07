@@ -9,6 +9,7 @@ import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -46,6 +47,7 @@ import io.github.haeyeonyou.familytrip.ui.LoginScreen
 import io.github.haeyeonyou.familytrip.ui.NotificationOffBanner
 import io.github.haeyeonyou.familytrip.ui.ProfileScreen
 import io.github.haeyeonyou.familytrip.ui.TripViewModel
+import io.github.haeyeonyou.familytrip.ui.VoicePanel
 import kotlinx.coroutines.launch
 
 private object Routes {
@@ -85,6 +87,15 @@ class MainActivity : ComponentActivity() {
                 openNotificationSettings()
             }
         }
+
+    /** 마이크: 허용되면 바로 듣기를 시작한다. 거부돼도 문장 버튼으로 쓸 수 있어 패널은 연다. */
+    private val micRequest =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { container.voice.startListening() }
+
+    private fun onMicClick() {
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) container.voice.startListening()
+        else micRequest.launch(Manifest.permission.RECORD_AUDIO)
+    }
 
     private val permissionRequest =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
@@ -165,7 +176,9 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
-                    AppShell(tab = tabOf(route ?: start), onTab = ::openTab) {
+                    val voice by container.voice.state.collectAsStateWithLifecycle()
+                    AppShell(tab = tabOf(route ?: start), onTab = ::openTab, onMic = ::onMicClick) {
+                    Box(modifier = Modifier.fillMaxSize()) {
                     NavHost(navController = nav, startDestination = start) {
                         composable(Routes.LOGIN) {
                             LoginScreen(
@@ -336,6 +349,14 @@ class MainActivity : ComponentActivity() {
                         composable(Routes.DEV) {
                             DevScreen(container, onBack = { nav.popBackStack() })
                         }
+                    }
+                    VoicePanel(
+                        state = voice,
+                        isParked = vehicle.isParked,
+                        onSubmit = container.voice::submit,
+                        onListen = ::onMicClick,
+                        onClose = container.voice::close,
+                    )
                     }
                     }
                   }
