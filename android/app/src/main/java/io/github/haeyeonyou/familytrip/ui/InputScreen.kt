@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.InputChip
@@ -51,6 +52,8 @@ fun InputScreen(
     onEditProfile: () -> Unit,
     onUseProfile: () -> Unit,
     onShowRecord: () -> Unit,
+    onApplyPreset: () -> Unit,
+    onDismissPreset: () -> Unit,
 ) = DrivingAware(isParked) {
     Column(
         modifier = Modifier.padding(40.dp).verticalScroll(rememberScrollState()),
@@ -67,6 +70,7 @@ fun InputScreen(
             BigOutlinedButton("경험 기록", onShowRecord)
             TextButton(onClick = onOpenDev) { Text("개발자 화면", fontSize = 18.sp) }
         }
+        PresetCard(state, onApply = onApplyPreset, onDismiss = onDismissPreset)
         FamilyCard(state.profile, onEdit = onEditProfile, onUse = onUseProfile)
         Text("오늘 나들이를 한 문장으로 알려 주세요", fontSize = 26.sp)
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -174,6 +178,43 @@ private fun ConditionsEditor(
                 BigOutlinedButton("−", { onChange { it.copy(returnByHour = ((it.returnByHour ?: 18) - 1).coerceAtLeast(12)) } })
                 Text(c.returnByHour?.let { "${it}시 전" } ?: "제한 없음", fontSize = 26.sp)
                 BigOutlinedButton("+", { onChange { it.copy(returnByHour = ((it.returnByHour ?: 17) + 1).coerceAtMost(22)) } })
+            }
+        }
+    }
+}
+
+/** 폰에서 보낸 공조 프리셋 (#62). 적용 후에는 결과 문구만 남는다. */
+@Composable
+private fun PresetCard(state: TripUiState, onApply: () -> Unit, onDismiss: () -> Unit) {
+    val preset = state.pendingPreset
+    if (preset == null) {
+        state.presetMessage?.let { Text(it, fontSize = 22.sp, color = MaterialTheme.colorScheme.primary) }
+        return
+    }
+    val s = preset.settings
+    val parts = buildList {
+        if (!s.power) {
+            add("공조 끄기")
+        } else {
+            add("${s.temperature}°C")
+            add("풍량 ${s.fanSpeed}단")
+            if (s.ac) add("에어컨")
+            if (s.airCleaner) add("공기청정")
+        }
+        if (s.driverSeatHeat > 0) add("운전석 열선 ${s.driverSeatHeat}단")
+        if (s.passengerSeatHeat > 0) add("조수석 열선 ${s.passengerSeatHeat}단")
+        if (s.steeringWheelHeat > 0) add("핸들 열선 ${s.steeringWheelHeat}단")
+    }
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(modifier = Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text("폰에서 보낸 설정 · ${s.name}", fontSize = 26.sp, color = MaterialTheme.colorScheme.onPrimaryContainer)
+            Text(parts.joinToString(" · "), fontSize = 24.sp, color = MaterialTheme.colorScheme.onPrimaryContainer)
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                BigButton(if (state.applyingPreset) "적용하는 중…" else "차에 적용", onApply, enabled = !state.applyingPreset)
+                BigOutlinedButton("나중에", onDismiss)
             }
         }
     }

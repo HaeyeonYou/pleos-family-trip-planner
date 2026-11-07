@@ -8,6 +8,9 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from pydantic import ValidationError
+
+from app import presets
 from app.auth import service
 from app.auth.deps import WEB_COOKIE, get_db, optional_web_user
 from app.config import Settings, get_settings
@@ -125,3 +128,47 @@ async def approve_car(
         return templates.TemplateResponse(request, "message.html", {"title": "차에서 로그인", "message": str(e)}, status_code=400)
     message = "차에서 로그인했어요. 차 화면을 확인해 주세요."
     return templates.TemplateResponse(request, "message.html", {"title": "로그인 완료", "message": message, "link": "/m/", "link_text": "처음으로"})
+
+
+# 공조 프리셋 (#62)
+
+_SEATS = [("driver_seat_heat", "운전석 열선"), ("passenger_seat_heat", "조수석 열선"), ("steering_wheel_heat", "핸들 열선")]
+_TOGGLES = [("power", "공조 켜기"), ("ac", "에어컨"), ("air_cleaner", "공기청정")]
+
+
+def _preset_status(preset) -> str:
+    if preset is None:
+        return ""
+    if preset.applied_at is None:
+        return "차로 보냈어요. 시동 후 차 앱을 켜면 확인할 수 있어요."
+    return "차에서 적용했어요."
+
+
+@router.get("/preset", response_class=HTMLResponse)
+async def preset_page(request: Request, user: User | None = Depends(optional_web_user), db: AsyncSession = Depends(get_db)):
+    if user is None:
+        return _login_redirect("/m/preset")
+    preset = await presets.current(db, user)
+    settings = presets.ClimateSettings(**preset.settings) if preset else presets.ClimateSettings()
+    context = {"title": "차 공조 미리 설정", "s": settings.model_dump(), "seats": _SEATS, "toggles": _TOGGLES, "status": _preset_status(preset)}
+    return templates.TemplateResponse(request, "preset.html", context)
+
+
+@router.post("/preset", response_class=HTMLResponse)
+async def send_preset(request: Request, user: User | None = Depends(optional_web_user), db: AsyncSession = Depends(get_db)):
+    if user is None:
+        return _login_redirect("/m/preset")
+    form = await request.form()
+    values = {key: form.get(key) for key, _ in _SEATS} | {"name": form.get("name") or "우리 가족 설정"}
+    values |= {"temperature": form.get("temperature"), "fan_speed": form.get("fan_speed")}
+    # 체크박스는 꺼져 있으면 아예 오지 않는다.
+    values |= {key: key in form for key, _ in _TOGGLES}
+    context = {"title": "차 공조 미리 설정", "seats": _SEATS, "toggles": _TOGGLES}
+    try:
+        settings = presets.ClimateSettings(**values)
+    except ValidationError:
+        context |= {"s": presets.ClimateSettings().model_dump(), "status": "값을 다시 확인해 주세요", "error": True}
+        return templates.TemplateResponse(request, "preset.html", context, status_code=400)
+    await presets.save(db, user, settings)
+    context |= {"s": settings.model_dump(), "status": "차로 보냈어요. 시동 후 차 앱을 켜면 확인할 수 있어요."}
+    return templates.TemplateResponse(request, "preset.html", context)
