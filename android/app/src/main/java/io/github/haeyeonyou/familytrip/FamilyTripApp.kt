@@ -3,8 +3,10 @@ package io.github.haeyeonyou.familytrip
 import android.app.Application
 import com.kakao.vectormap.KakaoMapSdk
 import android.content.pm.PackageManager
+import io.github.haeyeonyou.familytrip.care.CareController
 import io.github.haeyeonyou.familytrip.data.AccountStore
 import io.github.haeyeonyou.familytrip.data.CourseStore
+import io.github.haeyeonyou.familytrip.data.FeedingStore
 import io.github.haeyeonyou.familytrip.data.ProfileStore
 import io.github.haeyeonyou.familytrip.data.TripApi
 import io.github.haeyeonyou.familytrip.data.VisitStore
@@ -35,7 +37,10 @@ class AppContainer(private val app: Application) {
     val profile = ProfileStore(app)
     val visits = VisitStore(app)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
-    val guide = GuideSession(app, navi, location, GuideNotifier(app), visits, scope)
+    private val notifier = GuideNotifier(app)
+    val guide = GuideSession(app, navi, location, notifier, visits, scope)
+    val feeding = FeedingStore(app)
+    val care = CareController(app, vehicle, navi, location, api, guide, notifier, feeding, scope)
 
     private var locationStarted = false
 

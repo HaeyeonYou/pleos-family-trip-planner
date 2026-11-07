@@ -71,7 +71,7 @@ private fun SideMenu(selected: MainTab, onTab: (MainTab) -> Unit, profile: Famil
         modifier = Modifier
             .fillMaxHeight()
             .width(if (compact) 140.dp else 280.dp)
-            .background(Color.White)
+            .background(TripColors.Card)
             .padding(vertical = 32.dp, horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
         horizontalAlignment = if (compact) Alignment.CenterHorizontally else Alignment.Start,

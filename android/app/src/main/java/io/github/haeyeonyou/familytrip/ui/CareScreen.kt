@@ -1,75 +1,260 @@
 package io.github.haeyeonyou.familytrip.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import io.github.haeyeonyou.familytrip.care.CareKind
+import io.github.haeyeonyou.familytrip.care.CareState
+import io.github.haeyeonyou.familytrip.care.Nearby
+import io.github.haeyeonyou.familytrip.care.ToneState
+import io.github.haeyeonyou.familytrip.data.CarePlace
+
+/** 케어 화면이 밖에 알리는 동작 모음. */
+data class CareActions(
+    val onBabyCare: (Boolean) -> Unit,
+    val onSleepMode: (Boolean) -> Unit,
+    val onFed: () -> Unit,
+    val onInterval: (Int) -> Unit,
+    val onFind: (CareKind) -> Unit,
+    val onAddWaypoint: (CarePlace) -> Unit,
+    val onApplyPreset: () -> Unit,
+    val onDismissPreset: () -> Unit,
+    val onEnter: () -> Unit,
+)
 
 /**
- * 케어 (PX03). 지금 동작하는 것은 폰에서 보낸 공조 설정 적용이고,
- * 수유 타이머·수면 모드·급한 케어 찾기는 다음 작업(수유 루틴, 음성)에서 채운다.
+ * 케어 (피그마 HF03). 베이비케어 모드(실제 공조 제어) · 수유 타이머 · 급한 케어 찾기 · 수면 모드.
+ * 맨 위 지연 알림 배너(정체로 도착이 늦어질 때, #17)는 이번 범위가 아니라 [DelayBannerSlot] 자리만 둔다.
  */
 @Composable
 fun CareScreen(
     state: TripUiState,
+    care: CareState,
     isParked: Boolean,
-    onApplyPreset: () -> Unit,
-    onDismissPreset: () -> Unit,
+    actions: CareActions,
 ) = DrivingAware(isParked) {
     val months = state.profile?.ageMonths()?.minOrNull()
+    val narrow = isNarrowWindow()
+    LaunchedEffect(Unit) { actions.onEnter() }
+
     Column(
-        modifier = Modifier.padding(40.dp).verticalScroll(rememberScrollState()),
+        modifier = Modifier.padding(horizontal = if (narrow) 24.dp else 40.dp, vertical = 32.dp).verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
-        ScreenTitle("케어", "필요한 순간 한 번에")
-        if (state.pendingPreset != null || state.presetMessage != null) {
-            PresetCard(state, onApply = onApplyPreset, onDismiss = onDismissPreset)
+        DelayBannerSlot()
+        ScreenTitle("케어", months?.let { "생후 ${it}개월 · 출발 전 준비와 급한 순간" } ?: "출발 전 준비와 급한 순간")
+        if (state.pendingPreset != null) PresetCard(state, onApply = actions.onApplyPreset, onDismiss = actions.onDismissPreset)
+
+        val babyCare: @Composable (Modifier) -> Unit = { m -> BabyCareCard(state, care, actions.onBabyCare, m) }
+        val feeding: @Composable (Modifier) -> Unit = { m ->
+            FeedingCard(care.feeding, onFed = actions.onFed, onInterval = actions.onInterval, modifier = m)
         }
-        Tile(
-            title = "권장 실내 온도  ${recommendedTemperature(months)}°C",
-            body = if (months == null) "가족 정보에 아이를 등록하면 나이에 맞춰 알려 드려요" else "아이 나이에 맞춘 권장값이에요",
-        )
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            Tile("수유 타이머", "다음 수유 시각 알림 · 준비 중", Modifier.weight(1f))
-            Tile("수면 모드", "\"애 잔다\" → 안내 음성·알림 줄이기 · 준비 중", Modifier.weight(1f))
+        if (narrow) {
+            babyCare(Modifier.fillMaxWidth())
+            feeding(Modifier.fillMaxWidth())
+        } else {
+            Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                babyCare(Modifier.weight(1f))
+                feeding(Modifier.weight(1f))
+            }
         }
+
         Text("급한 케어 찾기", fontSize = 26.sp, fontWeight = FontWeight.Bold)
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            Tile("수유실", "경로 위 · 10km 이내 · 준비 중", Modifier.weight(1f))
-            Tile("기저귀 교환대", "정보가 있는 곳만 · 준비 중", Modifier.weight(1f))
-            Tile("잠깐 쉬어가기", "주차장 · 공원 · 준비 중", Modifier.weight(1f))
+        if (narrow) {
+            CareKind.entries.forEach { UrgentCard(it, care.nearby[it], actions, Modifier.fillMaxWidth()) }
+        } else {
+            Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                CareKind.entries.forEach { UrgentCard(it, care.nearby[it], actions, Modifier.weight(1f)) }
+            }
         }
+        care.waypointMessage?.let { Text(it, fontSize = 20.sp, color = MaterialTheme.colorScheme.primary) }
+
+        SleepModeCard(care.sleepMode, actions.onSleepMode)
+    }
+}
+
+/**
+ * 지연 알림 배너 자리 (HF03 맨 위: "정체로 도착이 12:45로 늦어져요 / 경유지 추가 / 그대로 가기").
+ * 정체 감지와 도착 시각 갱신이 아직 없어 이번에는 그리지 않는다 (#17, HF06).
+ */
+@Composable
+private fun DelayBannerSlot() = Unit
+
+@Composable
+private fun CardFrame(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(28.dp))
+            .background(TripColors.Card)
+            .border(1.dp, TripColors.Line, RoundedCornerShape(28.dp))
+            .padding(24.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) { content() }
+}
+
+@Composable
+private fun IconBadge(icon: String) {
+    Box(modifier = Modifier.size(44.dp).clip(CircleShape).background(if (ToneState.current.dark) TripColors.Tile else TripColors.GreenSoft), contentAlignment = Alignment.Center) {
+        Text(icon, fontSize = 22.sp)
     }
 }
 
 @Composable
-private fun Tile(title: String, body: String, modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(TripColors.Tile).padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Text(title, fontSize = 24.sp, fontWeight = FontWeight.Bold)
-        Text(body, fontSize = 18.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+private fun CareSwitch(checked: Boolean, enabled: Boolean = true, onChange: (Boolean) -> Unit) {
+    Switch(
+        checked = checked,
+        onCheckedChange = onChange,
+        enabled = enabled,
+        colors = SwitchDefaults.colors(checkedTrackColor = TripColors.Green, checkedThumbColor = Color.White),
+        modifier = Modifier.heightIn(min = 48.dp),
+    )
+}
+
+/** 베이비케어 모드: 켜면 실제로 차 공조(목표 24°C, 약한 바람, 시트·핸들 열선 끔)를 제어한다. */
+@Composable
+private fun BabyCareCard(state: TripUiState, care: CareState, onToggle: (Boolean) -> Unit, modifier: Modifier) {
+    CardFrame(modifier) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            IconBadge("♡")
+            Text("베이비케어 모드", fontSize = 26.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+            CareSwitch(care.babyCare, enabled = !care.babyCareBusy, onChange = onToggle)
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(40.dp)) {
+            Column {
+                Text("차 공조 설정", fontSize = 18.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(care.currentTemperature?.let { "${trim(it)}°C" } ?: "—", fontSize = 48.sp, fontWeight = FontWeight.Bold)
+            }
+            Column {
+                Text("설정한 목표", fontSize = 18.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("${trim(care.targetTemperature)}°C", fontSize = 48.sp, fontWeight = FontWeight.Bold, color = TripColors.Green)
+            }
+        }
+        val presetName = state.pendingPreset?.settings?.name
+        Text(
+            when {
+                care.babyCareBusy -> "차에 적용하는 중…"
+                care.climateMessage != null -> care.climateMessage
+                presetName != null -> "켜면 폰에서 보낸 '$presetName' 값으로 공조를 맞춰요"
+                else -> "켜면 24°C · 약한 바람 · 시트와 핸들 열선은 꺼요 (지원 차량에서만)"
+            },
+            fontSize = 18.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
-/** 영아는 조금 따뜻하게. 기준은 팀 확정 전 임시값. */
-private fun recommendedTemperature(months: Int?): String = when {
-    months == null -> "23.0"
-    months < 12 -> "24.0"
-    months < 36 -> "23.5"
-    else -> "23.0"
+/** 급한 케어 한 종류. 첫 후보를 요약으로 보이고, 눌러서 펼치면 2곳과 '경유지 추가'가 나온다. */
+@Composable
+private fun UrgentCard(kind: CareKind, result: Nearby?, actions: CareActions, modifier: Modifier) {
+    var expanded by rememberSaveable(kind.name) { mutableStateOf(false) }
+    CardFrame(modifier) {
+        Row(
+            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).clickable {
+                expanded = !expanded
+                if (result == null || result is Nearby.Failed) actions.onFind(kind)
+            },
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            IconBadge(when (kind) { CareKind.NURSING -> "🍼"; CareKind.DIAPER -> "☺"; CareKind.REST -> "P" })
+            Column(modifier = Modifier.weight(1f)) {
+                Text(kind.label, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                Text(summary(result), fontSize = 18.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Text(if (expanded) "⌃" else "›", fontSize = 28.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        if (expanded) {
+            when (result) {
+                is Nearby.Found -> result.places.forEachIndexed { i, place -> PlaceRow(i + 1, place) { actions.onAddWaypoint(place) } }
+                is Nearby.Failed -> Text(result.message, fontSize = 18.sp, color = MaterialTheme.colorScheme.error)
+                else -> Text("찾는 중…", fontSize = 18.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
 }
+
+private fun summary(result: Nearby?): String = when (result) {
+    null, Nearby.Loading -> "찾는 중…"
+    is Nearby.Failed -> "눌러서 다시 찾기"
+    is Nearby.Found -> result.places.firstOrNull()?.let { "${it.name} · ${distanceLabel(it.distanceM)} · ${it.driveMinutes}분" } ?: "10km 안에 찾지 못했어요"
+}
+
+@Composable
+private fun PlaceRow(number: Int, place: CarePlace, onAdd: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(TripColors.Tile).padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text("$number", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = TripColors.Green)
+        Column(modifier = Modifier.weight(1f)) {
+            Text(place.name, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text(placeDetail(place), fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Text(
+            "경유지 추가",
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.White,
+            modifier = Modifier.clip(RoundedCornerShape(16.dp)).background(TripColors.Green).clickable(onClick = onAdd).padding(horizontal = 16.dp, vertical = 12.dp),
+        )
+    }
+}
+
+fun distanceLabel(meters: Int): String = if (meters < 1000) "${meters}m" else "%.1fkm".format(meters / 1000.0)
+
+fun placeDetail(place: CarePlace): String = buildList {
+    if (place.onRoute) add("경로 위") else place.detourMinutes?.let { add("+${it}분") }
+    add("${distanceLabel(place.distanceM)} · ${place.driveMinutes}분")
+    if (place.note.isNotBlank()) add(place.note)
+}.joinToString(" · ")
+
+@Composable
+private fun SleepModeCard(on: Boolean, onToggle: (Boolean) -> Unit) {
+    CardFrame(Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            IconBadge("☾")
+            Column(modifier = Modifier.weight(1f)) {
+                Text("수면 모드", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    if (on) "켜짐 · 앱 안내 음성 30% · 알림은 소리 없이 · 도착 5분 전에 조용히 알려요" else "\"아기 자요\"라고 말하면 앱 음성·알림을 줄여요",
+                    fontSize = 18.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            CareSwitch(on, onChange = onToggle)
+        }
+    }
+}
+
+/** 23.0 → "23", 23.5 → "23.5" */
+private fun trim(value: Float): String = if (value % 1f == 0f) value.toInt().toString() else "%.1f".format(value)
