@@ -6,13 +6,14 @@ LLM은 쓰지 않는다. 조건 해석은 /parse가, 여기서는 규칙으로�
 
 import logging
 import math
+import random
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import Protocol
 from zoneinfo import ZoneInfo
 
 from app import interests
-from app.course import classify
+from app.course import classify, ranking
 from app.schemas import (
     Amenity,
     CourseOption,
@@ -25,6 +26,7 @@ from app.schemas import (
     StopRole,
     Theme,
     TripConditions,
+    VisitSummary,
 )
 from app.sources.kakao import CATEGORY_CAFE, CATEGORY_RESTAURANT, KakaoPlace, Leg
 from app.sources.tour import CONTENT_TYPE_ATTRACTION, CONTENT_TYPE_CULTURE, PET, TourPlace
@@ -79,6 +81,11 @@ class _Candidate:
     distance_m: float
     score: float = 0.0
     content_type_id: int = 0  # TourAPI 분류 (주차 정보 조회에 쓴다)
+    looked_up: bool = False  # 육아 편의 상세를 이미 조회했는지
+
+    @property
+    def key(self) -> str:
+        return f"{self.place.source}:{self.place.source_id}"
 
 
 class CoursePlanner:
@@ -88,41 +95,66 @@ class CoursePlanner:
         self._now = now
 
     def plan(self, req: CourseRequest) -> CourseResponse:
-        outings = self._rank_outings(req.origin, req.conditions)
+        rng = _rng(req.seed)
+        outings, notes = self._pick_outings(req, rng)
         if not outings:
             log.info("나들이 후보 없음 → 404")
             raise NoCourseError("조건에 맞는 나들이 장소를 찾지 못했어요")
         log.info(
-            "나들이 후보 %d곳, 상위: %s",
+            "나들이 후보 %d곳, 선택 순서: %s",
             len(outings),
             ", ".join(f"{c.place.name}({c.score:.1f}, {c.distance_m / 1000:.1f}km)" for c in outings[:3]),
         )
-        return self._around(req, outings, 0)
+        course = self._around(req, outings, 0, rng)
+        course.warnings = notes + course.warnings
+        return course
 
     def suggest(self, req: CourseRequest) -> list[CourseOption]:
         """성격이 다른 코스 후보를 최대 3개 만든다 (자연·전시·놀이·체험 중 점수가 높은 나들이 장소 기준)."""
-        outings = self._rank_outings(req.origin, req.conditions)
+        rng = _rng(req.seed)
+        outings, notes = self._pick_outings(req, rng)
         if not outings:
             raise NoCourseError("조건에 맞는 나들이 장소를 찾지 못했어요")
         picks = _pick_varied(outings, SUGGESTIONS)
         options = []
         for index, label in picks:
-            course = self._around(req, outings, index)
+            course = self._around(req, outings, index, rng)
+            course.warnings = notes + course.warnings
             options.append(_option(course, outings[index], label))
         log.info("추천 %d개: %s", len(options), " / ".join(o.name for o in options))
         return options
 
-    def _around(self, req: CourseRequest, outings: list[_Candidate], index: int) -> CourseResponse:
+    def _pick_outings(self, req: CourseRequest, rng: random.Random) -> tuple[list[_Candidate], list[str]]:
+        """점수 계산 → 이미 보여 준 곳 제외 → 상위 후보 가중 선택 순서. 두 번째 값은 사용자에게 알릴 안내."""
+        ranked = self._rank_outings(req.origin, req.conditions, req.visits, self._today())
+        notes: list[str] = []
+        if req.exclude_place_keys:
+            skip = set(req.exclude_place_keys)
+            rest = [c for c in ranked if c.key not in skip]
+            if rest:
+                ranked = rest
+            elif ranked:
+                # 후보를 모두 보여 준 뒤에는 처음부터 다시 돈다
+                notes.append("근처 후보를 모두 보여 드려서 처음부터 다시 추천해요")
+        return ranking.weighted_order(ranked, lambda c: c.score, rng), notes
+
+    def _today(self) -> date:
+        return (self._now or datetime.now(KST)).date()
+
+    def _around(self, req: CourseRequest, outings: list[_Candidate], index: int, rng: random.Random) -> CourseResponse:
         """고른 나들이 장소 둘레에서 식사·카페를 찾아 시간표를 만든다."""
         cond = req.conditions
         origin = req.origin
         home = req.home or origin
         warnings: list[str] = []
+        self._ensure_amenities(outings[index], cond)
         outing = outings[index].place
         others = [c.place for i, c in enumerate(outings) if i != index]
 
-        meals = self._nearby_kakao(CATEGORY_RESTAURANT, outing, NEARBY_MEAL_RADIUS_M, classify.restaurant_is_suitable)
-        cafes = self._nearby_kakao(CATEGORY_CAFE, outing, NEARBY_CAFE_RADIUS_M, classify.cafe_is_suitable)
+        meals = self._eateries(CATEGORY_RESTAURANT, outing, NEARBY_MEAL_RADIUS_M, classify.restaurant_is_suitable,
+                               ranking.MEAL_WORDS, req.visits, rng)
+        cafes = self._eateries(CATEGORY_CAFE, outing, NEARBY_CAFE_RADIUS_M, classify.cafe_is_suitable,
+                               ranking.CAFE_WORDS, req.visits, rng)
         # 키즈카페처럼 나들이 장소가 식당·카페로도 잡히면 같은 곳을 두 번 넣지 않는다.
         meals = [p for p in meals if p.name != outing.name]
         cafes = [p for p in cafes if p.name != outing.name]
@@ -187,7 +219,9 @@ class CoursePlanner:
 
     # 후보 수집과 점수
 
-    def _rank_outings(self, origin: LatLng, cond: TripConditions) -> list[_Candidate]:
+    def _rank_outings(
+        self, origin: LatLng, cond: TripConditions, visits: list[VisitSummary] | None = None, today: date | None = None
+    ) -> list[_Candidate]:
         radius = DEFAULT_RADIUS_M
         if cond.max_drive_minutes:
             radius = min(MAX_RADIUS_M, cond.max_drive_minutes * METERS_PER_DRIVE_MINUTE)
@@ -201,25 +235,40 @@ class CoursePlanner:
 
         for c in candidates:
             c.score = _score(c, cond, radius)
+            if visits:
+                c.score += ranking.visit_adjustment(c.key, c.theme, visits, today or self._today())
             c.place.theme = c.theme  # 방문 기록에서 경험 분야로 쓴다
         candidates.sort(key=lambda c: c.score, reverse=True)
 
         # 상위 후보만 육아 편의 정보를 붙이고, 필요 조건이 있으면 그 결과로 다시 정렬한다.
         for c in candidates[:AMENITY_LOOKUPS]:
-            if c.place.source == "tour":
-                _attach_amenities(c.place, self._tour.amenities(c.place.source_id))
+            self._lookup_amenities(c)
         for c in candidates:
             if c.theme == Theme.PLAY:  # 키즈카페 등 놀이시설은 키즈존(놀이방)이 있는 곳
                 c.place.amenities["kids_zone"] = Amenity.AVAILABLE
         if cond.needs:
             if "parking" in cond.needs:
                 for c in candidates[:AMENITY_LOOKUPS]:
-                    if c.place.source == "tour":
-                        _attach_parking(c.place, self._tour.parking(c.place.source_id, c.content_type_id))
+                    self._lookup_parking(c)
             for c in candidates:
                 c.score += 2 * sum(c.place.amenities.get(n) == Amenity.AVAILABLE for n in cond.needs)
             candidates.sort(key=lambda c: c.score, reverse=True)
         return candidates
+
+    def _lookup_amenities(self, c: _Candidate) -> None:
+        if c.place.source == "tour" and not c.looked_up:
+            c.looked_up = True
+            _attach_amenities(c.place, self._tour.amenities(c.place.source_id))
+
+    def _lookup_parking(self, c: _Candidate) -> None:
+        if c.place.source == "tour" and "parking" not in c.place.amenities:
+            _attach_parking(c.place, self._tour.parking(c.place.source_id, c.content_type_id))
+
+    def _ensure_amenities(self, c: _Candidate, cond: TripConditions) -> None:
+        """가중 선택으로 상위 조회 범위 밖의 후보가 뽑혀도 편의 정보를 붙인다."""
+        self._lookup_amenities(c)
+        if "parking" in cond.needs:
+            self._lookup_parking(c)
 
     def _general_candidates(self, origin: LatLng, radius: int, cond: TripConditions) -> list[_Candidate]:
         candidates = self._tour_candidates(origin, radius, with_pet=False)
@@ -298,6 +347,17 @@ class CoursePlanner:
                 theme, indoor = kind
                 result.append(_Candidate(place=_kakao_place(p), theme=theme, indoor=indoor, distance_m=p.distance_m))
         return result
+
+    def _eateries(self, code, center, radius, suitable, words, visits, rng) -> list[Place]:
+        """근처 식당·카페를 점수(거리·키즈 편의·분류·최근 방문)로 매기고 상위에서 가중 선택한 순서로 준다."""
+        found = [p for p in self._kakao.by_category(code, center.latitude, center.longitude, radius) if suitable(p)]
+        today = self._today()
+
+        def score(p: KakaoPlace) -> float:
+            s = ranking.eatery_score(p.distance_m, radius, p.category, p.name, words)
+            return s + ranking.visit_adjustment(f"kakao:{p.place_id}", None, visits, today)
+
+        return [_kakao_place(p) for p in ranking.weighted_order(found, score, rng)]
 
     def _nearby_kakao(self, code: str, center: Place, radius: int, suitable) -> list[Place]:
         found = self._kakao.by_category(code, center.latitude, center.longitude, radius)
@@ -389,6 +449,13 @@ class CoursePlanner:
         return back > departure.replace(hour=return_by_hour, minute=0)
 
 
+def _rng(seed: int | None) -> random.Random:
+    if seed is None:
+        seed = random.SystemRandom().randrange(2**31)
+    log.info("선택 시드 %d", seed)
+    return random.Random(seed)
+
+
 def describe(course: CourseResponse) -> str:
     """로그용 한 줄 요약: 장소 순서, 출발·귀가, 이동 시간, 길찾기 출처, 경고."""
     route = " → ".join(f"{s.place.name}({s.arrive_at})" for s in course.stops)
@@ -404,7 +471,7 @@ def _score(c: _Candidate, cond: TripConditions, radius: int) -> float:
         score += 3
     if c.place.image_url:
         score += 0.5  # 정보가 충실한 장소를 우선
-    score -= 2 * min(c.distance_m / radius, 1)  # 가까울수록 좋음
+    score -= ranking.DISTANCE_WEIGHT * min(c.distance_m / radius, 1)  # 가까울수록 좋음 (비중은 낮게)
     if cond.has_infant() and c.indoor:
         score += 0.5  # 영아는 실내가 편하다
     if cond.with_pet and c.place.amenities.get("pet") == Amenity.AVAILABLE:
