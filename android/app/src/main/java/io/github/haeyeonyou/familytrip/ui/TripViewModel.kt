@@ -201,6 +201,18 @@ class TripViewModel(private val container: AppContainer) : ViewModel() {
         _state.update { it.copy(savedCourseId = it.savedCourseId ?: now, message = "코스를 저장했어요") }
     }
 
+    /** 저장한 코스를 다시 연다 (경험 우주에서 장소를 눌렀을 때). */
+    fun openSavedCourse(saved: SavedCourse) = _state.update {
+        it.copy(
+            course = saved.course,
+            conditions = saved.conditions,
+            courseOrigin = saved.origin,
+            savedCourseId = saved.id,
+            error = null,
+            message = null,
+        )
+    }
+
     fun dismissMessage() = _state.update { it.copy(message = null) }
 
     /** 귀가를 뺀 방문 장소. 지금 체류 시간을 그대로 넘겨 사용자가 바꾼 값이 유지되게 한다. */

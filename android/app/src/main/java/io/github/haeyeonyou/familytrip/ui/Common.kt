@@ -26,7 +26,7 @@ val THEME_LABELS = mapOf(
     "nature" to "자연",
     "experience" to "체험",
     "exhibition" to "전시",
-    "play" to "놀이",
+    "play" to "쇼핑·놀이",
     "pet" to "반려동물",
 )
 val NEED_LABELS = mapOf(

@@ -21,6 +21,11 @@ def test_infant_needs_and_drive_limit():
     assert c.max_drive_minutes == 60
 
 
+def test_shopping_is_play_theme():
+    c = parser.parse("비 오는 날 아이랑 쇼핑하면서 놀 곳")
+    assert Theme.PLAY in c.themes
+
+
 def test_negated_need_is_ignored():
     c = parser.parse("5살 7살 아이랑 체험, 유모차 필요 없고 수유실은 있으면 좋겠어")
     assert c.child_ages == [5, 7]
