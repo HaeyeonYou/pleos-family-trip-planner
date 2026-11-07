@@ -1,6 +1,0 @@
-{
- "request": "GET apis.data.go.kr/B551011/KorWithService2/detailWithTour2?MobileApp=FamilyTrip&MobileOS=ETC&_type=json&contentId=2739469",
- "status": 200,
- "content_type": "application/json",
- "body": "{\"response\": {\"header\":{\"resultCode\":\"0000\",\"resultMsg\":\"OK\"},\"body\": {\"items\": {\"item\":[{\"contentid\":\"2739469\",\"parking\":\"\",\"publictransport\":\"\",\"route\":\"주 출입구 경사로 가파름\",\"ticketoffice\":\"\",\"promotion\":\"\",\"wheelchair\":\"\",\"exit\":\"\",\"elevator\":\"\",\"restroom\":\"여닫이 문\\n휠체어가 들어가기 다소 좁은 공간\\n대변기, 소변기 손잡이 있음\\n유아용 보호의자 있음\",\"auditorium\":\"\",\"room\":\"\",\"handicapetc\":\"\",\"braileblock\":\"\",\"helpdog\":\"\",\"guidehuman\":\"\",\"audioguide\":\"\",\"bigprint\":\"\",\"brailepromotion\":\"\",\"guidesystem\":\"\",\"blindhandicapetc\":\"\",\"signguide\":\"\",\"videoguide\":\"\",\"hearingroom\":\"\",\"hearinghandicapetc\":\"\",\"stroller\":\"\",\"lactationroom\":\"수유실 내 소파, 기저귀 교환대, 싱크대 있음\",\"babysparechair\":\"\",\"infantsfamilyetc\":\"유아용 화장실 (가족 화장실) 있음\"}]},\"numOfRows\":1,\"pageNo\":1,\"totalCount\":1}}}"
-}
