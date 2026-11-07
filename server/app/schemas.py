@@ -92,6 +92,7 @@ class CourseRequest(BaseModel):
 class ScheduleStop(BaseModel):
     role: StopRole
     place: Place
+    stay_minutes: int | None = Field(None, ge=0, le=480, description="머무는 시간(분). 없으면 역할 기본값")
 
 
 class ScheduleRequest(BaseModel):
@@ -102,6 +103,7 @@ class ScheduleRequest(BaseModel):
     home: LatLng | None = Field(None, description="귀가 지점. 없으면 출발지")
     departure_time: str | None = Field(None, pattern=r"^\d{2}:\d{2}$", description="출발 시각 HH:MM. 없으면 지금")
     stops: list[ScheduleStop] = Field(..., min_length=1, description="귀가를 뺀 방문 순서")
+    suggest_nearby: bool = Field(False, description="나들이 장소 근처 식사·카페 후보를 새로 찾아 alternatives로 준다")
 
 
 class CourseResponse(BaseModel):
