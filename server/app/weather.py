@@ -28,6 +28,7 @@ class Weather(BaseModel):
     temperature: float | None = None
     condition: str = ""
     rainy: bool = False
+    region: str = ""  # 구 이름 (예: 강남구). 홈 칩의 위치 표시
     source: str = "kma"
 
 
@@ -54,6 +55,24 @@ def _items(client: httpx.Client, op: str, key: str, params: dict) -> list[dict]:
     if body["header"]["resultCode"] != "00":
         raise RuntimeError(body["header"]["resultMsg"])
     return body["body"]["items"]["item"]
+
+
+def region_name(kakao_key: str, lat: float, lng: float) -> str:
+    """카카오 좌표→행정구역으로 '강남구' 같은 시·군·구 이름을 얻는다. 실패하면 빈 문자열."""
+    try:
+        res = httpx.get(
+            "https://dapi.kakao.com/v2/local/geo/coord2regioncode.json",
+            params={"x": lng, "y": lat},
+            headers={"Authorization": f"KakaoAK {kakao_key}"},
+            timeout=5,
+        )
+        res.raise_for_status()
+        docs = res.json()["documents"]
+        doc = next((d for d in docs if d["region_type"] == "H"), docs[0])
+        return doc["region_2depth_name"]
+    except Exception as e:  # noqa: BLE001
+        log.info("지역 이름 조회 실패: %r", e)
+        return ""
 
 
 def fetch(key: str, lat: float, lng: float, now: datetime | None = None) -> Weather:
@@ -105,5 +124,7 @@ def weather(
     except Exception as e:  # noqa: BLE001
         log.warning("날씨 조회 실패: %r", e)
         raise HTTPException(502, "날씨를 가져오지 못했어요") from e
+    if settings.kakao_rest_api_key:
+        result.region = region_name(settings.kakao_rest_api_key, lat, lng)
     _cache[grid] = (time.monotonic(), result)
     return result
