@@ -125,6 +125,9 @@ class MainActivity : ComponentActivity() {
                                 CourseScreen(
                                     course = course,
                                     isParked = vehicle.isParked,
+                                    loading = state.loading,
+                                    error = state.error,
+                                    onSwap = vm::swapPlace,
                                     onStartGuide = {
                                         vm.startGuide()
                                         nav.navigate(Routes.GUIDE)

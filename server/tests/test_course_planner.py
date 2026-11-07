@@ -3,7 +3,7 @@ from datetime import datetime
 import pytest
 
 from app.course.planner import KST, CoursePlanner, NoCourseError
-from app.schemas import Amenity, CourseRequest, LatLng, StopRole, Theme, TripConditions
+from app.schemas import Amenity, CourseRequest, LatLng, Place, ScheduleRequest, ScheduleStop, StopRole, Theme, TripConditions
 from app.sources.kakao import CATEGORY_CAFE, CATEGORY_RESTAURANT, KakaoPlace, Leg
 from app.sources.tour import CONTENT_TYPE_ATTRACTION, CONTENT_TYPE_CULTURE, PET, TourPlace
 
@@ -71,6 +71,7 @@ def plan(conditions=None, tour_src=None, kakao_src=None, **req):
 PARK = tour("p1", "역삼공원", "A02020700", 800)
 MUSEUM = tour("m1", "어린이박물관", "A02060100", 3000, type_id=CONTENT_TYPE_CULTURE)
 FARM = tour("f1", "체험농장", "A02030200", 5000)
+MUSEUM_PLACE = Place(name="어린이박물관", latitude=37.51, longitude=127.04, source="tour", source_id="m1")
 
 
 def test_builds_meal_outing_cafe_home_with_timetable():
@@ -215,3 +216,31 @@ def test_interest_search_adds_kakao_outing_places_only():
     names = [p.name for p in res.alternatives[StopRole.OUTING]]
     assert "기차 장난감 가게" not in names
     assert [q for q in kk.queries if q not in ("키즈카페", "실내놀이터")] == ["기차", "공룡"]  # 최대 2개
+
+
+# 장소 교체 후 시간표 재계산
+
+
+def test_reschedule_keeps_given_places_and_recomputes_times():
+    course = plan(tour_src=FakeTour({CONTENT_TYPE_ATTRACTION: [PARK]}), departure_time="10:30")
+    assert course.departure_at == "10:30"
+    swapped = [ScheduleStop(role=s.role, place=s.place) for s in course.stops]
+    swapped[1] = ScheduleStop(role=StopRole.OUTING, place=MUSEUM_PLACE)
+    planner = CoursePlanner(FakeTour(), FakeKakao(legs_minutes=[20, 30, 20, 20]), now=NOW)
+    res = planner.reschedule(
+        ScheduleRequest(conditions=TripConditions(), origin=ORIGIN, departure_time="10:30", stops=swapped)
+    )
+    assert [s.place.name for s in res.stops] == ["한식당", "어린이박물관", "카페", "귀가"]
+    # 10:30 출발, 구간 20·30·20·20분, 식사 60, 나들이 120, 카페 40
+    assert [s.arrive_at for s in res.stops] == ["10:50", "12:20", "14:40", "15:40"]
+    assert res.departure_at == "10:30"
+
+
+def test_reschedule_ignores_home_stop_and_warns_when_late():
+    stops = [ScheduleStop(role=StopRole.OUTING, place=MUSEUM_PLACE), ScheduleStop(role=StopRole.HOME, place=MUSEUM_PLACE)]
+    planner = CoursePlanner(FakeTour(), FakeKakao(), now=NOW)
+    res = planner.reschedule(
+        ScheduleRequest(conditions=TripConditions(return_by_hour=12), origin=ORIGIN, departure_time="10:30", stops=stops)
+    )
+    assert [s.role for s in res.stops] == [StopRole.OUTING, StopRole.HOME]
+    assert any("귀가하기 어려워요" in w for w in res.warnings)
