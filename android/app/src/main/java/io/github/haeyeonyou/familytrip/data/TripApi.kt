@@ -244,6 +244,41 @@ data class CarePlace(
 @Serializable
 data class CareNearby(val kind: String, val places: List<CarePlace>)
 
+// 음성 명령 해석 (서버 app/voice.py)
+
+@Serializable
+data class VoiceScreen(
+    val tab: String = "home",
+    @SerialName("has_course") val hasCourse: Boolean = false,
+    val guiding: Boolean = false,
+    @SerialName("baby_care") val babyCare: Boolean = false,
+    @SerialName("sleep_mode") val sleepMode: Boolean = false,
+    @SerialName("child_months") val childMonths: Int? = null,
+    @SerialName("has_options") val hasOptions: Boolean = false,
+    @SerialName("has_home_options") val hasHomeOptions: Boolean = false,
+)
+
+@Serializable
+data class VoiceInterpretRequest(val text: String, val screen: VoiceScreen = VoiceScreen())
+
+/** 서버가 해석한 동작 하나. [source]가 fallback이면 해석하지 못한 것이다. */
+@Serializable
+data class VoiceInterpretation(
+    val action: String = "unknown",
+    val target: String? = null,
+    val on: Boolean? = null,
+    val number: Int? = null,
+    val temperature: Double? = null,
+    @SerialName("temperature_delta") val temperatureDelta: Double? = null,
+    val ac: Boolean? = null,
+    @SerialName("driver_seat_heat") val driverSeatHeat: Int? = null,
+    @SerialName("passenger_seat_heat") val passengerSeatHeat: Int? = null,
+    @SerialName("steering_heat") val steeringHeat: Int? = null,
+    val confidence: Double = 0.0,
+    val reply: String = "",
+    val source: String = "llm",
+)
+
 interface TripApi {
     @POST("parse")
     suspend fun parse(@Body request: ParseRequest): ParseResponse
@@ -253,6 +288,10 @@ interface TripApi {
 
     @POST("course/suggest")
     suspend fun suggest(@Body request: CourseRequest): SuggestResponse
+
+    /** 자연어 음성 명령을 앱 동작으로 해석한다 (서버가 3초 안에 못 받으면 unknown·fallback). */
+    @POST("voice/interpret")
+    suspend fun interpretVoice(@Body request: VoiceInterpretRequest): VoiceInterpretation
 
     @GET("weather")
     suspend fun weather(@Query("lat") latitude: Double, @Query("lng") longitude: Double): WeatherInfo

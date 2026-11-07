@@ -164,13 +164,15 @@ class VoiceIo(private val context: Context) {
     private var pleosSttFailed = false
     private var recognizer: SpeechRecognizer? = null
     private var pendingListen: ((ListenResult) -> Unit)? = null
+    private var pendingPartial: ((String) -> Unit)? = null
     private var timeout: Runnable? = null
 
     /** 한 문장을 듣는다. [timeoutMs] 안에 못 알아들으면 [ListenResult.Failed]로 끝낸다. */
-    fun listen(timeoutMs: Long = LISTEN_TIMEOUT_MS, onResult: (ListenResult) -> Unit) {
+    fun listen(timeoutMs: Long = LISTEN_TIMEOUT_MS, onPartial: (String) -> Unit = {}, onResult: (ListenResult) -> Unit) {
         main.post {
             cancelListenNow()
             pendingListen = onResult
+            pendingPartial = onPartial
             timeout = Runnable { finishListen(ListenResult.Failed("시간 안에 말씀을 듣지 못했어요")) }.also { main.postDelayed(it, timeoutMs) }
             if (!pleosSttFailed && startPleosStt()) Unit else startAndroidStt()
         }
@@ -204,7 +206,8 @@ class VoiceIo(private val context: Context) {
                 val stt = SpeechToText(context, SttMode.ON_DEVICE)
                 stt.addListener(object : ResultListener {
                     override fun onUpdated(text: String, isFinal: Boolean) {
-                        if (isFinal && text.isNotBlank()) main.post { finishListen(ListenResult.Heard(text)) }
+                        if (text.isBlank()) return
+                        if (isFinal) main.post { finishListen(ListenResult.Heard(text)) } else main.post { pendingPartial?.invoke(text) }
                     }
 
                     override fun onUpdatedEpdData(epdOn: Long, epdOff: Long) = Unit
@@ -279,7 +282,10 @@ class VoiceIo(private val context: Context) {
                 override fun onRmsChanged(rmsdB: Float) = Unit
                 override fun onBufferReceived(buffer: ByteArray?) = Unit
                 override fun onEndOfSpeech() = Unit
-                override fun onPartialResults(partialResults: Bundle?) = Unit
+                override fun onPartialResults(partialResults: Bundle?) {
+                    val text = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()
+                    if (text.isNotBlank()) pendingPartial?.invoke(text)
+                }
                 override fun onEvent(eventType: Int, params: Bundle?) = Unit
             })
             recognizer = it
@@ -288,7 +294,8 @@ class VoiceIo(private val context: Context) {
             r.startListening(
                 Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
                     .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                    .putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ko-KR"),
+                    .putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ko-KR")
+                    .putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true),
             )
         }.onFailure {
             Log.w(TAG, "Android STT start failed", it)

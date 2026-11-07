@@ -172,6 +172,73 @@ class PleosVehicleRepository(context: Context) : VehicleRepository {
         return ClimateApplyResult(applied, failed)
     }
 
+    override suspend fun applyClimateChange(change: ClimateChange): ClimateApplyResult {
+        val applied = mutableListOf<String>()
+        val failed = mutableListOf<String>()
+        suspend fun step(label: String, block: suspend () -> Unit) {
+            repeat(2) { attempt ->
+                try {
+                    withTimeout(SDK_TIMEOUT_MS) { block() }
+                    applied += label
+                    return
+                } catch (e: Exception) {
+                    Log.w(TAG, "climate change $label failed (try ${attempt + 1})", e)
+                    if (attempt == 0) delay(RETRY_DELAY_MS)
+                }
+            }
+            failed += label
+        }
+        val hvac = vehicle.getHVAC()
+        val seat = vehicle.getSeat()
+        change.power?.let { on ->
+            val zones = capability(emptyList()) { ok, fail -> hvac.checkHvacPowerCapabilities({ _, l -> ok(l) }, fail) }
+            step(if (on) "공조 켜기" else "공조 끄기") {
+                requireZones(zones).forEach { area -> sdk<Unit> { ok, fail -> hvac.setHvacPower(area, on, { _, _ -> ok(Unit) }, fail) } }
+            }
+        }
+        change.temperature?.let { t ->
+            val zones = capability(emptyMap()) { ok, fail -> hvac.checkHvacTemperatureCapabilities({ _, m -> ok(m) }, fail) }
+            step("온도 ${t}°C") {
+                requireZones(zones.keys).forEach { area ->
+                    val b = zones.getValue(area)
+                    sdk<Unit> { ok, fail -> hvac.setHvacTemperature(area, t.coerceIn(b.minValue, b.maxValue), TemperatureUnit.CELSIUS, { _, _ -> ok(Unit) }, fail) }
+                }
+            }
+        }
+        change.fanSpeed?.let { level ->
+            val zones = capability(emptyMap()) { ok, fail -> hvac.checkHvacFanSpeedCapabilities({ _, m -> ok(m) }, fail) }
+            step("풍량 ${level}단") {
+                requireZones(zones.keys).forEach { area ->
+                    val b = zones.getValue(area)
+                    sdk<Unit> { ok, fail -> hvac.setHvacFanSpeed(area, level.coerceIn(b.minValue, b.maxValue), { _, _ -> ok(Unit) }, fail) }
+                }
+            }
+        }
+        change.ac?.let { on ->
+            val zones = capability(emptyList()) { ok, fail -> hvac.checkHvacAcCapabilities({ _, l -> ok(l) }, fail) }
+            step(if (on) "에어컨 켜기" else "에어컨 끄기") {
+                requireZones(zones).forEach { area -> sdk<Unit> { ok, fail -> hvac.setHvacAc(area, on, { _, _ -> ok(Unit) }, fail) } }
+            }
+        }
+        change.driverSeatHeat?.let { level ->
+            step(heatLabel("운전석 열선", level)) {
+                sdk<Unit> { ok, fail -> seat.setHvacSeatTemperature(SeatArea(SeatValue.ROW_1_LEFT), level, { _, _ -> ok(Unit) }, fail) }
+            }
+        }
+        change.passengerSeatHeat?.let { level ->
+            step(heatLabel("조수석 열선", level)) {
+                sdk<Unit> { ok, fail -> seat.setHvacSeatTemperature(SeatArea(SeatValue.ROW_1_RIGHT), level, { _, _ -> ok(Unit) }, fail) }
+            }
+        }
+        change.steeringWheelHeat?.let { level ->
+            step(heatLabel("핸들 열선", level)) {
+                sdk<Unit> { ok, fail -> vehicle.getSteeringWheel().setHvacSteeringWheelHeat(level, { ok(Unit) }, fail) }
+            }
+        }
+        Log.i(TAG, "climate change applied=$applied failed=$failed")
+        return ClimateApplyResult(applied, failed)
+    }
+
     override suspend fun setFanSpeed(level: Int): Boolean {
         val hvac = vehicle.getHVAC()
         val zones = capability(emptyMap()) { ok, fail -> hvac.checkHvacFanSpeedCapabilities({ _, m -> ok(m) }, fail) }
