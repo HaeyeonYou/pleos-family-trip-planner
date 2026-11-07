@@ -103,3 +103,22 @@ def test_suggest_varies_by_seed_and_keeps_distinct_places():
         assert len(set(keys)) == 3
         sets.add(tuple(keys))
     assert len(sets) >= 3
+
+
+def test_festival_today_is_offered_with_period_and_bonus():
+    import dataclasses as dc
+
+    fest = dc.replace(PARK, content_id="fe1", title="가을 가족 축제", distance_m=4000, event_start="20261101", event_end="20261110")
+    beer = dc.replace(fest, content_id="fe2", title="옥토버페스트")
+    src = FakeTour({CONTENT_TYPE_ATTRACTION: PARKS})
+    src.festival_places = [fest, beer]
+    p = CoursePlanner(src, FakeKakao(), now=NOW)
+    shown = set()
+    for seed in range(40):
+        place = outing_of(p.plan(req(seed=seed)))
+        shown.add(place.source_id)
+        if place.source_id == "fe1":
+            assert place.event_period == "2026-11-01~2026-11-10" and place.category == "행사·축제"
+    assert "fe1" in shown and "fe2" not in shown  # 주류 행사는 뺀다
+    ranked = p._rank_outings(ORIGIN, TripConditions(), [], NOW.date())
+    assert next(c for c in ranked if c.place.source_id == "fe1").festival

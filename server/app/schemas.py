@@ -88,6 +88,7 @@ class Place(BaseModel):
     image_url: str = ""
     amenities: dict[str, Amenity] = Field(default_factory=dict, description="stroller, nursing_room, kids_chair, kids_zone, parking, pet(반려견 동반)")
     amenity_notes: dict[str, str] = Field(default_factory=dict, description="편의 정보 원문")
+    event_period: str = Field("", description="행사·축제면 기간 (예: 2026-11-01~2026-11-10)")
     theme: Theme | None = Field(
         None,
         description="나들이 장소의 경험 분야 (TourAPI 분류코드·카카오 분류에서). 앱 경험 지도가 쓴다",
