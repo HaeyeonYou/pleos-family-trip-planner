@@ -29,7 +29,7 @@ from app.schemas import (
     VisitSummary,
 )
 from app.sources.kakao import CATEGORY_CAFE, CATEGORY_RESTAURANT, KakaoPlace, Leg
-from app.sources.tour import CONTENT_TYPE_ATTRACTION, CONTENT_TYPE_CULTURE, PET, TourPlace
+from app.sources.tour import CONTENT_TYPE_ATTRACTION, CONTENT_TYPE_CULTURE, CONTENT_TYPE_LEISURE, PET, TourPlace
 
 KST = ZoneInfo("Asia/Seoul")
 
@@ -56,6 +56,8 @@ class TourSource(Protocol):
         service: str = ..., rows: int = ...,
     ) -> list[TourPlace]: ...
 
+    def festivals(self, today: date, latitude: float, longitude: float, radius_m: int) -> list[TourPlace]: ...
+
     def amenities(self, content_id: str) -> dict[str, str]: ...
 
     def parking(self, content_id: str, content_type_id: int) -> str: ...
@@ -81,6 +83,7 @@ class _Candidate:
     distance_m: float
     score: float = 0.0
     content_type_id: int = 0  # TourAPI 분류 (주차 정보 조회에 쓴다)
+    festival: bool = False
     looked_up: bool = False  # 육아 편의 상세를 이미 조회했는지
 
     @property
@@ -273,8 +276,38 @@ class CoursePlanner:
     def _general_candidates(self, origin: LatLng, radius: int, cond: TripConditions) -> list[_Candidate]:
         candidates = self._tour_candidates(origin, radius, with_pet=False)
         candidates += self._play_candidates(origin, radius)
+        candidates += self._leisure_candidates(origin, radius)
+        candidates += self._festival_candidates(origin, radius)
         candidates += self._interest_candidates(origin, radius, cond.interests, candidates)
         return candidates
+
+    def _leisure_candidates(self, origin: LatLng, radius: int) -> list[_Candidate]:
+        """레포츠 중 스케이트장·물놀이장·눈썰매장처럼 아이와 갈 만한 곳."""
+        result = []
+        for p in self._tour.nearby(origin.latitude, origin.longitude, radius, content_type_id=CONTENT_TYPE_LEISURE):
+            kind = classify.leisure_kind(p)
+            if kind is None:
+                continue
+            theme, indoor = kind
+            result.append(
+                _Candidate(place=_tour_place(p), theme=theme, indoor=indoor, distance_m=p.distance_m, content_type_id=p.content_type_id)
+            )
+        return result
+
+    def _festival_candidates(self, origin: LatLng, radius: int) -> list[_Candidate]:
+        """오늘 열리는 행사·축제. 점수에서 가점을 받아 상단에 오른다 (#48)."""
+        result = []
+        for p in self._tour.festivals(self._today(), origin.latitude, origin.longitude, radius):
+            if not classify.event_is_suitable(p):
+                continue
+            place = _tour_place(p)
+            place.category = "행사·축제"
+            place.event_period = f"{_dash(p.event_start)}~{_dash(p.event_end)}"
+            result.append(
+                _Candidate(place=place, theme=Theme.EXPERIENCE, indoor=False, distance_m=p.distance_m,
+                           content_type_id=p.content_type_id, festival=True)
+            )
+        return result
 
     def _pet_candidates(self, origin: LatLng, radius: int, cond: TripConditions) -> list[_Candidate]:
         """반려견 동반 장소를 먼저 쓰고, 너무 적으면 일반 장소도 '동반 정보 없음'으로 함께 낸다.
@@ -466,7 +499,7 @@ def describe(course: CourseResponse) -> str:
 
 
 def _score(c: _Candidate, cond: TripConditions, radius: int) -> float:
-    score = 0.0
+    score = ranking.FESTIVAL_BONUS if c.festival else 0.0
     if cond.themes and c.theme in cond.themes:
         score += 3
     if c.place.image_url:
@@ -480,6 +513,10 @@ def _score(c: _Candidate, cond: TripConditions, radius: int) -> float:
     if any(term in text for i in cond.interests for term in interests.terms(i)):
         score += 3  # 아이 관심사와 맞으면 테마 일치만큼 가점
     return score
+
+
+def _dash(ymd: str) -> str:
+    return f"{ymd[:4]}-{ymd[4:6]}-{ymd[6:]}"
 
 
 def _stay_minutes(role: StopRole, cond: TripConditions) -> int:
