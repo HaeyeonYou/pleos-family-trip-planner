@@ -26,7 +26,7 @@ val THEME_LABELS = mapOf(
     "nature" to "자연",
     "experience" to "체험",
     "exhibition" to "전시",
-    "play" to "놀이",
+    "play" to "쇼핑·놀이",
     "pet" to "반려동물",
 )
 val NEED_LABELS = mapOf(
@@ -34,6 +34,7 @@ val NEED_LABELS = mapOf(
     "nursing_room" to "수유실",
     "kids_chair" to "유아 의자",
     "kids_zone" to "키즈존",
+    "parking" to "주차",
 )
 
 /** 장소 카드에 보여 줄 편의 정보 이름 (육아 편의 + 반려견 동반). */

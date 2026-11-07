@@ -28,6 +28,14 @@ object TripColors {
     val AmberSoft = Color(0xFFFFF4E0)
     val Route = Color(0xFF4F5BF2)
 
+    // 경험 우주 (HF04): 별 배경 패널과 분야별 노드 색
+    val Universe = Color(0xFF0B0F1D)
+    val UniverseLine = Color(0xFF3A4160)
+    val FieldShop = Color(0xFF7C8CFF)
+    val FieldExhibit = Color(0xFFB382FF)
+    val FieldExperience = Color(0xFFFFA94D)
+    val FieldNature = Color(0xFF3DDC97)
+
     // 지도 배경 (우리 창 안의 지도 레이어)
     val MapGround = Color(0xFFECEFF2)
     val MapRoad = Color(0xFFFFFFFF)
