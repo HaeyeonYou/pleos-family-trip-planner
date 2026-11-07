@@ -44,7 +44,7 @@ class AppContainer(private val app: Application) {
     val guide = GuideSession(app, navi, location, notifier, visits, scope)
     val care = CareController(app, vehicle, navi, location, api, guide, notifier, feeding, scope)
     val voiceIo = VoiceIo(app)
-    val voice = VoiceController(voiceIo, care, scope)
+    val voice = VoiceController(voiceIo, care, vehicle, navi, api, scope)
 
     private var locationStarted = false
 

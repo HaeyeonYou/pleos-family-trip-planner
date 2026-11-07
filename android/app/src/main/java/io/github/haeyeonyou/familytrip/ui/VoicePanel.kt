@@ -121,6 +121,25 @@ fun VoicePanel(
                 Text(state.notice, fontSize = 18.sp, color = MaterialTheme.colorScheme.error)
             }
 
+            // 되묻기: 운전 중 위험할 수 있는 동작은 확인 뒤에 한다
+            if (state.confirm != null) {
+                Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                    Text(
+                        "응, 해 주세요",
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        modifier = Modifier.clip(RoundedCornerShape(24.dp)).background(accent).clickable { onSubmit("응") }.padding(horizontal = 40.dp, vertical = 20.dp),
+                    )
+                    Text(
+                        "아니야",
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.clip(RoundedCornerShape(24.dp)).background(TripColors.Tile).clickable { onSubmit("아니야") }.padding(horizontal = 40.dp, vertical = 20.dp),
+                    )
+                }
+            }
+
             // 후보
             if (state.options.isNotEmpty()) {
                 Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
