@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -32,9 +33,11 @@ import io.github.haeyeonyou.familytrip.ui.DevScreen
 import io.github.haeyeonyou.familytrip.ui.ExperienceScreen
 import io.github.haeyeonyou.familytrip.ui.GuideScreen
 import io.github.haeyeonyou.familytrip.ui.InputScreen
+import io.github.haeyeonyou.familytrip.ui.LoginScreen
 import io.github.haeyeonyou.familytrip.ui.NotificationOffBanner
 import io.github.haeyeonyou.familytrip.ui.ProfileScreen
 import io.github.haeyeonyou.familytrip.ui.TripViewModel
+import kotlinx.coroutines.launch
 
 private object Routes {
     const val INPUT = "input"
@@ -43,6 +46,7 @@ private object Routes {
     const val DEV = "dev"
     const val PROFILE = "profile"
     const val EXPERIENCE = "experience"
+    const val LOGIN = "login"
 }
 
 class MainActivity : ComponentActivity() {
@@ -111,11 +115,45 @@ class MainActivity : ComponentActivity() {
                     val guide by vm.guide.collectAsStateWithLifecycle()
                     val nav = rememberNavController()
                     // 알림으로 앱을 다시 열었을 때 안내 중이면 안내 화면부터 (처음 한 번만 정한다)
-                    val start = remember { if (vm.guide.value.active) Routes.GUIDE else Routes.INPUT }
+                    val account by container.account.account.collectAsStateWithLifecycle()
+                    val scope = rememberCoroutineScope()
+                    val start = remember {
+                        when {
+                            vm.guide.value.active -> Routes.GUIDE
+                            // 처음 실행·로그아웃 상태면 로그인 QR부터 (이번 실행에서 건너뛰면 묻지 않음)
+                            container.account.account.value == null && !container.account.skipped -> Routes.LOGIN
+                            else -> Routes.INPUT
+                        }
+                    }
+                    fun goHome() = nav.navigate(Routes.INPUT) { popUpTo(0) }
 
                     NavHost(navController = nav, startDestination = start) {
+                        composable(Routes.LOGIN) {
+                            LoginScreen(
+                                api = container.api,
+                                isParked = vehicle.isParked,
+                                onLoggedIn = {
+                                    container.account.save(it)
+                                    goHome()
+                                },
+                                onSkip = {
+                                    container.account.skipped = true
+                                    goHome()
+                                },
+                            )
+                        }
                         composable(Routes.INPUT) {
                             InputScreen(
+                                account = account?.user,
+                                onLogin = { nav.navigate(Routes.LOGIN) },
+                                onLogout = {
+                                    scope.launch {
+                                        // 서버 세션을 먼저 폐기하고, 연결이 안 돼도 차에서는 지운다.
+                                        runCatching { container.api.logout() }
+                                        container.account.clear()
+                                        nav.navigate(Routes.LOGIN) { popUpTo(0) }
+                                    }
+                                },
                                 state = state,
                                 isParked = vehicle.isParked,
                                 onTextChange = vm::onRequestTextChange,
