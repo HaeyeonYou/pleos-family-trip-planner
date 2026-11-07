@@ -132,3 +132,10 @@ def test_night_events_and_pubs_are_excluded():
     assert classify.event_is_suitable(dataclasses.replace(PARK, title="가을 가족 축제"))
     assert not classify.restaurant_is_suitable(kakao("r9", "고래맥주창고", "음식점 > 한식"))
     assert classify.restaurant_is_suitable(kakao("r8", "돈까스집", "음식점 > 일식"))
+
+
+def test_adult_shows_are_excluded_unless_family_words():
+    from app.course import classify
+
+    assert not classify.event_is_suitable(dataclasses.replace(PARK, title="쿼드, 연극의 질문들"))
+    assert classify.event_is_suitable(dataclasses.replace(PARK, title="어린이 인형극 연극제"))

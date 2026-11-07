@@ -149,6 +149,10 @@ data class WeatherInfo(
     val temperature: Double? = null,
     val condition: String = "",
     val rainy: Boolean = false,
+    /** 앞으로 6시간 중 가장 높은 강수확률(%). 단기예보 */
+    @SerialName("rain_chance") val rainChance: Int? = null,
+    /** 지금은 아니어도 곧 비·눈이 올 가능성이 높음 */
+    @SerialName("rain_later") val rainLater: Boolean = false,
     /** 시·군·구 이름 (예: 강남구). 못 구하면 빈 문자열 */
     val region: String = "",
 )

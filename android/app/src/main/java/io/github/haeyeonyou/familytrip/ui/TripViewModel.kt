@@ -199,7 +199,7 @@ class TripViewModel(private val container: AppContainer) : ViewModel() {
             runCatching { container.api.weather(origin.latitude, origin.longitude) }
                 .onSuccess { w ->
                     _state.update { it.copy(weather = w) }
-                    if (w.rainy && !indoorTouched && !_state.value.homeFilters.indoor) {
+                    if ((w.rainy || w.rainLater) && !indoorTouched && !_state.value.homeFilters.indoor) {
                         _state.update { it.copy(homeFilters = it.homeFilters.copy(indoor = true)) }
                     }
                 }
