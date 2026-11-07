@@ -80,11 +80,32 @@ data class CoursePlace(
     val theme: String? = null,
 )
 
+/** 장소 근처 주차장 한 곳. 서버가 추천순으로 최대 3곳을 준다. 목록이 비어 있으면 '없음'이 아니라 '정보 없음'. */
+@Serializable
+data class StopParking(
+    val name: String,
+    /** 공영 / 민영 */
+    val kind: String? = null,
+    @SerialName("distance_m") val distanceMeters: Int = 0,
+    /** 직선거리 기준으로 어림한 도보 분 */
+    @SerialName("walk_minutes") val walkMinutes: Int = 1,
+    val capacity: Int? = null,
+    @SerialName("fee_summary") val feeSummary: String = "",
+    val free: Boolean = false,
+    val hours: String = "",
+    /** 도착 시각에 운영하는지. null이면 운영시간을 모름 */
+    @SerialName("open_at_arrival") val openAtArrival: Boolean? = null,
+    val latitude: Double = 0.0,
+    val longitude: Double = 0.0,
+)
+
 @Serializable
 data class CourseStop(
     /** meal, outing, cafe, home */
     val role: String,
     val place: CoursePlace,
+    /** 옛 저장본에는 없다 → 빈 목록 */
+    val parking: List<StopParking> = emptyList(),
     @SerialName("arrive_at") val arriveAt: String,
     @SerialName("depart_at") val departAt: String? = null,
     @SerialName("stay_minutes") val stayMinutes: Int = 0,

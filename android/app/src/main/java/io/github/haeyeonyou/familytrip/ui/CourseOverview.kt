@@ -31,10 +31,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.haeyeonyou.familytrip.data.CourseResponse
 import io.github.haeyeonyou.familytrip.data.CourseStop
+import io.github.haeyeonyou.familytrip.data.StopParking
 import io.github.haeyeonyou.familytrip.data.FeedingRoutine
 import java.time.Duration
 import java.time.LocalTime
@@ -141,6 +143,7 @@ private fun Timeline(course: CourseResponse, modifier: Modifier) {
                 } else {
                     Sub(listOfNotNull(ROLE_LABELS[stop.role], stop.place.shortCategory(), "${stop.stayMinutes}분 머무름").joinToString(" · "))
                     AmenityChips(stop)
+                    ParkingInfo(stop.parking)
                 }
             }
         }
@@ -194,6 +197,42 @@ private fun AmenityChips(stop: CourseStop) {
         }
     }
 }
+
+/**
+ * 주차 정보: 추천 1순위를 한 줄로 ("주차 공영 120면 · 30분 400원 · 도보 약 2분"), 나머지는 작게 이름·거리만.
+ * 목록이 비면 줄 자체를 숨긴다 ('정보 없음'과 '없음'을 구분해 없다고 단정하지 않는다).
+ */
+@Composable
+private fun ParkingInfo(lots: List<StopParking>) {
+    val best = lots.firstOrNull() ?: return
+    Column(
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(TripColors.GreenSoft).padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Text(parkingLine(best), fontSize = 18.sp, fontWeight = FontWeight.Medium, color = TripColors.Ink)
+        parkingNote(best)?.let { Text(it, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        lots.drop(1).forEach {
+            Text("다른 곳 · ${it.name} · ${walkText(it)}", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
+private fun walkText(lot: StopParking) = "도보 약 ${lot.walkMinutes}분"
+
+/** "주차 공영 120면 · 30분 400원 · 도보 약 2분" — 모르는 항목은 뺀다. */
+internal fun parkingLine(lot: StopParking): String =
+    listOfNotNull(
+        "주차 " + listOfNotNull(lot.kind, lot.capacity?.let { "${it}면" }).joinToString(" ").ifBlank { lot.name },
+        lot.feeSummary.takeIf { it.isNotBlank() },
+        walkText(lot),
+    ).joinToString(" · ")
+
+/** 이름과, 도착 시각에 운영하지 않을 때의 경고. 운영시간을 모르면 아무 말도 하지 않는다. */
+internal fun parkingNote(lot: StopParking): String? =
+    when (lot.openAtArrival) {
+        false -> "${lot.name} · 도착 때 운영 안 함 (${lot.hours})"
+        else -> lot.name
+    }
 
 /** 도착 정보 (HF02: 도착 시각과 도착 기준 다음 수유까지 여유). */
 @Composable
