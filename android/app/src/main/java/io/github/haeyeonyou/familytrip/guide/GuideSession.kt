@@ -48,6 +48,15 @@ class GuideSession(
                 if (!s.arrived && loc.arrivedAt == current.place.name) onArrived()
             }
         }
+        // 내비의 목적지 도착 이벤트도 도착으로 본다. 근접 알림과 먼저 오는 쪽을 쓴다.
+        // 에뮬레이터에서는 내비 주행 시뮬레이션이 이 이벤트만 낸다 (FusedLocation은 그대로).
+        scope.launch {
+            navi.state.collect { naviState ->
+                val s = _state.value
+                val current = s.current ?: return@collect
+                if (!s.arrived && naviState.arrivedAt == current.place.name) onArrived()
+            }
+        }
     }
 
     fun start(stops: List<CourseStop>) {
