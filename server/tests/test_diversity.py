@@ -122,3 +122,13 @@ def test_festival_today_is_offered_with_period_and_bonus():
     assert "fe1" in shown and "fe2" not in shown  # 주류 행사는 뺀다
     ranked = p._rank_outings(ORIGIN, TripConditions(), [], NOW.date())
     assert next(c for c in ranked if c.place.source_id == "fe1").festival
+
+
+def test_night_events_and_pubs_are_excluded():
+    from app.course import classify
+
+    night = dataclasses.replace(PARK, title="남산 나이트 페스티벌")
+    assert not classify.event_is_suitable(night)
+    assert classify.event_is_suitable(dataclasses.replace(PARK, title="가을 가족 축제"))
+    assert not classify.restaurant_is_suitable(kakao("r9", "고래맥주창고", "음식점 > 한식"))
+    assert classify.restaurant_is_suitable(kakao("r8", "돈까스집", "음식점 > 일식"))
