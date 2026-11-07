@@ -323,7 +323,7 @@ def _score(c: _Candidate, cond: TripConditions, radius: int) -> float:
     if c.place.image_url:
         score += 0.5  # 정보가 충실한 장소를 우선
     score -= 2 * min(c.distance_m / radius, 1)  # 가까울수록 좋음
-    if cond.child_ages and min(cond.child_ages) <= 2 and c.indoor:
+    if cond.has_infant() and c.indoor:
         score += 0.5  # 영아는 실내가 편하다
     text = f"{c.place.name} {c.place.category}"
     if any(term in text for i in cond.interests for term in interests.terms(i)):
@@ -332,7 +332,7 @@ def _score(c: _Candidate, cond: TripConditions, radius: int) -> float:
 
 
 def _stay_minutes(role: StopRole, cond: TripConditions) -> int:
-    if role == StopRole.OUTING and cond.child_ages and min(cond.child_ages) <= 2:
+    if role == StopRole.OUTING and cond.has_infant():
         return INFANT_OUTING_MINUTES
     return STAY_MINUTES[role]
 

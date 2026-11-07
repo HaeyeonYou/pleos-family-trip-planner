@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.haeyeonyou.familytrip.AppContainer
 import io.github.haeyeonyou.familytrip.data.CoursePlace
+import io.github.haeyeonyou.familytrip.data.FamilyProfile
 import io.github.haeyeonyou.familytrip.data.CourseRequest
 import io.github.haeyeonyou.familytrip.data.CourseResponse
 import io.github.haeyeonyou.familytrip.data.LatLng
@@ -35,6 +36,8 @@ data class TripUiState(
     val error: String? = null,
     /** 잠깐 보여 줄 안내 (저장 완료 등). */
     val message: String? = null,
+    /** 한 번 등록한 가족 정보. 없으면 등록을 권한다. */
+    val profile: FamilyProfile? = null,
 )
 
 private const val MIN_STAY_MINUTES = 10
@@ -42,7 +45,7 @@ private const val MAX_STAY_MINUTES = 300
 
 class TripViewModel(private val container: AppContainer) : ViewModel() {
 
-    private val _state = MutableStateFlow(TripUiState())
+    private val _state = MutableStateFlow(TripUiState(profile = container.profile.load()))
     val state: StateFlow<TripUiState> = _state.asStateFlow()
 
     val vehicle = container.vehicle.state
@@ -55,8 +58,21 @@ class TripViewModel(private val container: AppContainer) : ViewModel() {
         if (text.isEmpty()) return
         launchRequest {
             val res = container.api.parse(ParseRequest(text))
-            _state.update { it.copy(conditions = res.conditions, parsedBy = res.parser) }
+            _state.update {
+                it.copy(conditions = it.profile?.applyTo(res.conditions) ?: res.conditions, parsedBy = res.parser)
+            }
         }
+    }
+
+    /** 문장 없이 가족 정보만으로 조건을 만든다 (테마 등은 화면에서 고른다). */
+    fun conditionsFromProfile() {
+        val profile = _state.value.profile ?: return
+        _state.update { it.copy(conditions = profile.applyTo(TripConditions()), parsedBy = null) }
+    }
+
+    fun saveProfile(profile: FamilyProfile) {
+        container.profile.save(profile)
+        _state.update { it.copy(profile = profile, conditions = it.conditions?.let(profile::applyTo)) }
     }
 
     fun updateConditions(transform: (TripConditions) -> TripConditions) =
