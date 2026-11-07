@@ -12,7 +12,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.darkColorScheme
 import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -25,9 +24,15 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import io.github.haeyeonyou.familytrip.location.FUSED_LOCATION_PERMISSION
+import io.github.haeyeonyou.familytrip.ui.AppShell
+import io.github.haeyeonyou.familytrip.ui.CareScreen
 import io.github.haeyeonyou.familytrip.ui.CourseEditActions
+import io.github.haeyeonyou.familytrip.ui.FamilyTripTheme
+import io.github.haeyeonyou.familytrip.ui.MainTab
+import io.github.haeyeonyou.familytrip.ui.SettingsScreen
 import io.github.haeyeonyou.familytrip.ui.CourseScreen
 import io.github.haeyeonyou.familytrip.ui.DevScreen
 import io.github.haeyeonyou.familytrip.ui.ExperienceScreen
@@ -47,6 +52,17 @@ private object Routes {
     const val PROFILE = "profile"
     const val EXPERIENCE = "experience"
     const val LOGIN = "login"
+    const val CARE = "care"
+    const val SETTINGS = "settings"
+}
+
+/** 화면이 속한 왼쪽 메뉴. 로그인 화면은 메뉴 없이 보인다. */
+private fun tabOf(route: String?): MainTab? = when (route) {
+    null, Routes.LOGIN -> null
+    Routes.CARE -> MainTab.CARE
+    Routes.EXPERIENCE -> MainTab.GROW
+    Routes.SETTINGS, Routes.PROFILE, Routes.DEV -> MainTab.SETTINGS
+    else -> MainTab.HOME
 }
 
 class MainActivity : ComponentActivity() {
@@ -103,7 +119,7 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            MaterialTheme(colorScheme = darkColorScheme()) {
+            FamilyTripTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
                   Column {
                     NotificationOffBanner(!notificationsAllowed.value) {
@@ -126,7 +142,25 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                     fun goHome() = nav.navigate(Routes.INPUT) { popUpTo(0) }
+                    val backStack by nav.currentBackStackEntryAsState()
+                    val route = backStack?.destination?.route
+                    // 지도 레이어에는 안내 중이면 안내 코스, 아니면 지금 보고 있는 코스를 그린다.
+                    val mapStops = guide.stops.ifEmpty { state.course?.stops.orEmpty() }
+                    fun openTab(tab: MainTab) {
+                        val target = when (tab) {
+                            MainTab.HOME -> if (guide.active) Routes.GUIDE else Routes.INPUT
+                            MainTab.CARE -> Routes.CARE
+                            MainTab.GROW -> Routes.EXPERIENCE
+                            MainTab.SETTINGS -> Routes.SETTINGS
+                        }
+                        nav.navigate(target) {
+                            popUpTo(Routes.INPUT) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    }
 
+                    AppShell(tab = tabOf(route ?: start), onTab = ::openTab, profile = state.profile, mapStops = mapStops) {
                     NavHost(navController = nav, startDestination = start) {
                         composable(Routes.LOGIN) {
                             LoginScreen(
@@ -145,7 +179,32 @@ class MainActivity : ComponentActivity() {
                         }
                         composable(Routes.INPUT) {
                             InputScreen(
+                                state = state,
+                                isParked = vehicle.isParked,
+                                onTextChange = vm::onRequestTextChange,
+                                onParse = vm::parse,
+                                onConditionsChange = vm::updateConditions,
+                                onMakeCourse = { vm.requestCourse { nav.navigate(Routes.COURSE) } },
+                                onEditProfile = { nav.navigate(Routes.PROFILE) },
+                                onUseProfile = vm::conditionsFromProfile,
+                                onApplyPreset = vm::applyPreset,
+                                onDismissPreset = vm::dismissPreset,
+                            )
+                        }
+                        composable(Routes.CARE) {
+                            CareScreen(
+                                state = state,
+                                isParked = vehicle.isParked,
+                                onApplyPreset = vm::applyPreset,
+                                onDismissPreset = vm::dismissPreset,
+                            )
+                        }
+                        composable(Routes.SETTINGS) {
+                            SettingsScreen(
+                                profile = state.profile,
                                 account = account?.user,
+                                isParked = vehicle.isParked,
+                                onEditProfile = { nav.navigate(Routes.PROFILE) },
                                 onLogin = { nav.navigate(Routes.LOGIN) },
                                 onLogout = {
                                     scope.launch {
@@ -155,18 +214,7 @@ class MainActivity : ComponentActivity() {
                                         nav.navigate(Routes.LOGIN) { popUpTo(0) }
                                     }
                                 },
-                                state = state,
-                                isParked = vehicle.isParked,
-                                onTextChange = vm::onRequestTextChange,
-                                onParse = vm::parse,
-                                onConditionsChange = vm::updateConditions,
-                                onMakeCourse = { vm.requestCourse { nav.navigate(Routes.COURSE) } },
                                 onOpenDev = { nav.navigate(Routes.DEV) },
-                                onEditProfile = { nav.navigate(Routes.PROFILE) },
-                                onUseProfile = vm::conditionsFromProfile,
-                                onShowRecord = { nav.navigate(Routes.EXPERIENCE) },
-                                onApplyPreset = vm::applyPreset,
-                                onDismissPreset = vm::dismissPreset,
                             )
                         }
                         composable(Routes.EXPERIENCE) {
@@ -231,6 +279,7 @@ class MainActivity : ComponentActivity() {
                         composable(Routes.DEV) {
                             DevScreen(container, onBack = { nav.popBackStack() })
                         }
+                    }
                     }
                   }
                 }

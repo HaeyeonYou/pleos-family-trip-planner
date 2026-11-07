@@ -25,7 +25,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import io.github.haeyeonyou.familytrip.data.AccountUser
 import io.github.haeyeonyou.familytrip.data.FamilyProfile
 import io.github.haeyeonyou.familytrip.data.TripConditions
 import io.github.haeyeonyou.familytrip.data.ageLabel
@@ -39,19 +38,14 @@ private val EXAMPLES = listOf(
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun InputScreen(
-    account: AccountUser?,
-    onLogin: () -> Unit,
-    onLogout: () -> Unit,
     state: TripUiState,
     isParked: Boolean,
     onTextChange: (String) -> Unit,
     onParse: () -> Unit,
     onConditionsChange: ((TripConditions) -> TripConditions) -> Unit,
     onMakeCourse: () -> Unit,
-    onOpenDev: () -> Unit,
     onEditProfile: () -> Unit,
     onUseProfile: () -> Unit,
-    onShowRecord: () -> Unit,
     onApplyPreset: () -> Unit,
     onDismissPreset: () -> Unit,
 ) = DrivingAware(isParked) {
@@ -59,17 +53,7 @@ fun InputScreen(
         modifier = Modifier.padding(40.dp).verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("오늘, 어디 가지?", fontSize = 40.sp, modifier = Modifier.weight(1f))
-            if (account != null) {
-                Text("${account.displayName}님", fontSize = 22.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                TextButton(onClick = onLogout) { Text("로그아웃", fontSize = 18.sp) }
-            } else {
-                TextButton(onClick = onLogin) { Text("로그인", fontSize = 18.sp) }
-            }
-            BigOutlinedButton("경험 기록", onShowRecord)
-            TextButton(onClick = onOpenDev) { Text("개발자 화면", fontSize = 18.sp) }
-        }
+        ScreenTitle("오늘 어디 갈까요?", "반경 10km · 가족과 시간에 맞춘 추천")
         PresetCard(state, onApply = onApplyPreset, onDismiss = onDismissPreset)
         FamilyCard(state.profile, onEdit = onEditProfile, onUse = onUseProfile)
         Text("오늘 나들이를 한 문장으로 알려 주세요", fontSize = 26.sp)
@@ -185,7 +169,7 @@ private fun ConditionsEditor(
 
 /** 폰에서 보낸 공조 프리셋 (#62). 적용 후에는 결과 문구만 남는다. */
 @Composable
-private fun PresetCard(state: TripUiState, onApply: () -> Unit, onDismiss: () -> Unit) {
+fun PresetCard(state: TripUiState, onApply: () -> Unit, onDismiss: () -> Unit) {
     val preset = state.pendingPreset
     if (preset == null) {
         state.presetMessage?.let { Text(it, fontSize = 22.sp, color = MaterialTheme.colorScheme.primary) }
