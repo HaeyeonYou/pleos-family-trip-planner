@@ -112,25 +112,43 @@ private fun ChildRow(order: Int, child: Child, now: YearMonth, onChange: (Child)
         if (moved > now || moved < now.minusYears(MAX_CHILD_AGE_YEARS.toLong())) return
         onChange(Child(moved.year, moved.monthValue))
     }
+    val info: @Composable () -> Unit = {
+        Column(modifier = Modifier.width(240.dp)) {
+            Text("${order}번째 아이", fontSize = 22.sp, color = MaterialTheme.colorScheme.primary)
+            Text("${child.birthYear}년 ${child.birthMonth}월생", fontSize = 26.sp)
+            Text("지금 ${ageLabel(child.ageMonths(now))}", fontSize = 22.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+    val steppers: @Composable () -> Unit = {
+        Text("연", fontSize = 22.sp)
+        BigOutlinedButton("−", { shift(-12) })
+        BigOutlinedButton("+", { shift(12) })
+        Text("월", fontSize = 22.sp, modifier = Modifier.padding(start = 16.dp))
+        BigOutlinedButton("−", { shift(-1) })
+        BigOutlinedButton("+", { shift(1) })
+    }
     Card(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.padding(24.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            Column(modifier = Modifier.width(240.dp)) {
-                Text("${order}번째 아이", fontSize = 22.sp, color = MaterialTheme.colorScheme.primary)
-                Text("${child.birthYear}년 ${child.birthMonth}월생", fontSize = 26.sp)
-                Text("지금 ${ageLabel(child.ageMonths(now))}", fontSize = 22.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (isNarrowWindow()) {
+            // 세로 창: 정보·삭제 한 줄, 연·월 버튼 한 줄
+            Column(modifier = Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    info()
+                    Text("", modifier = Modifier.weight(1f))
+                    BigOutlinedButton("삭제", onRemove)
+                }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) { steppers() }
             }
-            Text("연", fontSize = 22.sp)
-            BigOutlinedButton("−", { shift(-12) })
-            BigOutlinedButton("+", { shift(12) })
-            Text("월", fontSize = 22.sp, modifier = Modifier.padding(start = 16.dp))
-            BigOutlinedButton("−", { shift(-1) })
-            BigOutlinedButton("+", { shift(1) })
-            Text("", modifier = Modifier.weight(1f))
-            BigOutlinedButton("삭제", onRemove)
+        } else {
+            Row(
+                modifier = Modifier.padding(24.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                info()
+                steppers()
+                Text("", modifier = Modifier.weight(1f))
+                BigOutlinedButton("삭제", onRemove)
+            }
         }
     }
 }

@@ -202,6 +202,7 @@ private fun StopCard(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun EditControls(
     stop: CourseStop,
@@ -213,14 +214,17 @@ private fun EditControls(
     onStay: (Int) -> Unit,
     onRemove: () -> Unit,
 ) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+    // 세로 창에서는 버튼이 다음 줄로 넘어간다.
+    FlowRow(
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
         SmallAction("↑ 위로", enabled && canMoveUp) { onMove(-1) }
         SmallAction("↓ 아래로", enabled && canMoveDown) { onMove(1) }
-        Text("머무름", fontSize = 20.sp, modifier = Modifier.padding(start = 24.dp))
+        Text("머무름", fontSize = 20.sp, modifier = Modifier.align(Alignment.CenterVertically).padding(start = 24.dp))
         SmallAction("−$STAY_STEP_MINUTES", enabled) { onStay(-STAY_STEP_MINUTES) }
-        Text("${stop.stayMinutes}분", fontSize = 24.sp)
+        Text("${stop.stayMinutes}분", fontSize = 24.sp, modifier = Modifier.align(Alignment.CenterVertically))
         SmallAction("+$STAY_STEP_MINUTES", enabled) { onStay(STAY_STEP_MINUTES) }
-        Text("", modifier = Modifier.weight(1f))
         SmallAction("빼기", enabled && canRemove, onRemove)
     }
 }
