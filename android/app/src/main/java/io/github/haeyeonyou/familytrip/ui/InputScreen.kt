@@ -161,27 +161,41 @@ private fun ConditionsEditor(
 /** 등록한 가족 요약 (혜연 P01 가족 프로필 카드). 없으면 등록을 권한다. */
 @Composable
 private fun FamilyCard(profile: FamilyProfile?, onEdit: () -> Unit, onUse: () -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.padding(24.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("우리 가족", fontSize = 22.sp, color = MaterialTheme.colorScheme.primary)
-                if (profile == null) {
-                    Text("가족 정보를 한 번 등록하면 매번 아이 나이를 말하지 않아도 돼요", fontSize = 22.sp)
-                } else {
-                    val parts = buildList {
-                        add("어른 ${profile.adults}명")
-                        if (profile.children.isEmpty()) add("아이 없음") else add("아이 " + profile.ageMonths().joinToString { ageLabel(it) })
-                        if (profile.petAlong) add("반려견 함께")
-                    }
-                    Text(parts.joinToString(" · "), fontSize = 24.sp)
+    val summary: @Composable () -> Unit = {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("우리 가족", fontSize = 22.sp, color = MaterialTheme.colorScheme.primary)
+            if (profile == null) {
+                Text("가족 정보를 한 번 등록하면 매번 아이 나이를 말하지 않아도 돼요", fontSize = 22.sp)
+            } else {
+                val parts = buildList {
+                    add("어른 ${profile.adults}명")
+                    if (profile.children.isEmpty()) add("아이 없음") else add("아이 " + profile.ageMonths().joinToString { ageLabel(it) })
+                    if (profile.petAlong) add("반려견 함께")
                 }
+                Text(parts.joinToString(" · "), fontSize = 24.sp)
             }
-            if (profile != null) BigButton("이 가족으로 조건 만들기", onUse)
-            BigOutlinedButton(if (profile == null) "등록" else "수정", onEdit)
+        }
+    }
+    val actions: @Composable () -> Unit = {
+        if (profile != null) BigButton("이 가족으로 조건 만들기", onUse)
+        BigOutlinedButton(if (profile == null) "등록" else "수정", onEdit)
+    }
+    Card(modifier = Modifier.fillMaxWidth()) {
+        if (isNarrowWindow()) {
+            // 세로 창: 요약 아래에 버튼
+            Column(modifier = Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                summary()
+                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) { actions() }
+            }
+        } else {
+            Row(
+                modifier = Modifier.padding(24.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                Column(modifier = Modifier.weight(1f)) { summary() }
+                actions()
+            }
         }
     }
 }
