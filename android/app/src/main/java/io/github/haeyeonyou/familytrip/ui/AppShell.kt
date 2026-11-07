@@ -50,18 +50,19 @@ enum class MainTab(val label: String, val icon: String) {
 fun AppShell(
     tab: MainTab?,
     onTab: (MainTab) -> Unit,
+    onMic: () -> Unit = {},
     content: @Composable () -> Unit,
 ) {
     Surface(color = TripColors.Panel, modifier = Modifier.fillMaxSize()) {
         Row(modifier = Modifier.fillMaxSize()) {
-            if (tab != null) SideMenu(tab, onTab)
+            if (tab != null) SideMenu(tab, onTab, onMic)
             Box(modifier = Modifier.weight(1f).fillMaxHeight()) { content() }
         }
     }
 }
 
 @Composable
-private fun SideMenu(selected: MainTab, onTab: (MainTab) -> Unit) {
+private fun SideMenu(selected: MainTab, onTab: (MainTab) -> Unit, onMic: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxHeight()
@@ -78,9 +79,9 @@ private fun SideMenu(selected: MainTab, onTab: (MainTab) -> Unit) {
         Spacer(Modifier.size(24.dp))
         MainTab.entries.forEach { item -> MenuItem(item, item == selected) { onTab(item) } }
         Spacer(Modifier.weight(1f))
-        // 음성 요청 (#19, #70에서 연결)
+        // 음성 요청 (#19, #70): 누르면 음성 케어 패널이 열리고 한 문장을 듣는다
         Box(
-            modifier = Modifier.size(72.dp).clip(CircleShape).background(TripColors.Tile),
+            modifier = Modifier.size(72.dp).clip(CircleShape).background(TripColors.Tile).clickable(onClick = onMic),
             contentAlignment = Alignment.Center,
         ) { Text("🎙", fontSize = 28.sp) }
     }

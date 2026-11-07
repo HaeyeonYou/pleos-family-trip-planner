@@ -23,6 +23,11 @@
     <!-- Pleos FusedLocation: position, proximity alerts (runtime permission) -->
     <uses-permission android:name="pleos.car.permission.FUSED_LOCATION" />
 
+    <!-- 음성 케어 (#70): Pleos 음성 인식·읽어 주기 SDK, 실패하면 Android 기본 인식기 -->
+    <uses-permission android:name="pleos.car.permission.STT_SERVICE" />
+    <uses-permission android:name="pleos.car.permission.TTS_SERVICE" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- 안내 중 포그라운드 서비스 (앱이 뒤에 있어도 도착 판정 유지) -->

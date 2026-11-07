@@ -17,6 +17,8 @@ import io.github.haeyeonyou.familytrip.location.LocationRepository
 import io.github.haeyeonyou.familytrip.location.PleosLocationRepository
 import io.github.haeyeonyou.familytrip.navi.NaviRepository
 import io.github.haeyeonyou.familytrip.navi.PleosNaviRepository
+import io.github.haeyeonyou.familytrip.voice.VoiceController
+import io.github.haeyeonyou.familytrip.voice.VoiceIo
 import io.github.haeyeonyou.familytrip.vehicle.PleosVehicleRepository
 import io.github.haeyeonyou.familytrip.vehicle.VehicleRepository
 import kotlinx.coroutines.CoroutineScope
@@ -41,6 +43,8 @@ class AppContainer(private val app: Application) {
     private val notifier = GuideNotifier(app)
     val guide = GuideSession(app, navi, location, notifier, visits, scope)
     val care = CareController(app, vehicle, navi, location, api, guide, notifier, feeding, scope)
+    val voiceIo = VoiceIo(app)
+    val voice = VoiceController(voiceIo, care, scope)
 
     private var locationStarted = false
 
