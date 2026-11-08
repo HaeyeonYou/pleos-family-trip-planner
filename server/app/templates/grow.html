@@ -1,8 +1,45 @@
 {% extends "base.html" %}
+{% block header %}<h1 class="title">{{ who }}</h1>{% endblock %}
 {% block body %}
-<section class="card tint" style="margin-top:20px" aria-labelledby="map-title">
-  <h2 id="map-title" style="font-size:16px">경험맵은 차에서 확인해요</h2>
-  <p class="sub" style="font-size:14px;margin-top:8px">다녀온 곳과 아이의 반응은 개인정보라서 차 안 기기에만 저장하고, 서버로 보내지 않아요. 그래서 폰에서는 아직 볼 수 없어요.</p>
+{% if notice %}<p class="form-ok" role="status" style="margin-top:16px">{{ notice }}</p>{% endif %}
+
+{% if pending %}
+<a class="card" href="/m/grow/visit/{{ pending[0].id }}" style="margin-top:16px;border-color:var(--primary)">
+  <div class="row" style="padding:0"><span class="dot" aria-hidden="true"></span><span class="grow"><span class="name">{{ pending[0].since }} 다녀온 곳 {{ pending | length }}곳 확인하기</span><br><span class="meta">{{ pending[0].name }}{% if pending | length > 1 %} 외 {{ pending | length - 1 }}곳{% endif %}</span></span><span class="chev" aria-hidden="true">&gt;</span></div>
+</a>
+{% endif %}
+
+{% if has_visits %}
+<section class="card tint" style="margin-top:16px" aria-label="요약">
+  <p class="name" style="font-size:17px">이번 달 +{{ map.this_month_visits }}{% if new_labels %} · 새 가지 "{{ new_labels | join('", "') }}"{% endif %}</p>
+  <p class="meta" style="margin-top:4px">가지 {{ themes | length }} · 잎 {{ map.place_count }} · 방문 {{ map.visit_count }}번</p>
 </section>
-<p class="notice">폰에서 경험맵을 보는 기능은 준비 중이에요.</p>
+
+<section class="section" aria-labelledby="branch-title">
+  <div class="section-head"><h2 id="branch-title">가지</h2></div>
+  {% for t in themes %}
+  <a class="card" href="/m/grow/theme/{{ t.key }}">
+    <div class="row" style="padding:0;min-height:0"><span class="grow"><span class="name" style="font-size:17px">{{ t.label }}</span><br><span class="meta">방문 {{ t.visits }}번 · 장소 {{ t.places | length }}곳</span></span><span class="chev" aria-hidden="true">&gt;</span></div>
+    <p style="margin-top:10px">{% for p in t.places %}<span class="chip">{{ p.name }}{% if p.visits > 1 %} · {{ p.visits }}회{% endif %}</span> {% endfor %}{% if t.more %}<span class="chip gray">+{{ t.more }}</span>{% endif %}</p>
+  </a>
+  {% endfor %}
+</section>
+
+{% if empty %}
+<section class="section" aria-labelledby="empty-title">
+  <div class="section-head"><h2 id="empty-title">아직 없는 가지</h2></div>
+  {% for e in empty %}
+  <a class="card dashed" href="/m/course?theme={{ e.key }}">
+    <div class="row" style="padding:0;min-height:0"><span class="grow"><span class="name">{{ e.label }}</span><br><span class="meta">이 분야 코스 받아 보기</span></span><span class="chev" aria-hidden="true">&gt;</span></div>
+  </a>
+  {% endfor %}
+</section>
+{% endif %}
+{% else %}
+<section class="card tint" style="margin-top:16px">
+  <h2 style="font-size:16px">아직 방문 기록이 없어요</h2>
+  <p class="sub" style="font-size:14px;margin-top:8px">차에서 나들이를 다녀오면 방문 기록이 쌓여 여기에 경험맵으로 보여요. 기록에는 장소 이름·분야·날짜·머문 시간·아이 기분만 저장하고, 위치 좌표와 음성은 저장하지 않아요.</p>
+  <a class="btn small" style="margin-top:12px" href="/m/course">추천 코스 받기</a>
+</section>
+{% endif %}
 {% endblock %}
