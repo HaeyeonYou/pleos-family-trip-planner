@@ -1,13 +1,14 @@
 {% extends "base.html" %}
 {% block body %}
 {% if error %}
-<p class="error">{{ error }}</p>
+<p class="form-error" role="alert">{{ error }}</p>
+<a class="btn ghost" href="/m/">처음으로</a>
 {% else %}
-<p>{{ user.display_name }}님 계정으로 차에서 로그인할까요?</p>
+<p class="lead">{{ user.display_name }} 님 계정으로 차에서 로그인할까요?</p>
 <div class="card">
-  <p class="small">기기: {{ device or "Pleos Connect 차량" }}</p>
-  <form method="post"><input type="hidden" name="code" value="{{ code }}"><button type="submit">이 차에서 로그인</button></form>
+  <div class="row" style="padding:0"><span class="icon" aria-hidden="true"></span><span class="grow"><span class="name">{{ device or "Pleos Connect 차량" }}</span><br><span class="meta">차 화면의 QR로 요청했어요</span></span></div>
+  <form method="post"><input type="hidden" name="code" value="{{ code }}"><button class="btn" type="submit">이 차에서 로그인</button></form>
 </div>
-<p class="small">내 계정이 아니면 <a href="/m/logout?next={{ next | urlencode }}">다른 계정으로 로그인</a></p>
+<p class="muted small" style="margin-top:16px">내 계정이 아니면 <a href="/m/logout?next={{ next | urlencode }}">다른 계정으로 로그인</a></p>
 {% endif %}
 {% endblock %}

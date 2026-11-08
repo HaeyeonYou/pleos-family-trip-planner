@@ -15,6 +15,12 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 - 접속 주소는 `.env`의 `DATABASE_URL` (기본 `postgresql+asyncpg://localhost/pleos`), 폰이 접속할 주소는 `PUBLIC_BASE_URL` (비우면 맥 사설 IP:8000)
 - 테스트는 `pleos_test` DB를 매번 비우고 쓴다
 
+## 폰 웹 (`/m/`)
+차 화면 QR로 여는 모바일 웹. 서버 렌더링(Jinja, `app/templates/`)이고 CSS는 `app/static/m.css` 하나입니다 (외부 CDN 없음).
+- 하단 탭: 홈 `/m/` · 케어 `/m/care` · 그로우 `/m/grow` · MY `/m/my`, 공조 프리셋 편집 `/m/preset`
+- 기준 디자인과 서버에 없는 데이터 구분: `docs/research/web-mobile-screens.md`
+- 로컬에서 보려면 서버를 띄우고 브라우저를 모바일 폭(375px)으로 열면 됩니다. `--reload`를 붙이면 템플릿·CSS 수정이 바로 반영됩니다.
+
 ## 주차장 데이터 (`parking_lots`)
 전국주차장정보표준데이터는 지자체 250곳이 각자 올린 파일이라 API로 부르지 않고, 정제된 파일을 **미리 받아 DB에 넣어** 씁니다. 데이터 정제는 다른 에이전트가 하고, 서버는 아래 규격의 파일을 받습니다.
 
