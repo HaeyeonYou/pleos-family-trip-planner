@@ -13,20 +13,33 @@
   <p class="sub">폰에서 일정을 만드는 기능은 아직 준비 중이에요. 차 앱에서 코스를 정하면 그대로 안내받을 수 있어요.</p>
 </section>
 
+{% if feeding.has_last %}
+<a class="card tint" href="/m/care/feed" style="margin-top:12px">
+  <div class="row" style="padding:0;min-height:48px">
+    <span class="grow"><span class="name">마지막 수유 {{ feeding.last }} · 다음 {{ feeding.next }}</span><br><span class="meta">{{ feeding.left_text }} · {{ feeding.interval_text }}</span></span>
+    <span class="chip gray">기록</span>
+  </div>
+</a>
+{% else %}
+<a class="card tint" href="/m/care/feed" style="margin-top:12px">
+  <div class="row" style="padding:0;min-height:48px"><span class="grow"><span class="name">수유 시각을 기록해 보세요</span><br><span class="meta">기록하면 다음 수유 시각을 알려 드려요</span></span><span class="chip gray">기록</span></div>
+</a>
+{% endif %}
+
 <section class="section" aria-labelledby="preset-title">
   <div class="section-head"><h2 id="preset-title">다음 탑승 때 적용</h2><a href="/m/care">케어 &gt;</a></div>
-  {% if preset %}
-  <a class="card" href="/m/preset">
-    <div class="row" style="padding:0">
-      <span class="icon" aria-hidden="true"></span>
-      <span class="grow"><span class="name">{{ preset.name }}</span><br><span class="meta">{{ preset.summary }}</span></span>
-      <span class="chip {{ preset.tone }}">{{ preset.status }}</span>
-    </div>
-  </a>
+  {% if presets %}
+  <div class="card">
+    <ul class="list">
+      {% for p in presets %}
+      <li><a class="row" href="/m/preset?slot={{ p.slot }}"><span class="icon" aria-hidden="true"></span><span class="grow"><span class="name">{{ p.label }}</span><br><span class="meta">{{ p.summary }}</span></span><span class="chip {{ p.tone }}">{{ p.status }}</span></a></li>
+      {% endfor %}
+    </ul>
+  </div>
   {% else %}
   <div class="card tint">
     <p class="muted small">아직 차로 보낸 공조 설정이 없어요. 미리 정해 두면 시동을 건 뒤 차 앱에서 바로 적용할 수 있어요.</p>
-    <a class="btn small" style="margin-top:12px" href="/m/preset">공조 설정 만들기</a>
+    <a class="btn small" style="margin-top:12px" href="/m/care">공조 설정 만들기</a>
   </div>
   {% endif %}
 </section>
