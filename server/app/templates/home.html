@@ -10,8 +10,22 @@
 {% block body %}
 <section class="card strong" aria-labelledby="schedule-title">
   <h2 id="schedule-title" style="font-size:18px">이번 주 외출 일정이 없어요</h2>
-  <p class="sub">폰에서 일정을 만드는 기능은 아직 준비 중이에요. 차 앱에서 코스를 정하면 그대로 안내받을 수 있어요.</p>
+  <p class="sub">폰에서 일정을 만드는 기능은 아직 준비 중이에요. 대신 가족에게 맞는 코스를 미리 받아 볼 수 있어요.</p>
+  <a class="btn" href="/m/course">추천 코스 받기</a>
 </section>
+
+{% if pending_visits %}
+<a class="card" href="/m/grow/visit/{{ pending_visits[0].id }}" style="margin-top:12px">
+  <div class="row" style="padding:0;min-height:48px"><span class="dot" aria-hidden="true"></span><span class="grow"><span class="name">{{ pending_visits[0].since }} 다녀온 곳 {{ pending_visits | length }}곳 확인하기</span></span><span class="chev" aria-hidden="true">&gt;</span></div>
+</a>
+{% endif %}
+{% if revisit %}
+<section class="section" aria-labelledby="revisit-title">
+  <div class="section-head"><h2 id="revisit-title">다시 가볼까요?</h2><a href="/m/grow">그로우 &gt;</a></div>
+  <div class="card"><p class="name" style="font-size:16px">{{ revisit.name }}</p><p class="sub">{{ revisit.since }} · {{ revisit.visits }}번 다녀왔어요</p>
+    <a class="btn small" style="margin-top:12px" href="/m/course{{ '?theme=' ~ revisit.theme if revisit.theme }}">비슷한 코스 받기</a></div>
+</section>
+{% endif %}
 
 {% if feeding.has_last %}
 <a class="card tint" href="/m/care/feed" style="margin-top:12px">

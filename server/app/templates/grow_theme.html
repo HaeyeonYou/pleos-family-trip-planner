@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block header %}<div class="topbar"><a class="back" href="/m/grow" aria-label="경험맵으로 돌아가기">←</a></div><h1 class="title">{{ label }}</h1>{% endblock %}
+{% block body %}
+<p class="lead">방문 {{ visits }}번 · 장소 {{ places | length }}곳</p>
+<div class="card" style="padding:4px 16px">
+  <ul class="list">
+    {% for p in places %}
+    <li><div class="row"><span class="grow"><span class="name">{{ p.name }} · {{ p.visits }}회</span><br><span class="meta">최근 {{ p.last }} ({{ p.since }}){% if p.mood %} · {{ p.mood }}{% endif %}</span></span></div></li>
+    {% endfor %}
+  </ul>
+</div>
+<a class="btn" href="/m/course?theme={{ theme }}">이 분야로 코스 받기</a>
+{% endblock %}

@@ -167,3 +167,12 @@ select.field-select { width: 100%; min-height: 48px; padding: 0 14px; border: 1.
 .inline-form input[type=text] { flex: 1; min-width: 120px; }
 .check { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; font-size: 14px; color: var(--muted); }
 .check input { width: 20px; height: 20px; }
+
+/* 경험맵·추천 코스 */
+.card.dashed { border-style: dashed; background: var(--surface); }
+.dot { flex: none; width: 10px; height: 10px; border-radius: 999px; background: var(--danger); }
+details.card > summary { list-style: none; cursor: pointer; min-height: 44px; }
+details.card > summary::-webkit-details-marker { display: none; }
+.timeline { margin: 12px 0 0; padding: 0; list-style: none; border-top: 1px solid var(--line-soft); }
+.timeline li { padding: 10px 0; border-bottom: 1px solid var(--line-soft); font-size: 14px; }
+.timeline li:last-child { border-bottom: 0; }

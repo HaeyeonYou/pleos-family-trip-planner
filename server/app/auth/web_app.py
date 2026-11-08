@@ -132,6 +132,27 @@ async def _feeding_card(db: AsyncSession, user: User) -> dict:
 # 홈
 
 
+async def _home_visits(db: AsyncSession, user: User, today: date) -> dict:
+    """홈의 '다녀온 곳 확인하기'와 '다시 가볼까요?'. 방문 기록이 없으면 둘 다 비운다."""
+    rows = list(await db.scalars(select(VisitRecord).where(VisitRecord.user_id == user.id).limit(5000)))
+    pending = sorted((r for r in rows if r.status == "pending"), key=lambda r: r.visited_on, reverse=True)
+    confirmed = [r for r in rows if r.status == "confirmed"]
+    revisit = None
+    if confirmed:
+        # 많이 다녀온 곳 중 2주 넘게 안 간 곳 하나
+        groups: dict[str, list[VisitRecord]] = {}
+        for r in confirmed:
+            groups.setdefault(r.place_key or r.place_name, []).append(r)
+        old = [v for v in groups.values() if (today - max(x.visited_on for x in v)).days >= 14]
+        if old:
+            best = max(old, key=lambda v: (len(v), max(x.visited_on for x in v).toordinal()))
+            last = max(best, key=lambda x: x.visited_on)
+            days = (today - last.visited_on).days
+            revisit = {"name": last.place_name, "visits": len(best), "theme": last.theme or "", "since": f"{days // 7}주 전" if days < 60 else f"{days // 30}개월 전"}
+    views = [{"id": r.id, "name": r.place_name, "since": "어제" if (today - r.visited_on).days == 1 else f"{(today - r.visited_on).days}일 전" if (today - r.visited_on).days > 1 else "오늘"} for r in pending]
+    return {"pending_visits": views, "revisit": revisit}
+
+
 @router.get("/", response_class=HTMLResponse)
 async def home(request: Request, user: User | None = Depends(optional_web_user), db: AsyncSession = Depends(get_db)):
     if user is None:
@@ -148,6 +169,7 @@ async def home(request: Request, user: User | None = Depends(optional_web_user),
         "cars": _car_views(await service.car_sessions(db, user)),
         "feeding": await _feeding_card(db, user),
     }
+    context |= await _home_visits(db, user, now.date())
     return templates.TemplateResponse(request, "home.html", context)
 
 
@@ -302,16 +324,6 @@ async def send_preset(request: Request, user: User | None = Depends(optional_web
     await presets.save(db, user, settings, slot)
     state = await _slot_state(db, user, slot)
     return templates.TemplateResponse(request, "preset.html", _preset_page_context(slot, settings.model_dump(), state))
-
-
-# 그로우 (경험맵은 이어서)
-
-
-@router.get("/grow", response_class=HTMLResponse)
-async def grow_page(request: Request, user: User | None = Depends(optional_web_user)):
-    if user is None:
-        return _login_redirect("/m/grow")
-    return templates.TemplateResponse(request, "grow.html", {"title": "그로우", "tab": "grow"})
 
 
 # MY

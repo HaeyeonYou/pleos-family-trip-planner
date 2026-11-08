@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block header %}<div class="topbar"><a class="back" href="/m/grow" aria-label="경험맵으로 돌아가기">←</a></div><h1 class="title">{{ v.since }} {{ v.name }}에 다녀왔나요?</h1>{% endblock %}
+{% block body %}
+<p class="lead">{{ v.date }} 방문{% if stayed %} · {{ stayed }} 머묾{% endif %}</p>
+<form method="post">
+  <fieldset class="group"><legend>아이 기분 (한 번 탭)</legend>
+    <div class="seg" role="radiogroup">
+      {% for key, label in moods %}<label><input type="radio" name="mood" value="{{ key }}" {{ 'checked' if key == 'excited' }}><span>{{ label }}</span></label>{% endfor %}
+    </div>
+  </fieldset>
+  <button class="btn" type="submit" name="action" value="confirm">방문했어요 · 경험맵에 추가</button>
+  <button class="btn ghost" type="submit" name="action" value="dismiss">아니요</button>
+</form>
+{% endblock %}
