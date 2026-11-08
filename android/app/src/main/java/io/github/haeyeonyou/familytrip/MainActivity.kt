@@ -31,6 +31,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import io.github.haeyeonyou.familytrip.location.FUSED_LOCATION_PERMISSION
 import io.github.haeyeonyou.familytrip.ui.AppShell
+import io.github.haeyeonyou.familytrip.ui.DelayAlertPanel
 import io.github.haeyeonyou.familytrip.care.CareKind
 import io.github.haeyeonyou.familytrip.ui.CareActions
 import io.github.haeyeonyou.familytrip.ui.CareScreen
@@ -433,6 +434,12 @@ class MainActivity : ComponentActivity() {
                             DevScreen(container, onBack = { nav.popBackStack() })
                         }
                     }
+                    val delayAlert by container.delayAlert.ui.collectAsStateWithLifecycle()
+                    DelayAlertPanel(
+                        alert = delayAlert,
+                        onAddWaypoint = container.delayAlert::addWaypoint,
+                        onKeepGoing = container.delayAlert::keepGoing,
+                    )
                     VoicePanel(
                         state = voice,
                         isParked = vehicle.isParked,
