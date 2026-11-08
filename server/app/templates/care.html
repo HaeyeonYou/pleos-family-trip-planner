@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block body %}
+<section class="section" style="margin-top:20px" aria-labelledby="preset-title">
+  <div class="section-head"><h2 id="preset-title">차 공조 프리셋</h2></div>
+  {% if preset %}
+  <a class="card" href="/m/preset">
+    <div class="row" style="padding:0">
+      <span class="icon" aria-hidden="true"></span>
+      <span class="grow"><span class="name">{{ preset.name }}</span><br><span class="meta">{{ preset.summary }}</span></span>
+      <span class="chip {{ preset.tone }}">{{ preset.status }}</span>
+    </div>
+    <p class="meta small" style="margin-top:10px">{{ preset.detail }}</p>
+  </a>
+  <a class="btn ghost" href="/m/preset">설정 바꾸기</a>
+  {% else %}
+  <div class="card tint">
+    <p class="muted small">아직 보낸 설정이 없어요. 온도·풍량·열선을 정해서 차로 보내 두세요.</p>
+  </div>
+  <a class="btn" href="/m/preset">공조 설정 만들기</a>
+  {% endif %}
+  <p class="notice">원격으로 미리 켜기는 안전상 지원하지 않아요. 여기서 세팅해 두면 시동을 걸고 차 앱을 켰을 때 운전자가 「차에 적용」으로 적용할 수 있어요.</p>
+</section>
+
+<section class="section" aria-labelledby="soon-title">
+  <div class="section-head"><h2 id="soon-title">준비 중</h2></div>
+  <p class="muted small">수유 시각 기록, 낮잠·수유 정차 프리셋, 자주 가는 케어 장소는 아직 폰에서 쓸 수 없어요.</p>
+</section>
+{% endblock %}

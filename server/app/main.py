@@ -3,9 +3,11 @@ import time
 import uuid
 from contextlib import asynccontextmanager
 from functools import lru_cache
+from pathlib import Path
 
 import httpx
 from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.staticfiles import StaticFiles
 
 from app import care, places, presets, voice, weather
 from app.course import starts
@@ -44,6 +46,7 @@ app.include_router(starts.router)
 app.include_router(care.router)
 app.include_router(voice.router)
 app.include_router(places.router)
+app.mount("/m/assets", StaticFiles(directory=Path(__file__).parent / "static"), name="m-assets")  # 폰 웹 CSS
 
 
 @app.middleware("http")

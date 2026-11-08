@@ -1,6 +1,50 @@
 {% extends "base.html" %}
+{% block header %}
+<h1 class="title">{{ user.display_name }} 님, {{ greeting }}</h1>
+<div class="week" aria-label="이번 주">
+  {% for d in week %}
+  <div class="day{{ ' today' if d.today }}"{% if d.today %} aria-current="date"{% endif %}>{{ d.label }}<b>{{ d.day }}</b></div>
+  {% endfor %}
+</div>
+{% endblock %}
 {% block body %}
-<p>{{ user.display_name }}님, 반가워요. 차 화면의 QR을 찍으면 차에서도 같은 계정으로 로그인돼요.</p>
-<a class="button" href="/m/preset">차 공조 미리 설정</a>
-<a class="button secondary" href="/m/logout">로그아웃</a>
+<section class="card strong" aria-labelledby="schedule-title">
+  <h2 id="schedule-title" style="font-size:18px">이번 주 외출 일정이 없어요</h2>
+  <p class="sub">폰에서 일정을 만드는 기능은 아직 준비 중이에요. 차 앱에서 코스를 정하면 그대로 안내받을 수 있어요.</p>
+</section>
+
+<section class="section" aria-labelledby="preset-title">
+  <div class="section-head"><h2 id="preset-title">다음 탑승 때 적용</h2><a href="/m/care">케어 &gt;</a></div>
+  {% if preset %}
+  <a class="card" href="/m/preset">
+    <div class="row" style="padding:0">
+      <span class="icon" aria-hidden="true"></span>
+      <span class="grow"><span class="name">{{ preset.name }}</span><br><span class="meta">{{ preset.summary }}</span></span>
+      <span class="chip {{ preset.tone }}">{{ preset.status }}</span>
+    </div>
+  </a>
+  {% else %}
+  <div class="card tint">
+    <p class="muted small">아직 차로 보낸 공조 설정이 없어요. 미리 정해 두면 시동을 건 뒤 차 앱에서 바로 적용할 수 있어요.</p>
+    <a class="btn small" style="margin-top:12px" href="/m/preset">공조 설정 만들기</a>
+  </div>
+  {% endif %}
+</section>
+
+<section class="section" aria-labelledby="car-title">
+  <div class="section-head"><h2 id="car-title">연결된 차</h2><a href="/m/my">MY &gt;</a></div>
+  {% if cars %}
+  <div class="card">
+    <ul class="list">
+      {% for car in cars %}
+      <li><div class="row"><span class="icon" aria-hidden="true"></span><span class="grow"><span class="name">{{ car.name }}</span><br><span class="meta">마지막 사용 {{ car.last_used }}</span></span></div></li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% else %}
+  <div class="card tint">
+    <p class="muted small">연결된 차가 없어요. 차 화면 설정의 「웹에서 이어 쓰기」 QR을 폰 카메라로 찍으면 같은 계정으로 연결돼요.</p>
+  </div>
+  {% endif %}
+</section>
 {% endblock %}
