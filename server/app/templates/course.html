@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block header %}<div class="topbar"><a class="back" href="/m/" aria-label="홈으로 돌아가기">←</a></div><h1 class="title">추천 코스 받기</h1>{% endblock %}
+{% block body %}
+<p class="lead">{% if theme_label %}「{{ theme_label }}」 분야를 중심으로 {% endif %}가족에게 맞는 코스 3개를 찾아 드려요. 아이 정보와 다녀온 곳을 반영해요.</p>
+<form method="get" action="/m/course" id="course-form">
+  <input type="hidden" name="lat" id="lat" value="{{ lat if lat is not none else '' }}">
+  <input type="hidden" name="lng" id="lng" value="{{ lng if lng is not none else '' }}">
+  <input type="hidden" name="theme" value="{{ theme }}">
+  <fieldset class="group"><legend>꼭 필요한 것</legend>
+    <div class="seg" role="group">
+      {% for key, label in need_choices %}<label><input type="checkbox" name="need" value="{{ key }}" {{ 'checked' if key in needs }}><span>{{ label }}</span></label>{% endfor %}
+      <label><input type="checkbox" name="indoor" value="1" {{ 'checked' if indoor }}><span>실내</span></label>
+    </div>
+  </fieldset>
+  <fieldset class="group"><legend>편도 이동 시간</legend>
+    <div class="seg" role="radiogroup">
+      {% for m, label in minute_choices %}<label><input type="radio" name="minutes" value="{{ m }}" {{ 'checked' if minutes == m }}><span>{{ label }}</span></label>{% endfor %}
+    </div>
+  </fieldset>
+  <button class="btn" type="submit" id="go">{{ '조건 바꿔 다시 받기' if lat is not none else '내 위치로 코스 받기' }}</button>
+  <p class="muted small" id="geo-msg" role="status" style="margin-top:8px">{% if lat is none %}코스를 찾으려면 현재 위치가 필요해요. 위치는 저장하지 않고 이 요청에만 써요.{% endif %}</p>
+</form>
+<script>
+  (function () {
+    var form = document.getElementById("course-form"), lat = document.getElementById("lat"), lng = document.getElementById("lng");
+    var msg = document.getElementById("geo-msg");
+    form.addEventListener("submit", function (e) {
+      if (lat.value && lng.value) return;
+      e.preventDefault();
+      if (!navigator.geolocation) { msg.textContent = "이 브라우저에서는 위치를 알 수 없어요."; return; }
+      msg.textContent = "위치를 확인하는 중이에요…";
+      navigator.geolocation.getCurrentPosition(function (p) {
+        lat.value = p.coords.latitude.toFixed(5); lng.value = p.coords.longitude.toFixed(5); form.submit();
+      }, function () { msg.textContent = "위치 권한이 없어 코스를 찾을 수 없어요. 브라우저 설정에서 위치를 허용해 주세요."; });
+    });
+  })();
+</script>
+
+{% if error %}<p class="form-error" role="alert">{{ error }}</p>{% endif %}
+{% if options %}
+<section class="section" aria-labelledby="result-title">
+  <div class="section-head"><h2 id="result-title">추천 코스 {{ options | length }}개</h2></div>
+  {% for o in options %}
+  <details class="card">
+    <summary>
+      <span class="name" style="font-size:16px">{{ o.name }}</span>{% if loop.first %} <span class="chip ok">추천 1순위</span>{% endif %}{% if o.indoor %} <span class="chip">실내</span>{% endif %}<br>
+      <span class="meta">{{ o.summary }}</span><br>
+      <span class="meta">총 {{ o.total }} · 첫 장소까지 {{ o.first_drive }}분</span>
+    </summary>
+    <ol class="timeline">
+      {% for s in o.stops %}
+      <li><b>{{ s.time }}</b> <span class="chip gray">{{ s.role }}</span> {{ s.name }}{% if s.stay %} <span class="meta">· {{ s.stay }}분</span>{% endif %}
+        {% if s.chips or s.parking %}<br>{% for c in s.chips %}<span class="chip">{{ c }}</span> {% endfor %}{% if s.parking %}<span class="chip gray">근처 주차장 {{ s.parking }}곳</span>{% endif %}{% endif %}</li>
+      {% endfor %}
+    </ol>
+    {% for w in o.warnings %}<p class="meta small">{{ w }}</p>{% endfor %}
+  </details>
+  {% endfor %}
+  <p class="notice">폰에서 일정으로 저장하는 기능은 아직 준비 중이에요. 마음에 드는 코스는 차 앱에서 같은 조건으로 받아 안내를 시작할 수 있어요.</p>
+</section>
+{% endif %}
+{% endblock %}
