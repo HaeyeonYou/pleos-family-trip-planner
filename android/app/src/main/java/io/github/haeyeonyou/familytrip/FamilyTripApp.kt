@@ -15,7 +15,9 @@ import io.github.haeyeonyou.familytrip.guide.GuideSession
 import io.github.haeyeonyou.familytrip.location.FUSED_LOCATION_PERMISSION
 import io.github.haeyeonyou.familytrip.location.LocationRepository
 import io.github.haeyeonyou.familytrip.location.PleosLocationRepository
+import io.github.haeyeonyou.familytrip.navi.DelayAlertController
 import io.github.haeyeonyou.familytrip.navi.NaviRepository
+import io.github.haeyeonyou.familytrip.navi.Place
 import io.github.haeyeonyou.familytrip.navi.PleosNaviRepository
 import io.github.haeyeonyou.familytrip.voice.VoiceController
 import io.github.haeyeonyou.familytrip.voice.VoiceIo
@@ -43,6 +45,7 @@ class AppContainer(private val app: Application) {
     private val notifier = GuideNotifier(app)
     val guide = GuideSession(app, navi, location, notifier, visits, scope)
     val care = CareController(app, vehicle, navi, location, api, guide, notifier, feeding, scope)
+    val delayAlert = DelayAlertController(app, navi, location, api, { guide.state.value.current?.place?.let { Place(it.name, it.latitude, it.longitude) } }, scope)
     val voiceIo = VoiceIo(app)
     val voice = VoiceController(voiceIo, care, vehicle, navi, api, scope)
 
