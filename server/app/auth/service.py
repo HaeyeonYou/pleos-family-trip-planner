@@ -5,7 +5,7 @@ import re
 import uuid
 from datetime import timedelta
 
-from sqlalchemy import select, update
+from sqlalchemy import delete, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -79,6 +79,43 @@ async def user_for_token(db: AsyncSession, token: str) -> User | None:
 async def revoke(db: AsyncSession, token: str) -> None:
     await db.execute(update(Session).where(Session.token_hash == token_hash(token)).values(revoked_at=utcnow()))
     await db.commit()
+
+
+# 연결된 차 관리·계정 삭제 (폰 웹 MY)
+
+
+async def car_sessions(db: AsyncSession, user: User) -> list[Session]:
+    """지금 로그인돼 있는 차(세션) 목록. 최근에 쓴 차가 위로 온다."""
+    now = utcnow()
+    rows = await db.scalars(
+        select(Session)
+        .where(Session.user_id == user.id, Session.kind == "car", Session.revoked_at.is_(None), Session.expires_at > now)
+        .order_by(Session.last_used_at.desc())
+    )
+    return list(rows)
+
+
+async def disconnect_car(db: AsyncSession, user: User, session_id: uuid.UUID) -> bool:
+    """내 차 세션 하나를 끊는다. 다른 사람의 세션이거나 이미 끊긴 것이면 False."""
+    result = await db.execute(
+        update(Session)
+        .where(Session.id == session_id, Session.user_id == user.id, Session.kind == "car", Session.revoked_at.is_(None))
+        .values(revoked_at=utcnow())
+    )
+    await db.commit()
+    if result.rowcount:
+        log.info("차 연결 해제: %s", user.login_id)
+    return bool(result.rowcount)
+
+
+async def delete_account(db: AsyncSession, user: User, password: str) -> None:
+    """비밀번호를 다시 확인한 뒤 계정을 지운다. 세션·공조 프리셋·차 로그인 요청은 DB가 함께 지운다."""
+    if not verify_password(user.password_hash, password):
+        raise AuthError("비밀번호가 맞지 않아요")
+    login_id = user.login_id
+    await db.execute(delete(User).where(User.id == user.id))
+    await db.commit()
+    log.info("계정 삭제: %s", login_id)
 
 
 # 차 QR 로그인
