@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block header %}<div class="topbar"><a class="back" href="/m/care" aria-label="케어로 돌아가기">←</a></div><h1 class="title">수유 기록</h1>{% endblock %}
+{% block body %}
+{% if error %}<p class="form-error" role="alert">{{ error }}</p>{% endif %}
+<form method="post" action="/m/care/feed">
+  <input type="hidden" name="mode" value="time">
+  <label class="field" for="time">수유한 시각 (오늘)</label>
+  <input id="time" name="time" type="time" value="{{ now }}" required>
+  <fieldset class="group"><legend>종류</legend>
+    <div class="seg" role="radiogroup">
+      {% for key, label in kinds %}<label><input type="radio" name="kind" value="{{ key }}" {{ 'checked' if kind == key }}><span>{{ label }}</span></label>{% endfor %}
+    </div>
+  </fieldset>
+  <label class="field" for="amount">양 (선택, ml)</label>
+  <input id="amount" name="amount" type="number" min="0" max="500" step="10" inputmode="numeric" placeholder="예: 160">
+  <button class="btn" type="submit">저장</button>
+</form>
+
+<section class="section" aria-labelledby="today-title">
+  <div class="section-head"><h2 id="today-title">오늘 기록</h2></div>
+  {% if today %}
+  <div class="card" style="padding:4px 16px">
+    <ul class="list">
+      {% for f in today %}
+      <li><div class="row"><span class="grow"><span class="name">{{ f.time }} · {{ f.kind }}</span>{% if f.amount %}<br><span class="meta">{{ f.amount }} ml</span>{% endif %}</span>
+        <form method="post" action="/m/care/feed/{{ f.id }}/delete"><button class="btn ghost small" type="submit" aria-label="{{ f.time }} 기록 삭제">삭제</button></form></div></li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% else %}
+  <div class="card tint"><p class="muted small">오늘 기록한 수유가 없어요.</p></div>
+  {% endif %}
+  <p class="notice">차에서 「방금 수유했어」라고 말해도 같은 기록에 쌓이도록 차 앱 연동을 준비하고 있어요.</p>
+</section>
+{% endblock %}

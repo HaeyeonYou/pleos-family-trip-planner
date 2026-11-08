@@ -5,9 +5,10 @@
 <ul class="card list" style="padding:8px 16px">
   <li class="row"><span class="grow">{{ user.display_name }} 계정 ({{ user.login_id }})</span></li>
   <li class="row"><span class="grow">폰과 차에 로그인된 모든 기기</span></li>
-  <li class="row"><span class="grow">차로 보낸 공조 설정</span></li>
+  <li class="row"><span class="grow">아이 정보·외출 멤버, 수유 기록, 방문 기록</span></li>
+  <li class="row"><span class="grow">차로 보낸 공조 설정 3개</span></li>
 </ul>
-<p class="muted small" style="margin-top:12px">방문 기록은 서버가 아니라 차 안 기기에만 있어서 여기서 지워지지 않아요.</p>
+<p class="muted small" style="margin-top:12px">차 안 기기에만 있는 기록은 여기서 지워지지 않아요.</p>
 {% if error %}<p class="form-error" role="alert">{{ error }}</p>{% endif %}
 <form method="post">
   <label class="field" for="password">확인을 위해 비밀번호를 입력해 주세요</label>

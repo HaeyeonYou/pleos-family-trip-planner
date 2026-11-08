@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block header %}<div class="topbar"><a class="back" href="/m/my" aria-label="MY로 돌아가기">←</a></div><h1 class="title">{{ title }}</h1>{% endblock %}
+{% block body %}
+<p class="lead">{{ text }} 되돌릴 수 없어요.</p>
+<form method="post"><button class="btn danger" type="submit">{{ label }} 모두 지우기</button></form>
+<a class="btn ghost" href="/m/my">취소</a>
+{% endblock %}

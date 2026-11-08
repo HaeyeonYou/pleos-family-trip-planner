@@ -1,28 +1,31 @@
 {% extends "base.html" %}
 {% block body %}
-<section class="section" style="margin-top:20px" aria-labelledby="preset-title">
-  <div class="section-head"><h2 id="preset-title">차 공조 프리셋</h2></div>
-  {% if preset %}
-  <a class="card" href="/m/preset">
-    <div class="row" style="padding:0">
-      <span class="icon" aria-hidden="true"></span>
-      <span class="grow"><span class="name">{{ preset.name }}</span><br><span class="meta">{{ preset.summary }}</span></span>
-      <span class="chip {{ preset.tone }}">{{ preset.status }}</span>
-    </div>
-    <p class="meta small" style="margin-top:10px">{{ preset.detail }}</p>
-  </a>
-  <a class="btn ghost" href="/m/preset">설정 바꾸기</a>
+{% if notice %}<p class="form-ok" role="status">{{ notice }}</p>{% endif %}
+<section class="card strong" style="margin-top:20px" aria-labelledby="feed-title">
+  <div class="row" style="padding:0;min-height:0"><span class="chip warn">수유</span><span class="grow"></span><span class="muted small">{{ feeding.interval_text }}</span></div>
+  {% if feeding.has_last %}
+  <h2 id="feed-title" style="font-size:24px;margin-top:10px">다음 수유 {{ feeding.next }}</h2>
+  <p class="sub">마지막 {{ feeding.last }} · {{ feeding.left_text }}</p>
+  <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ feeding.progress }}"><i style="width:{{ feeding.progress }}%"></i></div>
   {% else %}
-  <div class="card tint">
-    <p class="muted small">아직 보낸 설정이 없어요. 온도·풍량·열선을 정해서 차로 보내 두세요.</p>
-  </div>
-  <a class="btn" href="/m/preset">공조 설정 만들기</a>
+  <h2 id="feed-title" style="font-size:20px;margin-top:10px">아직 수유 기록이 없어요</h2>
+  <p class="sub">기록하면 다음 수유 시각을 계산해 드려요{% if not feeding.nickname %}. 아이 정보는 MY에서 넣을 수 있어요{% endif %}.</p>
   {% endif %}
-  <p class="notice">원격으로 미리 켜기는 안전상 지원하지 않아요. 여기서 세팅해 두면 시동을 걸고 차 앱을 켰을 때 운전자가 「차에 적용」으로 적용할 수 있어요.</p>
+  <div class="two">
+    <form method="post" action="/m/care/feed"><input type="hidden" name="mode" value="now"><button class="btn" type="submit" style="margin-top:14px">지금 수유했어요</button></form>
+    <a class="btn ghost" style="margin-top:14px" href="/m/care/feed">시간 선택</a>
+  </div>
 </section>
 
-<section class="section" aria-labelledby="soon-title">
-  <div class="section-head"><h2 id="soon-title">준비 중</h2></div>
-  <p class="muted small">수유 시각 기록, 낮잠·수유 정차 프리셋, 자주 가는 케어 장소는 아직 폰에서 쓸 수 없어요.</p>
+<section class="section" aria-labelledby="preset-title">
+  <div class="section-head"><h2 id="preset-title">프리셋</h2><span class="muted small">{{ presets | length }}개</span></div>
+  <div class="card" style="padding:4px 16px">
+    <ul class="list">
+      {% for p in presets %}
+      <li><a class="row" href="/m/preset?slot={{ p.slot }}"><span class="icon" aria-hidden="true"></span><span class="grow"><span class="name">{{ p.label }}</span><br><span class="meta">{{ p.summary }}</span></span><span class="chip {{ p.tone }}">{{ p.status }}</span></a></li>
+      {% endfor %}
+    </ul>
+  </div>
+  <p class="notice">원격으로 미리 켜기는 안전상 지원하지 않아요. 여기서 세팅해 두면 시동을 걸고 차 앱을 켰을 때 운전자가 「차에 적용」으로 적용할 수 있어요.</p>
 </section>
 {% endblock %}
