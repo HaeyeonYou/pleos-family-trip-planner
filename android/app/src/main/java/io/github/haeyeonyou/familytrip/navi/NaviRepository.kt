@@ -12,6 +12,10 @@ data class NaviState(
     val remainingDistanceMeters: Int? = null,
     val remainingSeconds: Int? = null,
     val arrivedAt: String? = null,
+    /** 안내 중 내비가 알려 준 경로 위 교통 정보. 안내 중이 아니면 null. */
+    val traffic: TrafficSnapshot? = null,
+    /** 출발 때 예상 대비 도착 지연 (#17). 안내 중이 아니거나 아직 계산 전이면 null. */
+    val delay: DelayState? = null,
     /** Most recent navigation events, newest first, for spike verification. */
     val events: List<String> = emptyList(),
 )
@@ -36,6 +40,12 @@ interface NaviRepository {
     /** 안내 중인 경로의 경유지를 모두 뺀다. 안내 중이 아니면 false. */
     fun removeWaypoints(): Boolean
     fun refreshCurrentLocation()
+
+    /**
+     * 지연 알림에 대한 사용자의 선택을 알린다. [addedWaypoint]가 true면 경유지를 넣어 경로가 바뀌므로 지연 기준을 새로 잡고,
+     * false("그대로 가기")면 한동안 같은 지연으로는 다시 알리지 않는다.
+     */
+    fun resolveDelayAlert(addedWaypoint: Boolean)
 
     /** 내장 내비 화면을 앞으로 가져온다 (안내 중 지도를 보이게). */
     fun showNavigation()

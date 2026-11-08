@@ -62,5 +62,8 @@
         <receiver
             android:name=".guide.GuideActionReceiver"
             android:exported="false" />
+        <receiver
+            android:name=".navi.DelayActionReceiver"
+            android:exported="false" />
     </application>
 </manifest>

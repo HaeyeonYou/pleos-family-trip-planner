@@ -216,7 +216,7 @@
   - DestinationArrivedInfo, WaypointArrivedInfo
   - RouteWithWaypointsRequest, TBTInfo
   - ChargingPlan, ChargerOperator, TrafficInfo 등 모두 31개
-- **ETA/남은 거리 필드 이름은 [미확인]**: DrivingInfo와 RouteStateInfo 클래스 페이지를 브라우저로 렌더링해도 본문(필드 표)이 비어 있었다(2026-11-05 기준). 후보는 TripInfo/DrivingInfo/RouteStateInfo(`onTripInfo`, `onDrivingInfo`, `onRouteStateInfo`)다.
+- **ETA/남은 거리 필드 이름**: 문서 페이지 본문은 비어 있었지만, 내려받은 SDK 소스(`navi-data-3.0.4-sources.jar`)와 에뮬레이터 로그로 2026-11-08에 확인했다. 아래 "ETA·지연·교통 정보 검증 (#17)" 절 참고.
 
 ### 목적지와 경유지를 한 번에 요청
 
@@ -240,7 +240,7 @@
   - 경유지: addWaypoint, removeWaypoint, getWaypointInfo
   - 화면: requestNavigationScreen
   - 조회: getBookmarkInfo, getChargerOperatorInfo, getCurrentLocationInfo, getDestinationInfo, getRecentDestinationInfo, (getRouteStateInfo, getTBTInfo)
-- 개별 메서드 페이지와 데이터 클래스 페이지는 본문이 렌더링되지 않았다. **ETA와 남은 거리의 정확한 필드 이름은 [미확인]**
+- 개별 메서드 페이지와 데이터 클래스 페이지는 본문이 렌더링되지 않았다. ETA와 남은 거리 필드는 SDK 소스와 에뮬레이터로 확인했다("ETA·지연·교통 정보 검증 (#17)" 절).
 
 ## 5. TextToSpeech / SpeechToText
 
@@ -400,7 +400,7 @@
 ## 접근하지 못했거나 본문이 비어 있던 페이지
 
 - https://document.pleos.ai/api-reference/connect-sdk-pleos : SDK Overview로 리다이렉트된다. 별도 레퍼런스가 없다.
-- NaviHelper API Reference의 클래스/메서드 상세 페이지(예: .../navi.data/driving-info/entry, .../route-state-info/entry, .../navi-helper/request-trip): WebFetch와 브라우저 렌더링 모두 본문이 비어 있었다. 그래서 ETA/남은거리 필드명을 확인하지 못했다.
+- NaviHelper API Reference의 클래스/메서드 상세 페이지(예: .../navi.data/driving-info/entry, .../route-state-info/entry, .../navi-helper/request-trip): WebFetch와 브라우저 렌더링 모두 본문이 비어 있었다. 그래서 ETA/남은거리 필드명은 SDK 소스 jar로 확인했다(2026-11-08, "ETA·지연·교통 정보 검증 (#17)" 절).
 - Vehicle 도메인 메서드별 `@RequiresPermission` 값: 레퍼런스 목록에 표시되지 않는다.
 - 조사하지 않은 페이지: SpeechToText/importing-sdk, ADB 명령 레퍼런스(주행 규제 제어), 지역별 주행 규제 정책 페이지, Gleo 하위 가이드(app-capability, examples)
 - 로그인이 필요한 페이지(Workspace/My Project, App Market Console)는 건너뛰었다.
@@ -421,7 +421,7 @@
 - NaviHelper
   - **경유지는 최대 2개**(WaypointIndex FIRST/SECOND)다.
   - **`onDestinationArrived`와 `onWayPointArrived` 콜백이 있다.**
-  - ETA/남은거리 필드명은 미확인이다.
+  - ETA/남은거리: `DrivingInfo.destination.duration`(초)/`distance`(m), `RouteStartInfo.duration`/`distance`. 2026-11-08 에뮬레이터로 확인.
 - TTS/STT: ko-KR을 지원하고, 권한은 `TTS_SERVICE`/`STT_SERVICE`다. 서버 모드에는 Client ID/Secret 앱 등록이 필요하다.
 - create-my-project 페이지 기준 TTS/STT/FusedLocation/Vehicle Control은 "Coming Soon"이다.
 - Gleo: Gleo AI 음성 비서와 앱을 잇는 function-calling 연동 규격이다. `assets/schema.json`과 intent action으로 연동하며, Gleo 팀 검토와 승인이 필요하다.
@@ -478,3 +478,48 @@
   - Fleet API: 플릿 운영사용 차량·단말기 관리와 데이터 조회·Webhook. 원격 제어 기능은 목록에 없다.
 - 원격 시동·원격 공조는 현대·기아의 자체 서비스(블루링크·기아 커넥트, 차량 통신 모듈 경유)이고 서드파티에 열려 있지 않다.
 - **우리 앱에서 가능한 범위**: (1) 차가 켜져 있을 때 폰(동승 가족)에서 보낸 요청을 서버 경유로 차 안 앱이 받아 공조 등을 제어, (2) 폰에서 미리 정해 둔 프리셋을 다음 시동 때 차 안 앱이 바로 적용, (3) 타기 전 원격 공조는 블루링크·기아 커넥트 앱으로 연결(딥링크).
+
+## ETA·지연·교통 정보 검증 (#17, 2026-11-08)
+
+확인 방법: SDK 소스(`~/.gradle/caches/.../ai.pleos.playground/navi-data/3.0.4/*-sources.jar`)의 필드 정의를 읽고, 에뮬레이터(Pleos_Connect_v2.1.0)에서 내비 주행 시뮬레이션(내비 기어 버튼 2초 이상 길게 누름 → 주행 시뮬레이션 → 시작)을 돌리며 앱의 `NaviHelperEventListener`가 받는 값을 로그로 남겼다. 임시 로그 코드는 커밋하지 않았다.
+
+### 필드 (SDK 소스 기준)
+
+| 콜백 | 필드 | 뜻 |
+|---|---|---|
+| `onRouteStarted(RouteStartInfo)` | `duration`(초), `distance`(m), `name`, `tollFare` | 경로 시작 때 **전체 경로**의 예상 시간·거리 |
+| `onDrivingInfo(DrivingInfo)` | `destination: DrivingState`, `waypoints: List<DrivingState>` | 안내 중 도착지·경유지까지 남은 값 |
+| (DrivingState) | `duration`(초, 지금 위치에서 그 지점까지), `distance`(m) | **남은 시간·거리** |
+| `onRouteStateInfo(RouteStateInfo)` | `naviMode`(NOT_WORKING / SAFE_GUIDING / ROUTE_GUIDING / **SIMULATION_GUIDING**), `isRouting`, `trafficStatus: TrafficStatus?` | 경로 상태와 교통 |
+| (TrafficStatus) | `summary`(정체 총 거리 m·시간 초·평균 속도), `congestionItemList`, `trafficEventList` | 경로 위 정체 구간과 사고·공사 |
+| (TrafficCongestionInfo) | `offset`(지금 위치에서 정체 시작까지 m), `distance`, `trafficCongestionTime`(초), `trafficCongestionType`(UNKNOWN/FAST/MODERATE/SLOW/HEAVY), `roadName`, `startCrossName`, `endCrossName` | 정체 구간 하나 |
+| (TrafficEventInfo) | `eventType`(ETC/ACCIDENT/ROAD_DAMAGE/REPAIRING/EVENT/DISASTER), `description`, `startTime`, `endTime`(문자열) | 사고·공사 등 |
+| `onTripInfo(TripInfo)` | `eta`(초), `distance`, `estimatedSocAtDest`, `summary.trafficConditions`(구간 비율 0~100과 정체 종류) | 경로 요약. **에뮬레이터에서는 한 번도 오지 않았다(0회)** — `requestTrip()`을 부르는 경우에만 오는 것으로 보이나 확인하지 않았다 |
+
+### 에뮬레이터에서 관찰한 것
+
+- **`onDrivingInfo`는 1초마다 온다**(안내 중, 값이 안 바뀌어도). 시뮬레이션 약 8분 동안 530여 회. 안내가 아닐 때는 오지 않는다.
+- **`duration`은 60초 단위, `distance`는 100m 단위로만 바뀐다.** 5분 문턱 판단에는 충분하지만 ±1분 오차는 있다.
+- **`duration`은 시계가 아니라 경로의 교통 가중치로 줄어든다.** 시뮬레이션 차는 거의 일정한 속도(약 50km/h)로 가는데, 정체 구간에서는 거리가 600m 줄어드는 동안 남은 시간이 900초로 그대로였고, 흐르는 구간에서는 빠르게 줄었다. 그래서 내비의 남은 시간은 구간별 정체 속도를 반영한 값이다.
+- 같은 경로(8,400m)를 11분 간격으로 두 번 시작했을 때 `RouteStartInfo.duration`이 1,140초 → 1,080초로 달랐다. 시각에 따라 달라지는 값(실시간 또는 시간대별 통계)이라는 뜻이다. **어느 쪽인지는 가릴 수 없다.**
+- **`onRouteStateInfo`는 경로를 시작·취소할 때와, 주행 시뮬레이션 중 몇 초~십수 초 간격(관찰 6회/43초)으로 온다.** `trafficStatus`는 채워져 있었다(정체 구간 여러 개, 대왕판교로·분당내곡로·서현로 등 실제 도로 이름, `totalCongestionDist` 1,700~2,000m, `totalCongestionTime` 180초). 정체 구간의 `offset`은 차가 가면서 줄었다. 시뮬레이션 중 `naviMode`는 `SIMULATION_GUIDING`이고, 안내를 취소하면 `SAFE_GUIDING`으로 오면서 **직전 경로의 `trafficStatus`가 그대로 남아 있다**(그래서 안내 중일 때만 쓴다). `isRouting`은 안내 중 여부가 아니라 항상 false였다(경로 탐색 중 표시로 보임).
+- `trafficEventList`는 모두 비어 있었다. 사고·공사 문구는 이 환경에서 확인하지 못했다.
+
+### 결론과 한계
+
+- **내비 값만으로 구현 가능하다.** 출발 때 예상(`RouteStartInfo.duration`)과 안내 중 남은 시간(`DrivingInfo.destination.duration`)으로 도착 지연을 계산하고, `trafficStatus`로 정체 이유 문구를 만든다. 구현은 `navi/DelayTracker.kt`, `navi/TrafficCause.kt`, `navi/DelayAlertController.kt`.
+- **한계 1: 시뮬레이션은 교통이 바뀌지 않아** 내비의 남은 시간이 "도중에 정체가 새로 생겨서" 늘어나는 장면을 에뮬레이터에서 만들 수 없다. 그래서 (a) 계산·알림 정책은 시간을 흘려 가며 도는 단위 테스트로, (b) 알림 화면·알림 표시·"경유지 추가/그대로 가기" 동작은 디버그 빌드 전용 장치(`adb shell am broadcast -a io.github.haeyeonyou.familytrip.DEBUG_DELAY --ei seconds 900 -p io.github.haeyeonyou.familytrip`로 내비의 남은 시간에 초를 더함)로 에뮬레이터에서 확인했다. **내비가 정체 발생에 맞춰 남은 시간을 실제로 늘려 주는지는 실차(또는 실시간 교통이 도는 환경)에서만 확인할 수 있다.**
+- **한계 2: 남은 시간이 실시간 교통인지 통계인지 가리지 못했다.** 위 "11분 간격 1분 차이"는 시각에 따라 값이 달라진다는 정황일 뿐이다.
+- **한계 3: 에뮬레이터 시뮬레이션은 시계보다 빠르게 진행한다**(관찰상 남은 시간이 벽시계보다 빨리 줄었다). 그래서 시뮬레이션만으로는 지연이 0 이하로 나오고, 위 디버그 장치 없이는 알림이 뜨지 않는다. 실차에서는 시계와 같은 속도로 진행하므로 이 값이 그대로 지연이 된다.
+- **카카오 길찾기 대체 경로는 만들지 않았다.** 이슈에서 정한 조건("내비 SDK 값이 교통에 반응하지 않는 것으로 확인되면")이 확인되지 않았다 — 반응하지 않는다는 근거도, 반응한다는 확정 근거도 없는 상태다. 실차 확인 결과 내비 값이 교통에 반응하지 않으면 그때 추가한다. 만들 때의 전제: `server/app/sources/kakao.py`의 `route()`(`/v1/waypoints/directions`, `priority=RECOMMEND`)로 "지금 출발" 소요 시간을 받아 비교하고, 호출은 5분에 1회 이하로 제한하며, 응답은 저장하지 않고 즉시 계산해서 쓴다. **카카오의 "지금" 소요 시간이 실시간 교통인지 통계인지는 미확인**이므로 코드 주석과 문서에 그 점을 남긴다.
+
+### 지연 알림 정책 (코드 상수: `DelayConfig`)
+
+- 지연 = (지금 + 남은 시간) − (출발 시각 + 출발 때 예상 시간). 남은 시간이 늘어난 만큼 지연이다.
+- 출발 전(길이 200m 줄기 전)에는 기다린 시간을 지연으로 보지 않는다. 경유지를 넣거나 빼면 그 뒤 남은 시간을 새 기준으로 삼는다(60초 동안 따라간다).
+- **알림 조건**: 지연 5분 이상이 30초 이어질 때(남은 시간이 잠깐 튀는 것 거름).
+- **해제**: 지연이 3분 아래로 30초 이어지면 스스로 거둔다(5분 문턱 근처에서 깜빡이지 않게 문턱보다 낮음). 안내가 끝나거나 취소되거나 도착하면 상태를 초기화한다.
+- **재알림**: "그대로 가기" 뒤에는 10분이 지나고 그때보다 5분 더 늦어졌을 때만 다시 알린다. 스스로 풀린 뒤에는 10분 조용하고, 그 뒤 5분 문턱을 다시 넘으면 알린다.
+- 표시: 앱 화면 위 패널(피그마 HF 06: 경고 아이콘, "정체로 도착이 N분 늦어져요", 도착 예정·원래 시각, 경유지 후보 카드 2장, "그대로 가기")과 헤드업 알림("경유지 보기/그대로 가기"). 후보는 서버 `/care/nearby`의 수유실 1곳 + 잠깐 세울 곳 1곳(가는 곳이 있으면 경로 위 우선).
+- 정체 이유 문구는 `TrafficStatus`로 만든다: 사고·재난 > 공사 > 도로 파손 > 정체(HEAVY가 있으면 그것만, 없으면 SLOW까지, 도로별 정체 시간 합이 가장 큰 도로 이름) > 행사 순. 이미 끝난 사고는 뺀다.
+- HF06의 "“첫 번째로 가 줘”라고 말해도 돼요" 음성 안내는 해당 음성 명령이 아직 없어 넣지 않았다.
