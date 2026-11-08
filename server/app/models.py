@@ -1,9 +1,9 @@
-"""회원·세션·차 QR 로그인 테이블."""
+"""회원·세션·차 QR 로그인, 가족 정보·수유·방문 기록 테이블."""
 
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import BigInteger, Date, Double, ForeignKey, Index, Integer, String, Text, UniqueConstraint, func
+from sqlalchemy import BigInteger, Boolean, Date, Double, ForeignKey, Index, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -58,16 +58,89 @@ class CarLoginRequest(Base):
 
 
 class ClimatePreset(Base):
-    """폰에서 보낸 공조 프리셋. 사용자마다 지금 보낸 것 하나를 두고, 차가 적용하면 applied_at을 채운다."""
+    """폰에서 보낸 공조 프리셋. 사용자·슬롯(탑승 준비·낮잠·수유 정차)마다 지금 보낸 것 하나를 두고, 차가 적용하면 applied_at을 채운다."""
 
     __tablename__ = "climate_presets"
+    __table_args__ = (UniqueConstraint("user_id", "slot"),)
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), unique=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    # boarding(탑승 준비) / nap(낮잠) / feeding_stop(수유 정차). 예전 앱이 쓰던 1개짜리는 boarding이다.
+    slot: Mapped[str] = mapped_column(String(20), default="boarding", server_default="boarding")
     # 설정 값은 app/presets.py의 ClimateSettings 모양 그대로 둔다 (항목이 늘어도 테이블은 그대로)
     settings: Mapped[dict] = mapped_column(JSONB)
     sent_at: Mapped[datetime] = mapped_column(default=utcnow)
     applied_at: Mapped[datetime | None] = mapped_column(default=None)
+
+
+class Child(Base):
+    """아이 정보. 필수는 애칭·태어난 달이고 나머지는 케어 알림과 추천에 쓰는 최소 항목이다."""
+
+    __tablename__ = "children"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    nickname: Mapped[str] = mapped_column(String(30))
+    # 태어난 달의 1일로 저장 (생일은 개월 수 계산에만 쓴다)
+    birth_month: Mapped[date] = mapped_column(Date)
+    # breast(모유) / formula(분유) / mixed(혼합) / solid(이유식 후기·유아식)
+    feeding_type: Mapped[str | None] = mapped_column(String(10), default=None)
+    feed_interval_minutes: Mapped[int | None] = mapped_column(Integer, default=None)
+    nap_count: Mapped[int | None] = mapped_column(Integer, default=None)
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
+
+
+class OutingMember(Base):
+    """기본 외출 멤버(아이 말고 함께 나가는 사람). 일정마다 바꾸는 것은 일정 저장이 생기면 따로 둔다."""
+
+    __tablename__ = "outing_members"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    label: Mapped[str] = mapped_column(String(20))
+    is_driver: Mapped[bool] = mapped_column(Boolean, default=False)
+    # True면 기본 외출 멤버, False면 '자주 함께'
+    is_default: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
+
+
+class FeedingLog(Base):
+    """수유 기록. 시각·종류·양만 둔다."""
+
+    __tablename__ = "feeding_logs"
+    __table_args__ = (Index("ix_feeding_logs_user_id_fed_at", "user_id", "fed_at"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    child_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("children.id", ondelete="CASCADE"), default=None)
+    fed_at: Mapped[datetime]
+    # formula(분유) / breast(모유) / solid(이유식·간식)
+    kind: Mapped[str] = mapped_column(String(10))
+    amount_ml: Mapped[int | None] = mapped_column(Integer, default=None)
+    # web / car (차 앱·음성)
+    source: Mapped[str] = mapped_column(String(10), default="web")
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
+
+
+class VisitRecord(Base):
+    """방문 기록. 개인정보 최소화: 장소 키·이름·분야·날짜·머문 시간·아이 기분만 받고, 위치 좌표와 음성은 받지 않는다."""
+
+    __tablename__ = "visit_records"
+    __table_args__ = (Index("ix_visit_records_user_id_visited_on", "user_id", "visited_on"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    place_key: Mapped[str] = mapped_column(String(80), default="")
+    place_name: Mapped[str] = mapped_column(String(60))
+    # nature / experience / exhibition / play / pet (app/schemas.py Theme)
+    theme: Mapped[str | None] = mapped_column(String(12), default=None)
+    visited_on: Mapped[date] = mapped_column(Date)
+    stayed_minutes: Mapped[int | None] = mapped_column(Integer, default=None)
+    # confirmed(방문 확정) / pending(다녀왔는지 확인 대기) / dismissed(안 갔어요)
+    status: Mapped[str] = mapped_column(String(10), default="confirmed")
+    # excited / normal / sleepy / bad (아이 기분 한 번 탭)
+    mood: Mapped[str | None] = mapped_column(String(10), default=None)
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
 
 
 class CourseStart(Base):
