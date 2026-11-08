@@ -9,7 +9,7 @@ import httpx
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 
-from app import care, places, presets, voice, weather
+from app import care, family, feedings, places, presets, visits, voice, weather
 from app.course import starts
 from app.auth import api as auth_api
 from app.auth import web as auth_web
@@ -46,6 +46,9 @@ app.include_router(starts.router)
 app.include_router(care.router)
 app.include_router(voice.router)
 app.include_router(places.router)
+app.include_router(family.router)
+app.include_router(feedings.router)
+app.include_router(visits.router)
 app.mount("/m/assets", StaticFiles(directory=Path(__file__).parent / "static"), name="m-assets")  # 폰 웹 CSS
 
 
