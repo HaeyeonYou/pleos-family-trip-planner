@@ -1,9 +1,10 @@
 {% extends "base.html" %}
-{% block header %}<div class="topbar"><a class="back" href="/m/care" aria-label="케어로 돌아가기">←</a></div><h1 class="title">차 공조 프리셋</h1>{% endblock %}
+{% block header %}<div class="topbar"><a class="back" href="/m/care" aria-label="케어로 돌아가기">←</a></div><h1 class="title">{{ meta.label }}</h1>{% endblock %}
 {% block body %}
-<p class="lead">정해 두고 「차로 보내기」를 누르면, 시동을 걸고 차 앱을 켰을 때 이 설정을 확인하고 「차에 적용」으로 적용할 수 있어요.</p>
+<p class="lead">정해 두고 「차로 보내기」를 누르면, 시동을 걸고 차 앱을 켰을 때 이 설정을 확인하고 「차에 적용」으로 적용할 수 있어요. ({{ meta.when }})</p>
 {% if status %}<p class="{{ 'form-error' if error else 'form-ok' }}" role="status">{{ status }}</p>{% endif %}
 <form method="post">
+  <input type="hidden" name="slot" value="{{ slot }}">
   <label class="field" for="name">설정 이름</label>
   <input id="name" name="name" type="text" maxlength="30" value="{{ s.name }}">
 
@@ -19,6 +20,15 @@
     <div class="seg" role="radiogroup">
       {% for n in range(1, 9) %}
       <label><input type="radio" name="fan_speed" value="{{ n }}" {{ 'checked' if s.fan_speed == n }}><span>{{ n }}단</span></label>
+      {% endfor %}
+    </div>
+  </fieldset>
+
+  <fieldset class="group">
+    <legend>미디어 음량</legend>
+    <div class="seg" role="radiogroup">
+      {% for value, label in volumes %}
+      <label><input type="radio" name="media_volume" value="{{ value }}" {{ 'checked' if volume == value }}><span>{{ label }}</span></label>
       {% endfor %}
     </div>
   </fieldset>

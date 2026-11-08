@@ -13,6 +13,7 @@ from app import care, family, feedings, places, presets, visits, voice, weather
 from app.course import starts
 from app.auth import api as auth_api
 from app.auth import web as auth_web
+from app.auth import web_app
 from app.config import Settings, get_settings
 from app.db import Database
 from app.logs import setup_logging
@@ -40,6 +41,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="오늘, 어디 가지? API", version="0.1.0", lifespan=lifespan)
 app.include_router(auth_api.router)
 app.include_router(auth_web.router)
+app.include_router(web_app.router)
 app.include_router(presets.router)
 app.include_router(weather.router)
 app.include_router(starts.router)
