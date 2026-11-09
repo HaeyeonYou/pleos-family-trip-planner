@@ -1,6 +1,8 @@
 package io.github.haeyeonyou.familytrip.data
 
 import io.github.haeyeonyou.familytrip.BuildConfig
+import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -10,8 +12,10 @@ import retrofit2.Response
 import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
 import retrofit2.http.Body
+import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.POST
+import retrofit2.http.PUT
 import retrofit2.http.Query
 import retrofit2.http.Path
 import java.util.concurrent.TimeUnit
@@ -208,21 +212,22 @@ data class CarLoginStatus(val status: String, val token: String? = null, val use
 
 // 공조 프리셋 (서버 app/presets.py)
 
+/** 서버가 받는 값이라 기본값이어도 항상 실어 보낸다 (서버 기본값이 바뀌어도 차에서 정한 값이 그대로 저장된다). */
+@OptIn(ExperimentalSerializationApi::class)
 @Serializable
 data class ClimateSettings(
-    val name: String = "우리 가족 설정",
-    val power: Boolean = true,
-    val temperature: Float = 23f,
-    @SerialName("fan_speed") val fanSpeed: Int = 3,
-    val ac: Boolean = false,
-    @SerialName("air_cleaner") val airCleaner: Boolean = false,
-    @SerialName("driver_seat_heat") val driverSeatHeat: Int = 0,
-    @SerialName("passenger_seat_heat") val passengerSeatHeat: Int = 0,
-    @SerialName("steering_wheel_heat") val steeringWheelHeat: Int = 0,
+    @EncodeDefault val name: String = "우리 가족 설정",
+    @EncodeDefault val power: Boolean = true,
+    @EncodeDefault val temperature: Float = 23f,
+    @EncodeDefault @SerialName("fan_speed") val fanSpeed: Int = 3,
+    @EncodeDefault val ac: Boolean = false,
+    @EncodeDefault @SerialName("air_cleaner") val airCleaner: Boolean = false,
+    @EncodeDefault @SerialName("driver_seat_heat") val driverSeatHeat: Int = 0,
+    @EncodeDefault @SerialName("passenger_seat_heat") val passengerSeatHeat: Int = 0,
+    @EncodeDefault @SerialName("steering_wheel_heat") val steeringWheelHeat: Int = 0,
+    /** 미디어 음량(0~100 %). null이면 음량은 건드리지 않는다. */
+    @EncodeDefault @SerialName("media_volume") val mediaVolume: Int? = null,
 )
-
-@Serializable
-data class PendingPreset(val id: String, val settings: ClimateSettings, @SerialName("sent_at") val sentAt: String)
 
 // 급한 케어 찾기 (서버 app/care.py)
 
@@ -279,6 +284,9 @@ data class VoiceInterpretation(
     val source: String = "llm",
 )
 
+/** `GET /me/visits`가 한 번에 주는 최대 건수. 차에 두는 방문 기록 상한(500)과 같다. */
+const val VISIT_LIST_LIMIT = 500
+
 interface TripApi {
     @POST("parse")
     suspend fun parse(@Body request: ParseRequest): ParseResponse
@@ -323,9 +331,47 @@ interface TripApi {
     @GET("me/sync")
     suspend fun sync(): SyncMarks
 
-    /** 아직 적용하지 않은 프리셋. 없으면 204 (body null). */
-    @GET("presets/pending")
-    suspend fun pendingPreset(): Response<PendingPreset>
+    /** 프리셋 슬롯 3개(탑승 준비·낮잠·수유 정차)와 적용 상태. */
+    @GET("presets")
+    suspend fun presets(): List<PresetState>
+
+    /** 정차 중 차에서 고친 설정을 슬롯에 저장한다. 이미 차에 적용된 값이라 [appliedOnCar]=true. */
+    @PUT("presets/{slot}")
+    suspend fun putPreset(
+        @Path("slot") slot: String,
+        @Body settings: ClimateSettings,
+        @Query("applied_on_car") appliedOnCar: Boolean = true,
+    ): PresetState
+
+    // 방문 기록 (서버 app/visits.py)
+
+    @GET("me/visits")
+    suspend fun visits(@Query("limit") limit: Int = VISIT_LIST_LIMIT): List<VisitOut>
+
+    @PUT("me/visits/{id}")
+    suspend fun putVisit(@Path("id") id: String, @Body body: VisitIn): VisitOut
+
+    @POST("me/visits/bulk")
+    suspend fun bulkVisits(@Body body: VisitBulk): Response<Unit>
+
+    // 수유 기록 (서버 app/feedings.py)
+
+    @PUT("me/feedings/{id}")
+    suspend fun putFeeding(@Path("id") id: String, @Body body: FeedingIn): Response<Unit>
+
+    @GET("me/feedings/status")
+    suspend fun feedingStatus(): FeedingStatus
+
+    // 가족 정보 (서버 app/family.py)
+
+    @GET("me/family")
+    suspend fun family(): ServerFamily
+
+    @PUT("me/children/{id}")
+    suspend fun putChild(@Path("id") id: String, @Body body: ChildIn): ServerChild
+
+    @DELETE("me/children/{id}")
+    suspend fun deleteChild(@Path("id") id: String): Response<Unit>
 
     /** 수유실(nursing)·기저귀 교환대(diaper)·잠깐 세울 곳(rest)을 현재 위치 근처에서 찾는다. 가는 곳을 주면 경로 위 우선. */
     @GET("care/nearby")

@@ -62,4 +62,25 @@ class SyncTrackerTest {
         assertEquals("aaa", parsed.presets)
         assertEquals("fff", parsed.all)
     }
+
+    @Test
+    fun 일부_영역만_반영하면_나머지는_다음에_다시_바뀐_것으로_본다() {
+        val tracker = SyncTracker().also { it.accept(marks()) }
+        val next = marks(presets = "p2", feedings = "f2", all = "a2")
+        // 프리셋만 반영을 마치고 수유는 실패
+        tracker.accept(next, SyncChange(presets = true, feedings = false, visits = true, family = true, cars = true))
+        assertEquals(SyncChange(feedings = true), tracker.diff(next))
+        // 수유까지 반영하면 전체가 같아진다
+        tracker.accept(next)
+        assertFalse(tracker.diff(next).any)
+    }
+
+    @Test
+    fun 처음_받은_표시에서_일부만_반영해도_나머지는_바뀐_것으로_남는다() {
+        val tracker = SyncTracker()
+        tracker.accept(marks(), SyncChange(presets = true, feedings = false, visits = false, family = true, cars = true))
+        val change = tracker.diff(marks())
+        assertTrue(change.feedings && change.visits)
+        assertFalse(change.presets || change.family)
+    }
 }

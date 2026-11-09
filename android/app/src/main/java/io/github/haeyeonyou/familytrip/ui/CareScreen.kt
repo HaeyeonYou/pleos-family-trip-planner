@@ -37,6 +37,7 @@ import io.github.haeyeonyou.familytrip.care.CareState
 import io.github.haeyeonyou.familytrip.care.Nearby
 import io.github.haeyeonyou.familytrip.care.ToneState
 import io.github.haeyeonyou.familytrip.data.CarePlace
+import io.github.haeyeonyou.familytrip.data.ClimateSettings
 
 /** 케어 화면이 밖에 알리는 동작 모음. */
 data class CareActions(
@@ -46,13 +47,14 @@ data class CareActions(
     val onInterval: (Int) -> Unit,
     val onFind: (CareKind) -> Unit,
     val onAddWaypoint: (CarePlace) -> Unit,
-    val onApplyPreset: () -> Unit,
-    val onDismissPreset: () -> Unit,
+    val onApplyPreset: (slot: String) -> Unit,
+    val onSavePreset: (slot: String, settings: ClimateSettings) -> Unit,
+    val onDismissPreset: (slot: String) -> Unit,
     val onEnter: () -> Unit,
 )
 
 /**
- * 케어 (피그마 HF03). 베이비케어 모드(실제 공조 제어) · 수유 타이머 · 급한 케어 찾기 · 수면 모드.
+ * 케어 (피그마 HF03). 베이비케어 모드(실제 공조 제어) · 수유 타이머 · 공조 프리셋 3개 · 급한 케어 찾기 · 수면 모드.
  * 맨 위 지연 알림 배너(정체로 도착이 늦어질 때, #17)는 이번 범위가 아니라 [DelayBannerSlot] 자리만 둔다.
  */
 @Composable
@@ -72,7 +74,14 @@ fun CareScreen(
     ) {
         DelayBannerSlot()
         ScreenTitle("케어", months?.let { "생후 ${it}개월 · 출발 전 준비와 급한 순간" } ?: "출발 전 준비와 급한 순간")
-        if (state.pendingPreset != null) PresetCard(state, onApply = actions.onApplyPreset, onDismiss = actions.onDismissPreset)
+        PresetSlots(
+            presets = state.presets,
+            messages = state.presetMessages,
+            applyingSlot = state.applyingSlot,
+            isParked = isParked,
+            narrow = narrow,
+            actions = PresetActions(actions.onApplyPreset, actions.onSavePreset, actions.onDismissPreset),
+        )
 
         val babyCare: @Composable (Modifier) -> Unit = { m -> BabyCareCard(state, care, actions.onBabyCare, m) }
         val feeding: @Composable (Modifier) -> Unit = { m ->
@@ -158,7 +167,7 @@ private fun BabyCareCard(state: TripUiState, care: CareState, onToggle: (Boolean
                 Text("${trim(care.targetTemperature)}°C", fontSize = 48.sp, fontWeight = FontWeight.Bold, color = TripColors.Green)
             }
         }
-        val presetName = state.pendingPreset?.settings?.name
+        val presetName = state.babyCarePreset?.settings?.name
         Text(
             when {
                 care.babyCareBusy -> "차에 적용하는 중…"

@@ -4,6 +4,9 @@ import android.content.Context
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import java.io.File
 import java.time.Duration
 import java.time.LocalDate
@@ -26,6 +29,8 @@ data class Visit(
     val placeKey: String? = null,
     val arrivedAt: String,
     val departedAt: String? = null,
+    /** 서버가 정한 방문 id. 웹 등 다른 곳에서 받아온 기록에만 있고, 차에서 만든 기록은 [id]에서 만든 UUID를 쓴다. */
+    val serverId: String? = null,
 ) {
     val date: LocalDate get() = LocalDateTime.parse(arrivedAt).toLocalDate()
 
@@ -33,15 +38,31 @@ data class Visit(
     fun stayMinutes(): Long? = departedAt?.let { Duration.between(LocalDateTime.parse(arrivedAt), LocalDateTime.parse(it)).toMinutes() }
 }
 
-/** 방문 기록을 차 안(앱 내부 파일)에만 저장한다. 서버로 보내지 않는다. */
-class VisitStore(context: Context) {
-    private val file = File(context.filesDir, "visits.json")
-    private val json = Json { ignoreUnknownKeys = true }
+/**
+ * 방문 기록을 차 안(앱 내부 파일)에 저장한다. 로그인했다면 [VisitSync]가 나들이 방문만 서버에도 올리고 맞춘다.
+ * 기록이 바뀔 때마다 [revision]이 올라 화면이 다시 읽을 수 있다.
+ */
+class VisitStore(private val file: File) {
+    constructor(context: Context) : this(File(context.filesDir, "visits.json"))
 
+    private val json = Json { ignoreUnknownKeys = true }
+    private val _revision = MutableStateFlow(0)
+    val revision: StateFlow<Int> = _revision.asStateFlow()
+
+    @Synchronized
     fun all(): List<Visit> =
         runCatching { json.decodeFromString<List<Visit>>(file.readText()) }.getOrDefault(emptyList())
 
+    /** 기록 전체를 [transform]으로 바꾼다 (읽고 쓰는 사이에 다른 기록이 끼어들지 않는다). 달라졌을 때만 [revision]을 올린다. */
+    @Synchronized
+    fun update(transform: (List<Visit>) -> List<Visit>) {
+        val before = all()
+        val after = transform(before)
+        if (after != before) write(after)
+    }
+
     /** 도착을 기록한다. 같은 장소에 이미 머무는 중이면 다시 쓰지 않는다 (근접 알림과 내비 도착이 겹칠 때). */
+    @Synchronized
     fun arrive(place: CoursePlace, role: String, now: LocalDateTime = LocalDateTime.now()) {
         val visits = all()
         if (visits.lastOrNull()?.let { it.placeName == place.name && it.departedAt == null } == true) return
@@ -58,6 +79,7 @@ class VisitStore(context: Context) {
     }
 
     /** 머무는 중인 방문을 떠난 것으로 닫는다 (다음 안내 시작, 안내 종료). */
+    @Synchronized
     fun departOpen(now: LocalDateTime = LocalDateTime.now()) {
         val visits = all()
         val last = visits.lastOrNull() ?: return
@@ -65,9 +87,13 @@ class VisitStore(context: Context) {
         write(visits.dropLast(1) + last.copy(departedAt = now.withNano(0).toString()))
     }
 
-    private fun write(visits: List<Visit>) = file.writeText(json.encodeToString(visits.takeLast(MAX_VISITS)))
+    private fun write(visits: List<Visit>) {
+        file.writeText(json.encodeToString(visits.takeLast(MAX_VISITS)))
+        _revision.value += 1
+    }
 
-    private companion object {
-        const val MAX_VISITS = 500
+    companion object {
+        /** 차에 두는 방문 기록 상한. 서버 목록 한 번 조회 상한([VISIT_LIST_LIMIT])과 같다. */
+        const val MAX_VISITS = VISIT_LIST_LIMIT
     }
 }
