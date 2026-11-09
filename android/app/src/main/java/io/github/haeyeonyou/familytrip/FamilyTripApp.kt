@@ -8,6 +8,7 @@ import io.github.haeyeonyou.familytrip.data.AccountStore
 import io.github.haeyeonyou.familytrip.data.CourseStore
 import io.github.haeyeonyou.familytrip.data.FeedingStore
 import io.github.haeyeonyou.familytrip.data.ProfileStore
+import io.github.haeyeonyou.familytrip.data.ServerSync
 import io.github.haeyeonyou.familytrip.data.TripApi
 import io.github.haeyeonyou.familytrip.data.VisitStore
 import io.github.haeyeonyou.familytrip.guide.GuideNotifier
@@ -44,7 +45,9 @@ class AppContainer(private val app: Application) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val notifier = GuideNotifier(app)
     val guide = GuideSession(app, navi, location, notifier, visits, scope)
-    val care = CareController(app, vehicle, navi, location, api, guide, notifier, feeding, scope)
+    /** 차 앱 ↔ 서버 동기화 (로그인했을 때만 동작). 도착 기록 같은 차의 변경을 바로 올린다. */
+    val serverSync = ServerSync(app, api, account, visits, profile, feeding, scope).also { it.start() }
+    val care = CareController(app, vehicle, navi, location, api, guide, notifier, feeding, serverSync, scope)
     val delayAlert = DelayAlertController(app, navi, location, api, { guide.state.value.current?.place?.let { Place(it.name, it.latitude, it.longitude) } }, scope)
     val voiceIo = VoiceIo(app)
     val voice = VoiceController(voiceIo, care, vehicle, navi, api, scope)
