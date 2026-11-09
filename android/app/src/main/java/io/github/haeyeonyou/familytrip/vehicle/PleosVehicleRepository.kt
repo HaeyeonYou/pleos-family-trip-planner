@@ -27,7 +27,8 @@ import kotlinx.coroutines.flow.update
  */
 class PleosVehicleRepository(context: Context) : VehicleRepository {
 
-    private val vehicle = Vehicle(context.applicationContext)
+    private val appContext = context.applicationContext
+    private val vehicle = Vehicle(appContext)
     private val _state = MutableStateFlow(VehicleState())
     override val state: StateFlow<VehicleState> = _state.asStateFlow()
 
@@ -160,6 +161,19 @@ class PleosVehicleRepository(context: Context) : VehicleRepository {
         }
         step(heatLabel("핸들 열선", settings.steeringWheelHeat)) {
             sdk<Unit> { ok, fail -> vehicle.getSteeringWheel().setHvacSteeringWheelHeat(settings.steeringWheelHeat, { ok(Unit) }, fail) }
+        }
+        // 미디어 음량: Vehicle SDK에는 음량 제어가 없어 안드로이드 미디어 스트림 음량으로 맞춘다.
+        // 차가 막으면(권한·정책) 값이 그대로 남으므로 다시 읽어 확인하고, 다르면 실패로 알린다.
+        settings.mediaVolume?.let { percent ->
+            step("음량 ${percent}%") {
+                val audio = appContext.getSystemService(android.media.AudioManager::class.java)
+                    ?: error("오디오 서비스를 쓸 수 없어요")
+                val max = audio.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC)
+                val target = Math.round(max * percent.coerceIn(0, 100) / 100f).coerceIn(0, max)
+                audio.setStreamVolume(android.media.AudioManager.STREAM_MUSIC, target, 0)
+                val now = audio.getStreamVolume(android.media.AudioManager.STREAM_MUSIC)
+                check(now == target) { "음량이 $now/$max 로 남았어요" }
+            }
         }
         // 차가 실제로 받아들였는지 확인용으로 설정 온도를 다시 읽어 남긴다.
         tempZones.keys.forEach { area ->

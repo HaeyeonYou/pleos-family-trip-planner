@@ -51,6 +51,10 @@ android {
         compose = true
         buildConfig = true
     }
+    testOptions {
+        // 단위 테스트에서 android.util.Log 같은 호출이 있어도 죽지 않게 한다 (동기화 규칙의 실패 경로 테스트).
+        unitTests.isReturnDefaultValues = true
+    }
 }
 
 dependencies {

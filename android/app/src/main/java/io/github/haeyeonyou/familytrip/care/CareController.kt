@@ -7,7 +7,8 @@ import io.github.haeyeonyou.familytrip.data.ClimateSettings
 import io.github.haeyeonyou.familytrip.data.FeedingRoutine
 import io.github.haeyeonyou.familytrip.data.FeedingStore
 import io.github.haeyeonyou.familytrip.data.LatLng
-import io.github.haeyeonyou.familytrip.data.PendingPreset
+import io.github.haeyeonyou.familytrip.data.PresetState
+import io.github.haeyeonyou.familytrip.data.ServerSync
 import io.github.haeyeonyou.familytrip.data.TripApi
 import io.github.haeyeonyou.familytrip.guide.GuideNotifier
 import io.github.haeyeonyou.familytrip.guide.GuideSession
@@ -86,6 +87,7 @@ class CareController(
     private val guide: GuideSession,
     private val notifier: GuideNotifier,
     private val feedingStore: FeedingStore,
+    private val serverSync: ServerSync,
     private val scope: CoroutineScope,
 ) {
     private val prefs = context.getSharedPreferences("care", Context.MODE_PRIVATE)
@@ -104,6 +106,8 @@ class CareController(
     init {
         notifier.quiet = _state.value.sleepMode
         ToneState.sleep = _state.value.sleepMode
+        // 수유 루틴은 저장소가 하나뿐이다: 홈·음성·서버에서 받은 변경도 같은 값을 본다.
+        scope.launch { feedingStore.routine.collect { f -> _state.update { it.copy(feeding = f) } } }
         // 수면 모드 중 도착 5분 전에 한 번만 조용히 알린다.
         scope.launch {
             navi.state.collect { n ->
@@ -120,17 +124,17 @@ class CareController(
 
     // 수유 루틴 (hf01-home과 같은 FeedingStore 사용)
 
-    fun markFed() = updateFeeding { it.copy(lastFedAt = System.currentTimeMillis()) }
+    /** 방금 수유했다: 차에 저장하고, 로그인했다면 서버에도 기록한다 (못 올리면 쌓아 두었다가 다시 올린다). */
+    fun markFed() {
+        val now = System.currentTimeMillis()
+        feedingStore.save(feedingStore.load().copy(lastFedAt = now))
+        serverSync.onFed(now)
+    }
 
-    fun setFeedingInterval(minutes: Int) = updateFeeding { it.copy(intervalMinutes = minutes) }
-
-    /** 홈 화면 등 다른 곳에서 저장소를 바꿨을 때 다시 읽는다. */
-    fun reloadFeeding() = _state.update { it.copy(feeding = feedingStore.load()) }
-
-    private fun updateFeeding(transform: (FeedingRoutine) -> FeedingRoutine) {
-        val next = transform(feedingStore.load())
-        feedingStore.save(next)
-        _state.update { it.copy(feeding = next) }
+    /** 수유 간격을 바꾼다. 로그인했다면 첫째 아이의 수유 간격으로 서버에도 올린다. */
+    fun setFeedingInterval(minutes: Int) {
+        feedingStore.save(feedingStore.load().copy(intervalMinutes = minutes))
+        serverSync.onFamilyEdited()
     }
 
     // 베이비케어: 실제 공조 제어
@@ -139,19 +143,19 @@ class CareController(
      * 베이비케어를 켜면 [preset](가족 공조 프리셋)이 있으면 그 값을, 없으면 기본값
      * (24°C, 약한 바람, 시트·핸들 열선 끔)을 차에 적용한다. 끄면 켜기 전 설정으로 되돌린다.
      */
-    fun setBabyCare(on: Boolean, preset: PendingPreset? = null, onApplied: (() -> Unit)? = null): Job {
+    fun setBabyCare(on: Boolean, preset: PresetState? = null, onApplied: (() -> Unit)? = null): Job {
         if (_state.value.babyCareBusy) return scope.launch { }
         return scope.launch {
             _state.update { it.copy(babyCareBusy = true, climateMessage = null) }
             val used = if (on) enableBabyCare(preset) else { disableBabyCare(); false }
-            if (used && preset != null) runCatching { api.presetApplied(preset.id) }
+            if (used && preset?.id != null && preset.pending) serverSync.onPresetApplied(preset.slot, preset.id)
             _state.update { it.copy(babyCareBusy = false) }
             if (on && _state.value.babyCare) onApplied?.invoke()
         }
     }
 
     /** 켜기를 시도한다. 차에 하나라도 적용했으면 true. */
-    private suspend fun enableBabyCare(preset: PendingPreset?): Boolean {
+    private suspend fun enableBabyCare(preset: PresetState?): Boolean {
         val before = vehicle.readClimate()
         if (!before.supported) {
             _state.update {

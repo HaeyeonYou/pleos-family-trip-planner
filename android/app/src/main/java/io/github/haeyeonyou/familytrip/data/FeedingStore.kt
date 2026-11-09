@@ -1,12 +1,15 @@
 package io.github.haeyeonyou.familytrip.data
 
 import android.content.Context
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
 
-/** 수유 루틴 (#67): 마지막 수유 시각과 간격. 기기에만 저장하고 서버로 보내지 않는다. */
+/** 수유 루틴 (#67): 마지막 수유 시각과 간격. */
 data class FeedingRoutine(
     /** 마지막 수유 시각 (epoch ms). 아직 기록이 없으면 null */
     val lastFedAt: Long? = null,
@@ -54,19 +57,29 @@ fun durationLabel(minutes: Long): String {
 fun clockLabel(epochMs: Long): String =
     Instant.ofEpochMilli(epochMs).atZone(ZoneId.systemDefault()).toLocalTime().let { "%02d:%02d".format(it.hour, it.minute) }
 
-class FeedingStore(context: Context) {
+/**
+ * 수유 루틴을 기기에 저장한다. 로그인했다면 [FeedingSync]·[FamilySync]가 서버와 맞춘다.
+ * 바뀔 때마다 [routine] 흐름이 알려, 서버에서 받은 값도 홈·케어 화면에 바로 반영된다.
+ */
+class FeedingStore(context: Context) : FeedingRoutineStore {
     private val prefs = context.getSharedPreferences("feeding", Context.MODE_PRIVATE)
+    private val _routine = MutableStateFlow(read())
+    val routine: StateFlow<FeedingRoutine> = _routine.asStateFlow()
 
-    fun load(): FeedingRoutine = FeedingRoutine(
+    private fun read(): FeedingRoutine = FeedingRoutine(
         lastFedAt = prefs.getLong(KEY_LAST, 0L).takeIf { it > 0 },
         intervalMinutes = prefs.getInt(KEY_INTERVAL, FeedingRoutine.DEFAULT_INTERVAL_MINUTES),
     )
 
-    fun save(routine: FeedingRoutine) {
+    override fun load(): FeedingRoutine = _routine.value
+
+    @Synchronized
+    override fun save(routine: FeedingRoutine) {
         prefs.edit()
             .putLong(KEY_LAST, routine.lastFedAt ?: 0L)
             .putInt(KEY_INTERVAL, routine.intervalMinutes)
             .apply()
+        _routine.value = routine
     }
 
     private companion object {
