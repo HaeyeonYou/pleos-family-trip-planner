@@ -55,6 +55,7 @@ def test_signup_needs_consent_and_confirm_and_has_tabs():
 
         privacy = (await client.get("/m/privacy")).text
         assert "저장하지 않는 것" in privacy and "위치 좌표" in privacy and "알레르기" in privacy
+        assert "방문 시각(시·분)" in privacy and "되돌릴 수 없어요" in privacy and "차 기기 안에만 있는 기록" in privacy
 
     run(scenario)
 
