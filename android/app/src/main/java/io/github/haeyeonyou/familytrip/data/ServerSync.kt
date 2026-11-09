@@ -80,6 +80,17 @@ class ServerSync(
     /** 차에서 고친 아이 정보·수유 간격을 서버에 올린다. */
     fun onFamilyEdited() = kick { family.reconcile() }
 
+    /**
+     * 데이터 전체 삭제 직전에 부른다: 서버와 맞춘 기록(방문·가족 스냅샷)과 못 올린 수유 대기열을 비운다.
+     * 그러지 않으면 비운 차를 "차에서 지운 것"이나 올릴 것으로 오해할 수 있다. 서버 데이터는 건드리지 않는다.
+     * 서버 데이터를 지우지 않았다면 다음 동기화 때 서버 값이 다시 내려온다.
+     */
+    fun forgetForWipe() {
+        visits.forget()
+        family.forget()
+        feedings.clearPending()
+    }
+
     /** 서버의 프리셋을 지금 다시 받는다. */
     fun refreshPresets() = kick { _presets.value = presetSync.fetch() }
 

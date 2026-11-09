@@ -1,5 +1,6 @@
 package io.github.haeyeonyou.familytrip.ui
 
+import androidx.compose.material3.Icon
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -9,6 +10,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -70,13 +72,16 @@ fun FeedingCard(
     val remaining = routine.remainingMinutes(now)
     Column(
         modifier = modifier
-            .clip(RoundedCornerShape(28.dp))
+            .clip(RoundedCornerShape(24.dp))
             .background(TripColors.Card)
-            .border(1.dp, TripColors.Line, RoundedCornerShape(28.dp))
-            .padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            .border(1.dp, TripColors.Line, RoundedCornerShape(24.dp))
+            .padding(horizontal = 28.dp, vertical = 26.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Text("🍼  다음 수유까지", fontSize = 20.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Icon(FigmaIcons.Milk, contentDescription = null, tint = TripColors.Green, modifier = Modifier.size(24.dp))
+            Text("다음 수유까지", fontSize = 20.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
         Text(
             when {
                 remaining == null -> "기록 없음"
