@@ -152,6 +152,9 @@ class FeedingSync(
         queue.save(q.copy(pending = q.pending.filterNot { it.id == id }))
     }
 
+    /** 데이터 전체 삭제: 아직 서버에 못 올린 수유 기록을 버린다. */
+    fun clearPending() = queue.save(queue.load().copy(pending = emptyList()))
+
     /** 계정이 바뀌면 다른 계정에서 기록한 대기 기록을 정리한다 (로그인 전 기록은 남긴다). */
     fun onAccountChanged(newOwner: String?) {
         val q = queue.load()

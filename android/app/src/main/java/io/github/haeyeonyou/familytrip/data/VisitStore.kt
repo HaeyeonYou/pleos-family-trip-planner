@@ -87,6 +87,13 @@ class VisitStore(private val file: File) {
         write(visits.dropLast(1) + last.copy(departedAt = now.withNano(0).toString()))
     }
 
+    /** 데이터 전체 삭제: 방문 기록을 모두 지운다. */
+    @Synchronized
+    fun clear() {
+        file.delete()
+        _revision.value += 1
+    }
+
     private fun write(visits: List<Visit>) {
         file.writeText(json.encodeToString(visits.takeLast(MAX_VISITS)))
         _revision.value += 1

@@ -42,6 +42,7 @@ import io.github.haeyeonyou.familytrip.ui.CareScreen
 import io.github.haeyeonyou.familytrip.ui.CourseEditActions
 import io.github.haeyeonyou.familytrip.ui.FamilyTripTheme
 import io.github.haeyeonyou.familytrip.ui.MainTab
+import io.github.haeyeonyou.familytrip.ui.SettingsActions
 import io.github.haeyeonyou.familytrip.ui.SettingsScreen
 import io.github.haeyeonyou.familytrip.ui.CourseScreen
 import io.github.haeyeonyou.familytrip.ui.DevScreen
@@ -359,21 +360,33 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         composable(Routes.SETTINGS) {
+                            // 수유 간격은 케어 화면과 같은 값이라 케어 상태를 읽고 바꾼다.
+                            val care = container.care
+                            val careState by care.state.collectAsStateWithLifecycle()
                             SettingsScreen(
                                 profile = state.profile,
                                 account = account?.user,
                                 isParked = vehicle.isParked,
-                                onEditProfile = { nav.navigate(Routes.PROFILE) },
-                                onLogin = { nav.navigate(Routes.LOGIN) },
-                                onLogout = {
-                                    scope.launch {
-                                        // 서버 세션을 먼저 폐기하고, 연결이 안 돼도 차에서는 지운다.
-                                        runCatching { container.api.logout() }
-                                        container.account.clear()
-                                        nav.navigate(Routes.LOGIN) { popUpTo(0) }
-                                    }
-                                },
-                                onOpenDev = { nav.navigate(Routes.DEV) },
+                                prefs = state.prefs,
+                                feeding = careState.feeding,
+                                nap = state.nap,
+                                actions = SettingsActions(
+                                    onEditProfile = { nav.navigate(Routes.PROFILE) },
+                                    onLogin = { nav.navigate(Routes.LOGIN) },
+                                    onLogout = {
+                                        scope.launch {
+                                            // 서버 세션을 먼저 폐기하고, 연결이 안 돼도 차에서는 지운다.
+                                            runCatching { container.api.logout() }
+                                            container.account.clear()
+                                            nav.navigate(Routes.LOGIN) { popUpTo(0) }
+                                        }
+                                    },
+                                    onOpenDev = { nav.navigate(Routes.DEV) },
+                                    onPreference = vm::setPreference,
+                                    onInterval = care::setFeedingInterval,
+                                    onNap = vm::setNap,
+                                    onWipe = vm::wipeData,
+                                ),
                             )
                         }
                         composable(Routes.EXPERIENCE) {

@@ -9,6 +9,7 @@ import io.github.haeyeonyou.familytrip.data.CourseStore
 import io.github.haeyeonyou.familytrip.data.FeedingStore
 import io.github.haeyeonyou.familytrip.data.ProfileStore
 import io.github.haeyeonyou.familytrip.data.ServerSync
+import io.github.haeyeonyou.familytrip.data.SettingsStore
 import io.github.haeyeonyou.familytrip.data.TripApi
 import io.github.haeyeonyou.familytrip.data.VisitStore
 import io.github.haeyeonyou.familytrip.guide.GuideNotifier
@@ -42,6 +43,7 @@ class AppContainer(private val app: Application) {
     val profile = ProfileStore(app)
     val visits = VisitStore(app)
     val feeding = FeedingStore(app)
+    val settings = SettingsStore(app)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val notifier = GuideNotifier(app)
     val guide = GuideSession(app, navi, location, notifier, visits, scope)

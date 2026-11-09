@@ -4,7 +4,12 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.haeyeonyou.familytrip.AppContainer
+import io.github.haeyeonyou.familytrip.data.CarePreferences
 import io.github.haeyeonyou.familytrip.data.CoursePlace
+import io.github.haeyeonyou.familytrip.data.NapWindow
+import io.github.haeyeonyou.familytrip.data.TripApiEraseRemote
+import io.github.haeyeonyou.familytrip.data.eraseServerData
+import io.github.haeyeonyou.familytrip.data.Preference
 import io.github.haeyeonyou.familytrip.data.FamilyProfile
 import io.github.haeyeonyou.familytrip.data.FeedingRoutine
 import io.github.haeyeonyou.familytrip.data.CourseOption
@@ -63,6 +68,10 @@ data class TripUiState(
     val applyingSlot: String? = null,
     /** 수유 루틴 (#67). 기기에 저장하고, 로그인했다면 서버와 맞춘다 */
     val feeding: FeedingRoutine = FeedingRoutine(),
+    /** 설정의 선호 조건 4개 (홈 칩의 시작 상태, 문장 요청에도 더해짐) */
+    val prefs: CarePreferences = CarePreferences(),
+    /** 설정의 낮잠 시간 */
+    val nap: NapWindow = NapWindow(),
     val homeFilters: HomeFilters = HomeFilters(),
     /** 홈 추천을 만든 조건 (코스를 열면 이 조건으로 편집한다) */
     val courseConditions: TripConditions? = null,
@@ -109,7 +118,14 @@ private const val MAX_STAY_MINUTES = 300
 class TripViewModel(private val container: AppContainer) : ViewModel() {
 
     private val _state = MutableStateFlow(container.profile.load().let { profile ->
-        TripUiState(profile = profile, feeding = container.feeding.load(), homeFilters = defaultFilters(profile))
+        val prefs = loadPreferences(profile)
+        TripUiState(
+            profile = profile,
+            feeding = container.feeding.load(),
+            prefs = prefs,
+            nap = container.settings.loadNap(),
+            homeFilters = HomeFilters().withPreferences(prefs),
+        )
     })
     val state: StateFlow<TripUiState> = _state.asStateFlow()
 
@@ -315,15 +331,15 @@ class TripViewModel(private val container: AppContainer) : ViewModel() {
             runCatching { container.api.weather(origin.latitude, origin.longitude) }
                 .onSuccess { w ->
                     _state.update { it.copy(weather = w) }
-                    if ((w.rainy || w.rainLater) && !indoorTouched && !_state.value.homeFilters.indoor) {
+                    val current = _state.value
+                    if (shouldPreferIndoor(current.prefs, w, indoorTouched, current.homeFilters)) {
                         _state.update { it.copy(homeFilters = it.homeFilters.copy(indoor = true)) }
                     }
                 }
                 .onFailure { e -> Log.w(TAG, "weather failed", e) }
             val s = _state.value
             val filters = s.homeFilters
-            val base = s.profile?.applyTo(TripConditions()) ?: TripConditions()
-            val conditions = base.copy(withPet = filters.pet, indoorOnly = filters.indoor, needs = filters.needs())
+            val conditions = homeConditions(s.profile, filters)
             try {
                 val res = container.api.suggest(
                     CourseRequest(conditions = conditions, origin = origin, visits = recentVisits(), excludePlaceKeys = shownKeys.toList()),
@@ -372,7 +388,7 @@ class TripViewModel(private val container: AppContainer) : ViewModel() {
         launchRequest {
             val res = container.api.parse(ParseRequest(text))
             _state.update {
-                it.copy(conditions = it.profile?.applyTo(res.conditions) ?: res.conditions, parsedBy = res.parser)
+                it.copy(conditions = withDefaults(it, res.conditions), parsedBy = res.parser)
             }
         }
     }
@@ -380,16 +396,82 @@ class TripViewModel(private val container: AppContainer) : ViewModel() {
     /** 문장 없이 가족 정보만으로 조건을 만든다 (테마 등은 화면에서 고른다). */
     fun conditionsFromProfile() {
         val profile = _state.value.profile ?: return
-        _state.update { it.copy(conditions = profile.applyTo(TripConditions()), parsedBy = null) }
+        _state.update { it.copy(conditions = withDefaults(it, TripConditions()), parsedBy = null) }
     }
 
     fun saveProfile(profile: FamilyProfile) {
         container.profile.save(profile)
         container.serverSync.onFamilyEdited()
+        val prefs = loadPreferences(profile)
         _state.update {
-            it.copy(profile = profile, conditions = it.conditions?.let(profile::applyTo), homeFilters = defaultFilters(profile), options = emptyList())
+            it.copy(
+                profile = profile,
+                prefs = prefs,
+                conditions = it.conditions?.let { c -> prefs.applyTo(profile.applyTo(c)) },
+                homeFilters = HomeFilters().withPreferences(prefs),
+                options = emptyList(),
+            )
         }
     }
+
+    /** 설정의 선호 조건 하나를 바꾼다. 홈 칩을 새 기본값으로 되돌리고 추천을 다시 받는다. */
+    fun setPreference(preference: Preference, on: Boolean) {
+        container.settings.setPreference(preference, on)
+        shownKeys.clear()
+        indoorTouched = false
+        _state.update {
+            val prefs = loadPreferences(it.profile)
+            it.copy(prefs = prefs, homeFilters = it.homeFilters.withPreferences(prefs), options = emptyList())
+        }
+    }
+
+    /**
+     * '데이터 전체 삭제'. [includeServer]이면 서버 데이터를 먼저 지우고, 실패하면 기기 데이터는 건드리지 않고 안내 문구를 돌려준다.
+     * 성공하면 null.
+     */
+    suspend fun wipeData(includeServer: Boolean): String? {
+        if (includeServer) eraseServerData(TripApiEraseRemote(container.api))?.let { return it }
+        wipeLocalData()
+        return null
+    }
+
+    /**
+     * '데이터 전체 삭제'의 기기 쪽: 가족 정보·방문 기록·저장한 코스·수유 기록·선호 조건·낮잠 시간을 지우고 화면 상태를 처음으로 되돌린다.
+     * 로그인 정보는 그대로 둔다(로그아웃은 따로). 서버 데이터는 [wipeServerData]가 따로 지운다.
+     */
+    fun wipeLocalData() {
+        container.serverSync.forgetForWipe()
+        container.profile.clear()
+        container.visits.clear()
+        container.courses.clear()
+        container.feeding.save(FeedingRoutine())
+        container.settings.clear()
+        container.care.reloadFeeding()
+        shownKeys.clear()
+        indoorTouched = false
+        val prefs = loadPreferences(null)
+        _state.update {
+            it.copy(
+                profile = null, conditions = null, parsedBy = null, course = null, courseConditions = null, savedCourseId = null,
+                feeding = FeedingRoutine(), prefs = prefs, nap = NapWindow(),
+                homeFilters = HomeFilters().withPreferences(prefs), options = emptyList(), going = emptyMap(),
+                message = null, error = null,
+            )
+        }
+    }
+
+    fun setNap(nap: NapWindow) {
+        container.settings.saveNap(nap)
+        _state.update { it.copy(nap = nap) }
+    }
+
+    /** 저장한 선호 조건. 안 만진 토글은 가족 정보에서 정한 기본값을 따른다. */
+    private fun loadPreferences(profile: FamilyProfile?): CarePreferences =
+        CarePreferences.resolve(container.settings.storedPreferences(), profile)
+
+    /** 문장에서 읽은 조건에 가족 정보와 선호 조건을 더한다. */
+    private fun withDefaults(state: TripUiState, parsed: TripConditions): TripConditions =
+        state.prefs.applyTo(state.profile?.applyTo(parsed) ?: parsed)
 
     fun updateConditions(transform: (TripConditions) -> TripConditions) =
         _state.update { it.copy(conditions = transform(it.conditions ?: TripConditions())) }
@@ -563,10 +645,4 @@ class TripViewModel(private val container: AppContainer) : ViewModel() {
             }
         }
     }
-}
-
-/** 가족 정보로 정하는 칩 기본값: 36개월 미만이면 수유실·유모차, 반려견이 함께면 반려동물. */
-private fun defaultFilters(profile: FamilyProfile?): HomeFilters {
-    val infant = profile?.ageMonths()?.minOrNull()?.let { it < 36 } == true
-    return HomeFilters(nursingRoom = infant, stroller = infant, pet = profile?.petAlong == true)
 }
