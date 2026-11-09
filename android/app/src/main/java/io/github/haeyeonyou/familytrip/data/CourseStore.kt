@@ -34,6 +34,9 @@ class CourseStore(context: Context) {
         file.writeText(json.encodeToString(courses.take(MAX_COURSES)))
     }
 
+    /** 데이터 전체 삭제: 저장한 코스를 모두 지운다. */
+    fun clear() { file.delete() }
+
     private companion object {
         const val MAX_COURSES = 20
     }

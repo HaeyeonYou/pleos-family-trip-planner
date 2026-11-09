@@ -78,4 +78,11 @@ class ProfileStore(private val file: File) : ProfileRepo {
         file.writeText(json.encodeToString(profile))
         _profile.value = profile
     }
+
+    /** 데이터 전체 삭제: 저장한 가족 정보를 지운다 (그러면 '아직 등록하지 않음'으로 돌아간다). */
+    @Synchronized
+    fun clear() {
+        file.delete()
+        _profile.value = null
+    }
 }

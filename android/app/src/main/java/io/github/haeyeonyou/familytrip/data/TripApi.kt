@@ -387,6 +387,18 @@ interface TripApi {
     @POST("presets/{id}/applied")
     suspend fun presetApplied(@Path("id") presetId: String): Response<Unit>
 
+    // 데이터 전체 삭제 (서버 app/family.py·visits.py): 가족 목록의 id를 읽어 아이(수유 기록 포함, [deleteChild])·외출 멤버를 지우고 방문 기록을 모두 지운다.
+    // 외출 멤버 id까지 필요해 [family]와 따로 id만 읽는다.
+
+    @GET("me/family")
+    suspend fun familyForErase(): FamilyIds
+
+    @DELETE("me/members/{id}")
+    suspend fun eraseMember(@Path("id") id: String): Response<Unit>
+
+    @DELETE("me/visits")
+    suspend fun eraseVisits(): Response<Unit>
+
     companion object {
         /** [token]이 있으면 모든 요청에 차 세션 토큰을 붙인다 (로그인한 사용자 기능). */
         fun create(baseUrl: String = BuildConfig.SERVER_URL, token: () -> String? = { null }): TripApi {
