@@ -53,11 +53,11 @@ def test_tab_bar_marks_the_current_tab_and_pages_show_real_values():
     async def scenario(client):
         async with phone(client) as mobile:
             await mobile.post(
-                "/m/signup", data={"login_id": "mom_home", "password": "password123", "display_name": "지은", "next": "/m/"}
+                "/m/signup", data={"agree": "1", "login_id": "mom_home", "password": "password123", "display_name": "지은", "next": "/m/"}
             )
             for path, tab in zip(TAB_PAGES, ["홈", "케어", "그로우", "MY"]):
                 html = (await mobile.get(path)).text
-                assert re.search(rf'aria-current="page"><span class="shape[^"]*" aria-hidden="true"></span>{tab}</a>', html), path
+                assert re.search(rf'aria-current="page"><svg class="ico"[^>]*>.*?</svg>{tab}</a>', html, re.S), path
                 assert html.count('aria-current="page"') == 1
 
             home = (await mobile.get("/m/")).text
@@ -75,7 +75,7 @@ def test_display_name_is_escaped():
     async def scenario(client):
         async with phone(client) as mobile:
             await mobile.post(
-                "/m/signup", data={"login_id": "xss_user", "password": "password123", "display_name": "<script>alert(1)</script>", "next": "/m/"}
+                "/m/signup", data={"agree": "1", "login_id": "xss_user", "password": "password123", "display_name": "<script>alert(1)</script>", "next": "/m/"}
             )
             for path in ["/m/", "/m/my"]:
                 html = (await mobile.get(path)).text
@@ -190,7 +190,7 @@ def test_stylesheet_is_served_without_external_resources():
         async with phone(client) as mobile:
             await signup(mobile, "mom_css")
             html = (await mobile.get("/m/")).text
-            assert 'href="/m/assets/m.css"' in html and "https://" not in html
+            assert re.search(r'href="/m/assets/m.css\?v=\d+"', html) and "https://" not in html  # 수정하면 주소가 바뀌어 캐시가 새로 받는다
 
     run(scenario)
 

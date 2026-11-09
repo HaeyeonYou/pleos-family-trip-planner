@@ -1,0 +1,71 @@
+{# 아이 정보 입력 조각. 온보딩(S02·S02-1)과 MY(M01-1)가 같은 칸을 쓴다. #}
+{% macro basic(v, max_month, tags) %}
+<label class="field" for="nickname">이름(애칭)</label>
+<input id="nickname" name="nickname" type="text" maxlength="30" value="{{ v.nickname }}" placeholder="예: 서아" required>
+<label class="field" for="birth_month">태어난 달 (예: 2025-09)</label>
+<input id="birth_month" name="birth_month" type="month" max="{{ max_month }}" value="{{ v.birth_month }}" pattern="\d{4}-\d{2}" placeholder="2025-09" required>
+<p class="muted small" style="margin-top:6px">생일은 개월 수를 계산할 때만 써요.</p>
+<fieldset class="group"><legend>어떤 아이인가요? (여러 개)</legend>
+  <div class="seg" role="group">
+    {% for key, label in tags %}<label><input type="checkbox" name="temperament" value="{{ key }}" {{ 'checked' if key in v.temperament }}><span>{{ label }}</span></label>{% endfor %}
+  </div>
+  <p class="muted small" style="margin-top:6px">성향은 코스 취향을 가늠하는 데 쓰고, 나중에 MY에서 바꿀 수 있어요.</p>
+</fieldset>
+{% endmacro %}
+
+{% macro care(v, feeding_choices, intervals, naps) %}
+<fieldset class="group"><legend>수유 방식</legend>
+  <div class="seg" role="radiogroup">
+    {% for key, label in feeding_choices %}<label><input type="radio" name="feeding_type" value="{{ key }}" {{ 'checked' if v.feeding_type == key }}><span>{{ label }}</span></label>{% endfor %}
+  </div>
+</fieldset>
+<fieldset class="group"><legend>수유 간격</legend>
+  <div class="seg" role="radiogroup">
+    {% for minutes, label in intervals %}<label><input type="radio" name="feed_interval_minutes" value="{{ minutes }}" {{ 'checked' if v.feed_interval_minutes == minutes }}><span>{{ label }}</span></label>{% endfor %}
+  </div>
+  <p class="muted small" style="margin-top:6px">다음 수유 시각을 계산해요. 비워 두면 3시간으로 봐요.</p>
+</fieldset>
+<fieldset class="group"><legend>하루 낮잠</legend>
+  <div class="seg" role="radiogroup">
+    {% for n in naps %}<label><input type="radio" name="nap_count" value="{{ n }}" {{ 'checked' if v.nap_count == n }}><span>{{ '안 자요' if n == 0 else n ~ '회' }}</span></label>{% endfor %}
+  </div>
+</fieldset>
+<label class="field" for="nap_times">평소 낮잠 시간대 (선택)</label>
+<input id="nap_times" name="nap_times" type="text" maxlength="40" value="{{ v.nap_times }}" placeholder="10:30–12:00 · 15:00–16:00">
+<fieldset class="group"><legend>차에서 잘 자는 편인가요?</legend>
+  <div class="seg" role="radiogroup">
+    <label><input type="radio" name="nap_in_car" value="1" {{ 'checked' if v.nap_in_car == '1' }}><span>잘 자요</span></label>
+    <label><input type="radio" name="nap_in_car" value="0" {{ 'checked' if v.nap_in_car == '0' }}><span>잘 안 자요</span></label>
+  </div>
+  <p class="muted small" style="margin-top:6px">낮잠 시간에 맞춰 코스와 수면 모드를 제안해요.</p>
+</fieldset>
+{% endmacro %}
+
+{% macro extra(v, heat_choices, noise_choices) %}
+<fieldset class="group"><legend>더위 · 추위</legend>
+  <div class="seg" role="radiogroup">
+    {% for key, label in heat_choices %}<label><input type="radio" name="heat_sensitivity" value="{{ key }}" {{ 'checked' if v.heat_sensitivity == key }}><span>{{ label }}</span></label>{% endfor %}
+  </div>
+  <p class="muted small" style="margin-top:6px">공조 프리셋의 권장 온도를 ±1℃ 보정해요.</p>
+</fieldset>
+<fieldset class="group"><legend>멀미</legend>
+  <div class="seg" role="radiogroup">
+    <label><input type="radio" name="motion_sickness" value="0" {{ 'checked' if v.motion_sickness == '0' }}><span>없음</span></label>
+    <label><input type="radio" name="motion_sickness" value="1" {{ 'checked' if v.motion_sickness == '1' }}><span>있음</span></label>
+  </div>
+  <p class="muted small" style="margin-top:6px">있으면 추천 코스의 편도 이동 시간을 짧게 시작해요.</p>
+</fieldset>
+<fieldset class="group"><legend>소리</legend>
+  <div class="seg" role="radiogroup">
+    {% for key, label in noise_choices %}<label><input type="radio" name="noise_sensitivity" value="{{ key }}" {{ 'checked' if v.noise_sensitivity == key }}><span>{{ label }}</span></label>{% endfor %}
+  </div>
+  <p class="muted small" style="margin-top:6px">예민하면 낮잠 프리셋의 미디어 음량을 낮게 권장해요.</p>
+</fieldset>
+<fieldset class="group"><legend>유모차 사용</legend>
+  <div class="seg" role="radiogroup">
+    <label><input type="radio" name="stroller_use" value="1" {{ 'checked' if v.stroller_use == '1' }}><span>써요</span></label>
+    <label><input type="radio" name="stroller_use" value="0" {{ 'checked' if v.stroller_use == '0' }}><span>안 써요</span></label>
+  </div>
+  <p class="muted small" style="margin-top:6px">쓰면 추천 코스 조건에 「유모차 길」을 미리 골라 둬요.</p>
+</fieldset>
+{% endmacro %}

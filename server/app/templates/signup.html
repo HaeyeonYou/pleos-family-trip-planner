@@ -1,6 +1,8 @@
 {% extends "base.html" %}
-{% block header %}<div class="topbar"><a class="back" href="/m/login?next={{ next | urlencode }}" aria-label="로그인으로 돌아가기">←</a></div><h1 class="title">계정 만들기</h1>{% endblock %}
+{% from "_auth.html" import tabs %}
+{% block header %}<div class="topbar"><a class="back" href="{{ '/m/start' if next.startswith('/m/start') else '/m/login?next=' ~ (next | urlencode) }}" aria-label="뒤로">←</a></div><h1 class="title">계정 만들기</h1>{% endblock %}
 {% block body %}
+{{ tabs('signup', next) }}
 <p class="lead">가족 정보와 나들이 기록을 차와 폰에서 함께 쓰려면 계정이 필요해요.</p>
 {% if error %}<p class="form-error" role="alert">{{ error }}</p>{% endif %}
 <form method="post">
@@ -11,7 +13,9 @@
   <input id="login_id" name="login_id" type="text" autocomplete="username" autocapitalize="none" value="{{ login_id }}" required>
   <label class="field" for="password">비밀번호 (8자 이상)</label>
   <input id="password" name="password" type="password" autocomplete="new-password" minlength="8" required>
-  <button class="btn" type="submit">가입하고 시작하기</button>
+  <label class="field" for="password2">비밀번호 확인</label>
+  <input id="password2" name="password2" type="password" autocomplete="new-password" minlength="8" required>
+  <label class="check"><input type="checkbox" name="agree" value="1" required> <span>[필수] <a href="/m/privacy" target="_blank" rel="noopener">개인정보 수집·이용 안내</a>를 읽었고 동의해요</span></label>
+  <button class="btn" type="submit">가입하고 계속</button>
 </form>
-<p class="muted small" style="margin-top:20px;text-align:center">이미 계정이 있나요? <a href="/m/login?next={{ next | urlencode }}">로그인</a></p>
 {% endblock %}

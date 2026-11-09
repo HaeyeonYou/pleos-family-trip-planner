@@ -18,6 +18,8 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String(200))
     display_name: Mapped[str] = mapped_column(String(30))
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
+    # 개인정보 수집·이용 안내에 동의한 시각 (웹 가입 때 받는다. 그 전에 만든 계정은 비어 있다)
+    agreed_at: Mapped[datetime | None] = mapped_column(default=None)
 
 
 class Session(Base):
@@ -87,6 +89,19 @@ class Child(Base):
     feeding_type: Mapped[str | None] = mapped_column(String(10), default=None)
     feed_interval_minutes: Mapped[int | None] = mapped_column(Integer, default=None)
     nap_count: Mapped[int | None] = mapped_column(Integer, default=None)
+    # 성향 태그 (app/family.py TEMPERAMENTS 키 목록)
+    temperament: Mapped[list] = mapped_column(JSONB, default=list, server_default="[]")
+    # 평소 낮잠 시간대 (예: "10:30–12:00 · 15:00–16:00")와 차에서 잘 자는지
+    nap_times: Mapped[str | None] = mapped_column(String(40), default=None)
+    nap_in_car: Mapped[bool | None] = mapped_column(Boolean, default=None)
+    # 더위·추위: hot(더위 탐) / normal / cold(추위 탐) → 공조 권장 온도 보정
+    heat_sensitivity: Mapped[str | None] = mapped_column(String(8), default=None)
+    # 멀미 있음 → 코스 추천 이동 시간을 짧게
+    motion_sickness: Mapped[bool | None] = mapped_column(Boolean, default=None)
+    # sensitive(예민) / normal → 낮잠 프리셋 권장 음량
+    noise_sensitivity: Mapped[str | None] = mapped_column(String(10), default=None)
+    # 유모차 사용 → 코스 조건의 '유모차 길' 기본 선택
+    stroller_use: Mapped[bool | None] = mapped_column(Boolean, default=None)
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
 
 

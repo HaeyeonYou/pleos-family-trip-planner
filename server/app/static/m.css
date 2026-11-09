@@ -110,7 +110,7 @@ input[type=text], input[type=password], input[type=number], input[type=month], i
 .row .name { font-weight: 600; font-size: 15px; }
 .row .meta { color: var(--muted); font-size: 13px; }
 .row .chev { color: var(--muted); font-size: 18px; }
-.icon { flex: none; width: 40px; height: 40px; border-radius: 10px; background: var(--icon); }
+.icon { flex: none; width: 40px; height: 40px; border-radius: 10px; background: var(--icon); display: flex; align-items: center; justify-content: center; color: var(--primary); }
 .avatar { flex: none; width: 48px; height: 48px; border-radius: 999px; background: var(--chip); color: var(--primary); display: grid; place-items: center; font-weight: 700; font-size: 18px; }
 
 .notice { margin-top: 16px; padding: 14px 16px; border-radius: var(--r-card); background: var(--surface); border: 1.5px solid var(--line-soft); color: var(--muted); font-size: 13px; }
@@ -124,10 +124,10 @@ input[type=text], input[type=password], input[type=number], input[type=month], i
   padding-bottom: env(safe-area-inset-bottom);
 }
 .tabbar a { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: var(--muted); font-size: 11px; font-weight: 500; text-decoration: none; min-height: 44px; }
-.tabbar .shape { width: 24px; height: 24px; border: 1.6px solid #9aa4ae; border-radius: 7px; background: #fff; }
-.tabbar .shape.round { border-radius: 999px; }
-.tabbar a[aria-current=page] { color: var(--ink); font-weight: 700; }
-.tabbar a[aria-current=page] .shape { background: var(--primary); border-color: var(--primary); }
+.tabbar .ico { color: #8a94a0; }
+.tabbar a[aria-current=page] { color: var(--primary); font-weight: 700; }
+.tabbar a[aria-current=page] .ico { color: var(--primary); stroke-width: 2.2; }
+.ico { flex: none; }
 
 /* 뒤로가기 줄 */
 .topbar { display: flex; align-items: center; justify-content: space-between; margin: -8px -8px 8px; }
@@ -176,3 +176,23 @@ details.card > summary::-webkit-details-marker { display: none; }
 .timeline { margin: 12px 0 0; padding: 0; list-style: none; border-top: 1px solid var(--line-soft); }
 .timeline li { padding: 10px 0; border-bottom: 1px solid var(--line-soft); font-size: 14px; }
 .timeline li:last-child { border-bottom: 0; }
+
+/* 시작·온보딩 (S01~S03) */
+.tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; margin-top: 8px; background: var(--surface); border-radius: var(--r-card); }
+.tabs a { display: flex; align-items: center; justify-content: center; min-height: 44px; border-radius: 12px; color: var(--muted); font-weight: 600; text-decoration: none; }
+.tabs a[aria-selected=true] { background: #fff; color: var(--ink); box-shadow: 0 1px 3px rgba(32, 37, 43, .12); }
+.hero { margin-top: 8px; }
+.hero svg { display: block; border-radius: 16px; }
+.badge { display: inline-block; margin-top: 16px; padding: 6px 12px; border-radius: 999px; background: var(--chip); color: var(--primary); font-size: 13px; font-weight: 600; }
+.feat { list-style: none; margin: 16px 0 24px; padding: 0; display: grid; gap: 12px; }
+.feat li { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-radius: var(--r-card); background: var(--surface); }
+.feat .ico { color: var(--primary); }
+.feat small { color: var(--muted); font-size: 13px; }
+.btn.ghost { margin-top: 10px; background: #fff; color: var(--primary); border: 1.5px solid var(--line); }
+.step { margin: 4px 0 0; color: var(--muted); font-size: 13px; font-weight: 600; }
+.skip { display: inline-flex; align-items: center; min-height: 44px; padding: 0 8px; color: var(--muted); font-size: 14px; text-decoration: none; }
+.back-spacer { min-width: 44px; }
+.check { display: flex; align-items: flex-start; gap: 10px; margin-top: 18px; font-size: 14px; color: var(--ink); }
+.check input { width: 22px; height: 22px; margin-top: 1px; flex: none; accent-color: var(--primary); }
+.plain { margin: 8px 0 0; padding-left: 18px; font-size: 14px; color: var(--ink); line-height: 1.6; }
+::placeholder { color: #9aa4ae; opacity: 1; }

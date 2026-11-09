@@ -13,7 +13,7 @@ from app import care, family, feedings, places, presets, sync, visits, voice, we
 from app.course import starts
 from app.auth import api as auth_api
 from app.auth import web as auth_web
-from app.auth import web_app, web_grow
+from app.auth import web_app, web_grow, web_start
 from app.config import Settings, get_settings
 from app.db import Database
 from app.logs import setup_logging
@@ -43,6 +43,7 @@ app.include_router(auth_api.router)
 app.include_router(auth_web.router)
 app.include_router(web_app.router)
 app.include_router(web_grow.router)
+app.include_router(web_start.router)
 app.include_router(presets.router)
 app.include_router(weather.router)
 app.include_router(starts.router)

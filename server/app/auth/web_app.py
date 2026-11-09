@@ -105,7 +105,7 @@ def _car_views(sessions) -> list[dict]:
 
 # 수유
 
-_KIND_FOR_FEEDING_TYPE = {"breast": "breast", "formula": "formula", "mixed": "formula", "solid": "solid"}
+_KIND_FOR_FEEDING_TYPE = {"breast": "breast", "formula": "formula", "mixed": "formula", "solid": "solid", "toddler": "solid"}
 
 
 async def _feeding_card(db: AsyncSession, user: User) -> dict:
@@ -293,6 +293,21 @@ def _preset_page_context(slot: str, settings: dict, state: presets.PresetState, 
     return context | extra
 
 
+async def _preset_advice(db: AsyncSession, user: User, slot: str) -> list[str]:
+    """아이 케어 정보로 정한 권장값 안내 (C03). 더위·추위는 온도 ±1℃, 소리 예민은 낮잠 음량."""
+    children = await family.list_children(db, user)
+    if not children:
+        return []
+    child, defaults, advice = children[0], presets.SLOTS[slot]["defaults"], []
+    shift = {"hot": -1, "cold": 1}.get(child.heat_sensitivity or "", 0)
+    if shift:
+        trait = "더위를 타는" if shift < 0 else "추위를 타는"
+        advice.append(f"{family.topic(child.nickname)} {trait} 편이라 {defaults.temperature + shift:g}℃를 권장해요.")
+    if slot == "nap" and child.noise_sensitivity == "sensitive":
+        advice.append(f"{family.topic(child.nickname)} 소리에 예민해서 미디어 음량을 「최소」로 권장해요.")
+    return advice
+
+
 async def _slot_state(db: AsyncSession, user: User, slot: str) -> presets.PresetState:
     return next(st for st in await presets.states(db, user) if st.slot == slot)
 
@@ -305,7 +320,8 @@ async def preset_page(
         return _login_redirect(f"/m/preset?slot={slot}" if slot in presets.SLOTS and slot != "boarding" else "/m/preset")
     slot = slot if slot in presets.SLOTS else "boarding"
     state = await _slot_state(db, user, slot)
-    return templates.TemplateResponse(request, "preset.html", _preset_page_context(slot, state.settings.model_dump(), state))
+    context = _preset_page_context(slot, state.settings.model_dump(), state, advice=await _preset_advice(db, user, slot))
+    return templates.TemplateResponse(request, "preset.html", context)
 
 
 @router.post("/preset", response_class=HTMLResponse)
@@ -326,7 +342,8 @@ async def send_preset(request: Request, user: User | None = Depends(optional_web
         return templates.TemplateResponse(request, "preset.html", context, status_code=400)
     await presets.save(db, user, settings, slot)
     state = await _slot_state(db, user, slot)
-    return templates.TemplateResponse(request, "preset.html", _preset_page_context(slot, settings.model_dump(), state))
+    context = _preset_page_context(slot, settings.model_dump(), state, advice=await _preset_advice(db, user, slot))
+    return templates.TemplateResponse(request, "preset.html", context)
 
 
 # MY
@@ -388,31 +405,98 @@ async def disconnect_car(session_id: uuid.UUID, user: User | None = Depends(opti
 
 # 아이 정보 (M01-1)
 
-_FEEDING_CHOICES = [("breast", "모유"), ("formula", "분유"), ("mixed", "혼합"), ("solid", "이유식 후기 · 유아식")]
+_FEEDING_CHOICES = list(family.FEEDING_LABELS.items())
 _INTERVALS = [(120, "2시간"), (150, "2.5시간"), (180, "3시간"), (240, "4시간")]
 
 
+def _tri(value) -> str:
+    return "" if value is None else ("1" if value else "0")
+
+
+def _child_values(child=None) -> dict:
+    """폼에 채울 값(모두 글자). 아이가 없으면 빈 값."""
+    if child is None:
+        return {"nickname": "", "birth_month": "", "temperament": [], "feeding_type": "", "feed_interval_minutes": "", "nap_count": "",
+                "nap_times": "", "nap_in_car": "", "heat_sensitivity": "", "motion_sickness": "", "noise_sensitivity": "", "stroller_use": ""}
+    out = family.child_out(child)
+    return {
+        "nickname": out.nickname,
+        "birth_month": out.birth_month,
+        "temperament": list(out.temperament),
+        "feeding_type": out.feeding_type or "",
+        "feed_interval_minutes": out.feed_interval_minutes or "",
+        "nap_count": "" if out.nap_count is None else out.nap_count,
+        "nap_times": out.nap_times or "",
+        "nap_in_car": _tri(out.nap_in_car),
+        "heat_sensitivity": out.heat_sensitivity or "",
+        "motion_sickness": _tri(out.motion_sickness),
+        "noise_sensitivity": out.noise_sensitivity or "",
+        "stroller_use": _tri(out.stroller_use),
+    }
+
+
+def _child_choices() -> dict:
+    return {
+        "tags": list(family.TEMPERAMENTS.items()),
+        "feeding_choices": _FEEDING_CHOICES,
+        "intervals": _INTERVALS,
+        "naps": [0, 1, 2, 3],
+        "heat_choices": list(family.HEAT_LABELS.items()),
+        "noise_choices": list(family.NOISE_LABELS.items()),
+        "max_month": datetime.now(KST).strftime("%Y-%m"),
+    }
+
+
 def _child_form_context(child=None, **extra) -> dict:
-    values = {"nickname": "", "birth_month": "", "feeding_type": "", "feed_interval_minutes": "", "nap_count": ""}
-    if child is not None:
-        out = family.child_out(child)
-        values = {
-            "nickname": out.nickname,
-            "birth_month": out.birth_month,
-            "feeding_type": out.feeding_type or "",
-            "feed_interval_minutes": out.feed_interval_minutes or "",
-            "nap_count": "" if out.nap_count is None else out.nap_count,
-        }
+    values = _child_values(child)
     context = {
         "title": "아이 정보" if child is None else f"{values['nickname']} 케어 정보",
         "v": values,
         "child_id": child.id if child is not None else None,
-        "feeding_choices": _FEEDING_CHOICES,
-        "intervals": _INTERVALS,
-        "naps": [0, 1, 2, 3],
-        "max_month": datetime.now(KST).strftime("%Y-%m"),
-    }
+    } | _child_choices()
     return context | extra
+
+
+def parse_child_form(form, base: "family.ChildOut | None") -> "family.ChildIn":
+    """폼 → ChildIn. 폼에 `sections`(basic·care·extra)가 있으면 그 칸만 바꾸고 나머지는 base 값을 그대로 둔다 (온보딩이 두 단계로 나눠 받는다)."""
+    sections = set(form.getlist("sections")) or {"basic", "care", "extra"}
+    data = base.model_dump(exclude={"id", "age_months"}) if base is not None else {}
+
+    def number(key: str):
+        value = (form.get(key) or "").strip()
+        return int(value) if value else None
+
+    def tri(key: str):
+        return {"1": True, "0": False}.get(form.get(key) or "")
+
+    if "basic" in sections:
+        data |= {"nickname": form.get("nickname") or "", "birth_month": form.get("birth_month") or "", "temperament": [t for t in form.getlist("temperament") if t in family.TEMPERAMENTS]}
+    if "care" in sections:
+        data |= {
+            "feeding_type": form.get("feeding_type") or None,
+            "feed_interval_minutes": number("feed_interval_minutes"),
+            "nap_count": number("nap_count"),
+            "nap_times": form.get("nap_times") or None,
+            "nap_in_car": tri("nap_in_car"),
+        }
+    if "extra" in sections:
+        data |= {
+            "heat_sensitivity": form.get("heat_sensitivity") or None,
+            "motion_sickness": tri("motion_sickness"),
+            "noise_sensitivity": form.get("noise_sensitivity") or None,
+            "stroller_use": tri("stroller_use"),
+        }
+    return family.ChildIn(**data)
+
+
+def form_values(form, fallback: dict) -> dict:
+    """오류로 다시 보여 줄 때 사용자가 입력한 값을 그대로 채운다."""
+    values = {k: (form.get(k) or "") if k != "temperament" else form.getlist(k) for k in fallback}
+    for key in ("nap_count",):
+        values[key] = int(values[key]) if str(values[key]).isdigit() else ""
+    if str(values["feed_interval_minutes"]).isdigit():
+        values["feed_interval_minutes"] = int(values["feed_interval_minutes"])
+    return values
 
 
 async def _owned_child(db: AsyncSession, user: User, child_id: uuid.UUID):
@@ -439,23 +523,12 @@ async def child_edit(request: Request, child_id: uuid.UUID, user: User | None = 
 
 async def _save_child(request: Request, db: AsyncSession, user: User, child_id: uuid.UUID, existing):
     form = await request.form()
-
-    def number(key: str):
-        value = (form.get(key) or "").strip()
-        return int(value) if value else None
-
     try:
-        body = family.ChildIn(
-            nickname=form.get("nickname") or "",
-            birth_month=form.get("birth_month") or "",
-            feeding_type=form.get("feeding_type") or None,
-            feed_interval_minutes=number("feed_interval_minutes"),
-            nap_count=number("nap_count"),
-        )
+        body = parse_child_form(form, family.child_out(existing) if existing is not None else None)
         await family.save_child(db, user, child_id, body)
     except (ValidationError, ValueError):
         context = _child_form_context(existing, error="입력한 값을 다시 확인해 주세요. 태어난 달은 2025-09처럼 적어요.")
-        context["v"] = {k: form.get(k) or "" for k in context["v"]}
+        context["v"] = form_values(form, context["v"])
         return templates.TemplateResponse(request, "child_form.html", context, status_code=400)
     except HTTPException as e:  # 아이 수 제한
         return templates.TemplateResponse(request, "child_form.html", _child_form_context(existing, error=e.detail), status_code=400)

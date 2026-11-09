@@ -1,6 +1,7 @@
 """가족 정보: 아이(1~n명)와 기본 외출 멤버. 폰 웹(쿠키)과 차 앱(Bearer) 모두 쓴다.
 
-개인정보 최소화: 아이는 애칭·태어난 달·수유 방식·간격·낮잠만, 멤버는 호칭과 운전자 여부만 둔다.
+개인정보 최소화: 아이는 애칭·태어난 달과, 케어·추천에 실제로 쓰는 항목(수유 방식·간격·낮잠·성향·더위추위·멀미·소리·유모차)만,
+멤버는 호칭과 운전자 여부만 둔다. 알레르기·식이 제한 같은 건강 정보는 쓰는 기능이 없어 받지 않는다.
 """
 
 import uuid
@@ -21,8 +22,31 @@ MAX_CHILDREN = 6
 MAX_MEMBERS = 12
 KST = timezone(timedelta(hours=9))
 
-FeedingType = Literal["breast", "formula", "mixed", "solid"]
-FEEDING_LABELS = {"breast": "모유", "formula": "분유", "mixed": "혼합", "solid": "이유식 후기 · 유아식"}
+FeedingType = Literal["breast", "formula", "mixed", "solid", "toddler"]
+FEEDING_LABELS = {"breast": "모유", "formula": "분유", "mixed": "혼합", "solid": "이유식 후기", "toddler": "완료기 · 유아식"}
+
+# 성향 태그 (온보딩 S02). 추천 코스와 경험맵의 첫 씨앗
+Temperament = Literal["animal", "active", "quiet", "shy", "vehicle", "music"]
+TEMPERAMENTS = {"animal": "동물 좋아함", "active": "활동적", "quiet": "조용한 편", "shy": "낯가림 있음", "vehicle": "탈것 좋아함", "music": "음악 좋아함"}
+HeatSensitivity = Literal["hot", "normal", "cold"]
+HEAT_LABELS = {"hot": "더위 탐", "normal": "보통", "cold": "추위 탐"}
+NoiseSensitivity = Literal["sensitive", "normal"]
+NOISE_LABELS = {"sensitive": "예민", "normal": "보통"}
+
+
+def _has_final(name: str) -> bool | None:
+    ch = name[-1:]
+    return (ord(ch) - 0xAC00) % 28 != 0 if "가" <= ch <= "힣" else None
+
+
+def topic(name: str) -> str:
+    """서아 → 서아는, 하늘 → 하늘은 (한글이 아니면 '는')."""
+    return name + ("은" if _has_final(name) else "는")
+
+
+def subject(name: str) -> str:
+    """서아 → 서아가, 하늘 → 하늘이."""
+    return name + ("이" if _has_final(name) else "가")
 
 
 def today_kst() -> date:
@@ -40,6 +64,13 @@ class ChildIn(BaseModel):
     feeding_type: FeedingType | None = None
     feed_interval_minutes: int | None = Field(None, ge=60, le=360, description="수유 간격(분)")
     nap_count: int | None = Field(None, ge=0, le=4, description="하루 낮잠 횟수")
+    temperament: list[Temperament] = Field(default_factory=list, max_length=6, description="성향 태그")
+    nap_times: str | None = Field(None, max_length=40, description="평소 낮잠 시간대 (예: 10:30–12:00 · 15:00–16:00)")
+    nap_in_car: bool | None = Field(None, description="차에서 잘 자는 편인지")
+    heat_sensitivity: HeatSensitivity | None = Field(None, description="더위·추위 → 공조 권장 온도 ±1℃")
+    motion_sickness: bool | None = Field(None, description="멀미 있음 → 코스 이동 시간을 짧게")
+    noise_sensitivity: NoiseSensitivity | None = Field(None, description="소리 예민 → 낮잠 권장 음량")
+    stroller_use: bool | None = Field(None, description="유모차 사용 → 코스 조건의 유모차 길")
 
     @field_validator("nickname")
     @classmethod
@@ -48,6 +79,16 @@ class ChildIn(BaseModel):
         if not v:
             raise ValueError("애칭을 입력해 주세요")
         return v
+
+    @field_validator("nap_times")
+    @classmethod
+    def _blank_to_none(cls, v: str | None) -> str | None:
+        return (v or "").strip() or None
+
+    @field_validator("temperament")
+    @classmethod
+    def _unique(cls, v: list) -> list:
+        return list(dict.fromkeys(v))
 
     @field_validator("birth_month")
     @classmethod
@@ -86,6 +127,13 @@ def child_out(c: Child) -> ChildOut:
         feeding_type=c.feeding_type,
         feed_interval_minutes=c.feed_interval_minutes,
         nap_count=c.nap_count,
+        temperament=[t for t in (c.temperament or []) if t in TEMPERAMENTS],
+        nap_times=c.nap_times,
+        nap_in_car=c.nap_in_car,
+        heat_sensitivity=c.heat_sensitivity,
+        motion_sickness=c.motion_sickness,
+        noise_sensitivity=c.noise_sensitivity,
+        stroller_use=c.stroller_use,
         age_months=age_months(c.birth_month),
     )
 
@@ -128,6 +176,13 @@ async def save_child(db: AsyncSession, user: User, child_id: uuid.UUID, body: Ch
     row.feeding_type = body.feeding_type
     row.feed_interval_minutes = body.feed_interval_minutes
     row.nap_count = body.nap_count
+    row.temperament = body.temperament
+    row.nap_times = body.nap_times
+    row.nap_in_car = body.nap_in_car
+    row.heat_sensitivity = body.heat_sensitivity
+    row.motion_sickness = body.motion_sickness
+    row.noise_sensitivity = body.noise_sensitivity
+    row.stroller_use = body.stroller_use
     await db.commit()
     return row
 

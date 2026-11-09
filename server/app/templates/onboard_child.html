@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% import "_child.html" as c %}
+{% block header %}<div class="topbar"><span class="back-spacer"></span><a class="skip" href="{{ skip_to }}">건너뛰기</a></div><p class="step">아이 정보 1/2</p><h1 class="title">아이를 알려 주세요</h1>{% endblock %}
+{% block body %}
+<p class="lead">월령에 맞는 코스와 케어 시간을 알려 드리려고 받아요.</p>
+{% if error %}<p class="form-error" role="alert">{{ error }}</p>{% endif %}
+<form method="post" action="/m/start/child">
+  <input type="hidden" name="sections" value="basic">
+  <input type="hidden" name="code" value="{{ code }}">
+  {{ c.basic(v, max_month, tags) }}
+  <button class="btn" type="submit">다음</button>
+</form>
+<p class="muted small" style="margin-top:12px;text-align:center">형제는 가입 뒤 MY &gt; 아이 추가에서 넣을 수 있어요</p>
+{% endblock %}

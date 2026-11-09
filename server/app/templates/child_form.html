@@ -1,30 +1,13 @@
 {% extends "base.html" %}
+{% import "_child.html" as c %}
 {% block header %}<div class="topbar"><a class="back" href="/m/my" aria-label="MY로 돌아가기">←</a></div><h1 class="title">{{ title }}</h1>{% endblock %}
 {% block body %}
 {% if error %}<p class="form-error" role="alert">{{ error }}</p>{% endif %}
 <form method="post">
-  <label class="field" for="nickname">이름(애칭)</label>
-  <input id="nickname" name="nickname" type="text" maxlength="30" value="{{ v.nickname }}" required>
-  <label class="field" for="birth_month">태어난 달 (예: 2025-09)</label>
-  <input id="birth_month" name="birth_month" type="month" max="{{ max_month }}" value="{{ v.birth_month }}" pattern="\d{4}-\d{2}" placeholder="2025-09" required>
-  <p class="muted small" style="margin-top:6px">생일은 개월 수를 계산할 때만 써요.</p>
-
-  <fieldset class="group"><legend>수유 방식</legend>
-    <div class="seg" role="radiogroup">
-      {% for key, label in feeding_choices %}<label><input type="radio" name="feeding_type" value="{{ key }}" {{ 'checked' if v.feeding_type == key }}><span>{{ label }}</span></label>{% endfor %}
-    </div>
-  </fieldset>
-  <fieldset class="group"><legend>수유 간격</legend>
-    <div class="seg" role="radiogroup">
-      {% for minutes, label in intervals %}<label><input type="radio" name="feed_interval_minutes" value="{{ minutes }}" {{ 'checked' if v.feed_interval_minutes == minutes }}><span>{{ label }}</span></label>{% endfor %}
-    </div>
-  </fieldset>
-  <fieldset class="group"><legend>하루 낮잠</legend>
-    <div class="seg" role="radiogroup">
-      {% for n in naps %}<label><input type="radio" name="nap_count" value="{{ n }}" {{ 'checked' if v.nap_count == n }}><span>{{ '안 자요' if n == 0 else n ~ '회' }}</span></label>{% endfor %}
-    </div>
-  </fieldset>
-  <p class="notice">수유 간격은 다음 수유 시각 계산에 쓰고, 비워 두면 3시간으로 계산해요.</p>
+  {{ c.basic(v, max_month, tags) }}
+  {{ c.care(v, feeding_choices, intervals, naps) }}
+  {{ c.extra(v, heat_choices, noise_choices) }}
+  <p class="notice">차 안 앱과 같은 값이에요. 어느 쪽에서 바꿔도 맞춰져요.</p>
   <button class="btn" type="submit">저장</button>
 </form>
 {% if child_id %}

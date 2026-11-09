@@ -38,7 +38,7 @@ def run(scenario):
 
 async def signup(client: httpx.AsyncClient, login_id: str, password: str = "password123") -> httpx.Response:
     return await client.post(
-        "/m/signup", data={"login_id": login_id, "password": password, "display_name": login_id, "next": "/m/"}
+        "/m/signup", data={"agree": "1", "login_id": login_id, "password": password, "display_name": login_id, "next": "/m/"}
     )
 
 
@@ -81,10 +81,10 @@ def test_car_qr_login_flow():
         async with phone(client) as mobile:
             # 로그인 전이면 로그인 화면으로, 가입 후 승인 화면으로 돌아온다.
             first = await mobile.get(f"/m/car?code={start['code']}")
-            assert first.status_code == 303 and first.headers["location"].startswith("/m/login?next=")
+            assert first.status_code == 303 and first.headers["location"] == f"/m/start?code={start['code']}"
             joined = await mobile.post(
                 "/m/signup",
-                data={"login_id": "mom_02", "password": "password123", "next": f"/m/car?code={start['code']}"},
+                data={"agree": "1", "login_id": "mom_02", "password": "password123", "next": f"/m/car?code={start['code']}"},
             )
             assert joined.headers["location"] == f"/m/car?code={start['code']}"
             page = await mobile.get(joined.headers["location"])
@@ -114,7 +114,7 @@ def test_many_users_log_in_cars_at_the_same_time():
     async def family(client, i):
         start = (await client.post("/auth/car-login", json={"device_name": f"car{i}"})).json()
         async with phone(client) as mobile:
-            await mobile.post("/m/signup", data={"login_id": f"family_{i:02d}", "password": "password123", "next": "/m/"})
+            await mobile.post("/m/signup", data={"agree": "1", "login_id": f"family_{i:02d}", "password": "password123", "next": "/m/"})
             await mobile.post("/m/car", data={"code": start["code"]})
         result = (
             await client.post(f"/auth/car-login/{start['request_id']}/poll", json={"poll_secret": start["poll_secret"]})

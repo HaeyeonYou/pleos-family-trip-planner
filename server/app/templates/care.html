@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_icons.html" import icon %}
 {% block body %}
 {% if notice %}<p class="form-ok" role="status">{{ notice }}</p>{% endif %}
 <section class="card strong" style="margin-top:20px" aria-labelledby="feed-title">
@@ -22,7 +23,7 @@
   <div class="card" style="padding:4px 16px">
     <ul class="list">
       {% for p in presets %}
-      <li><a class="row" href="/m/preset?slot={{ p.slot }}"><span class="icon" aria-hidden="true"></span><span class="grow"><span class="name">{{ p.label }}</span><br><span class="meta">{{ p.summary }}</span></span><span class="chip {{ p.tone }}">{{ p.status }}</span></a></li>
+      <li><a class="row" href="/m/preset?slot={{ p.slot }}"><span class="icon" aria-hidden="true">{{ icon({"boarding": "car", "nap": "moon", "feeding_stop": "bottle"}[p.slot], 22) }}</span><span class="grow"><span class="name">{{ p.label }}</span><br><span class="meta">{{ p.summary }}</span></span><span class="chip {{ p.tone }}">{{ p.status }}</span></a></li>
       {% endfor %}
     </ul>
   </div>
