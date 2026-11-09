@@ -15,15 +15,19 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -167,6 +171,13 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                     fun goHome() = nav.navigate(Routes.HOME) { popUpTo(0) }
+                    // 앱이 화면에 보이는 동안만 웹(폰)의 변경을 주기적으로 확인한다. 웹이 차 연결을 끊으면(401) 로그인 화면으로.
+                    val lifecycleOwner = LocalLifecycleOwner.current
+                    LaunchedEffect(lifecycleOwner) {
+                        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                            vm.runSyncLoop(onUnauthorized = { nav.navigate(Routes.LOGIN) { popUpTo(0) } })
+                        }
+                    }
                     val backStack by nav.currentBackStackEntryAsState()
                     val route = backStack?.destination?.route
                     fun openTab(tab: MainTab) {

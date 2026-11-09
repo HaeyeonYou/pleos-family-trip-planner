@@ -12,6 +12,7 @@ import io.github.haeyeonyou.familytrip.data.VisitSummary
 import io.github.haeyeonyou.familytrip.data.CourseRequest
 import io.github.haeyeonyou.familytrip.data.StartBody
 import io.github.haeyeonyou.familytrip.data.WeatherInfo
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import io.github.haeyeonyou.familytrip.data.CourseResponse
@@ -19,6 +20,7 @@ import io.github.haeyeonyou.familytrip.data.LatLng
 import io.github.haeyeonyou.familytrip.data.ParseRequest
 import io.github.haeyeonyou.familytrip.data.PendingPreset
 import io.github.haeyeonyou.familytrip.data.SavedCourse
+import io.github.haeyeonyou.familytrip.data.SyncTracker
 import io.github.haeyeonyou.familytrip.data.ScheduleRequest
 import io.github.haeyeonyou.familytrip.data.ScheduleStop
 import io.github.haeyeonyou.familytrip.data.TripConditions
@@ -88,6 +90,8 @@ data class HomeFilters(
 }
 
 private const val TAG = "TripViewModel"
+/** 웹과 맞추는 확인 주기. 5~10초 사이. */
+private const val SYNC_INTERVAL_MS = 7_000L
 private const val MIN_STAY_MINUTES = 10
 private const val MAX_STAY_MINUTES = 300
 
@@ -114,11 +118,81 @@ class TripViewModel(private val container: AppContainer) : ViewModel() {
     /** 로그인한 계정으로 폰에서 보낸 프리셋이 있는지 본다 (앱 시작, 로그인 직후). */
     fun checkPendingPreset() {
         if (container.account.token == null) return
-        viewModelScope.launch {
-            runCatching { container.api.pendingPreset() }
-                .onSuccess { res -> _state.update { it.copy(pendingPreset = res.body().takeIf { res.isSuccessful }) } }
-                .onFailure { e -> Log.w(TAG, "pending preset check failed", e) }
+        viewModelScope.launch { fetchPendingPreset() }
+    }
+
+    /** 서버의 대기 프리셋을 받아 카드에 반영한다. 성공하면 true, 요청 실패는 false(로그만), 401이면 [onUnauthorized]. */
+    private suspend fun fetchPendingPreset(onUnauthorized: () -> Unit = {}): Boolean {
+        val res = runCatching { container.api.pendingPreset() }
+            .onFailure { e -> Log.w(TAG, "pending preset check failed", e) }
+            .getOrNull() ?: return false
+        if (res.code() == 401) {
+            onUnauthorized()
+            return false
         }
+        // 적용하는 중에는 같은 프리셋이 다시 보이지 않게 건드리지 않는다.
+        if (!_state.value.applyingPreset) {
+            _state.update { it.copy(pendingPreset = res.body().takeIf { res.isSuccessful }) }
+        }
+        return res.isSuccessful
+    }
+
+    /**
+     * 앱이 화면에 보이는 동안 [SYNC_INTERVAL_MS]마다 서버 `/me/sync`를 확인해, 웹(폰)에서 바뀐 영역만 다시 받는다.
+     * 화면이 꺼지거나 백그라운드로 가면 호출한 쪽에서 취소한다. 로그인하지 않았으면 쉰다.
+     * 요청 실패는 조용히 넘기고 다음 주기에 다시 시도하며, 401(웹에서 차 연결을 끊음)이면 로그인 정보를 지우고 [onUnauthorized]를 부른다.
+     */
+    suspend fun runSyncLoop(onUnauthorized: () -> Unit) {
+        val tracker = SyncTracker()
+        var lastToken: String? = null
+        while (true) {
+            val token = container.account.token
+            if (token != null) {
+                if (token != lastToken) tracker.reset()
+                lastToken = token
+                syncOnce(tracker, onUnauthorized)
+            } else {
+                lastToken = null
+            }
+            delay(SYNC_INTERVAL_MS)
+        }
+    }
+
+    private suspend fun syncOnce(tracker: SyncTracker, onUnauthorized: () -> Unit) {
+        var unauthorized = false
+        val marks = try {
+            container.api.sync()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: HttpException) {
+            if (e.code() == 401) unauthorized = true else Log.w(TAG, "sync failed: ${e.code()}")
+            null
+        } catch (e: Exception) {
+            Log.w(TAG, "sync failed", e)
+            null
+        }
+        if (unauthorized) {
+            handleUnauthorized(onUnauthorized)
+            return
+        }
+        if (marks == null) return
+        val change = tracker.diff(marks)
+        if (!change.any) return
+        Log.d(TAG, "sync changed: $change")
+        // 프리셋을 다시 받지 못하면 표시를 받아들이지 않아 다음 주기에 다시 시도한다.
+        if (change.presets && !fetchPendingPreset { unauthorized = true }) {
+            if (unauthorized) handleUnauthorized(onUnauthorized)
+            return
+        }
+        // TODO(#24 6절 1~4): feedings·visits·family 영역이 바뀌면 여기서 다시 받는다. 지금은 표시만 읽는다.
+        tracker.accept(marks)
+    }
+
+    private fun handleUnauthorized(onUnauthorized: () -> Unit) {
+        Log.i(TAG, "sync: 401, 로그인 정보를 지웁니다")
+        container.account.clear()
+        _state.update { it.copy(pendingPreset = null, applyingPreset = false) }
+        onUnauthorized()
     }
 
     /** 받은 프리셋을 차 공조에 적용하고 서버에 적용 완료로 알린다. */

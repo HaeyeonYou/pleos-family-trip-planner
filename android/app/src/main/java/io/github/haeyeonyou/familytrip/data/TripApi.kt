@@ -319,6 +319,10 @@ interface TripApi {
     @POST("auth/logout")
     suspend fun logout()
 
+    /** 영역별 변경 표시. 웹이 이 차의 연결을 끊으면 토큰이 만료되어 401이 온다. */
+    @GET("me/sync")
+    suspend fun sync(): SyncMarks
+
     /** 아직 적용하지 않은 프리셋. 없으면 204 (body null). */
     @GET("presets/pending")
     suspend fun pendingPreset(): Response<PendingPreset>

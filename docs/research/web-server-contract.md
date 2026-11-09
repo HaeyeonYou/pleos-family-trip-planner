@@ -101,6 +101,7 @@ GET /me/sync → {"presets":"…","feedings":"…","visits":"…","family":"…"
 
 ## 6. 안드로이드 쪽이 할 일 (별도 세션)
 0. **주기적 확인(먼저)**: 지금 차 앱은 앱을 켤 때·로그인 직후에만 `GET /presets/pending`을 부르기 때문에, 웹에서 프리셋을 보내도 앱을 다시 켜기 전에는 반응이 없다. 앱이 켜져 있는 동안 `GET /me/sync`를 5~10초마다 불러(5-1절) 바뀐 영역만 다시 받는다. 프리셋이 새로 오면 홈·케어의 프리셋 카드를 바로 띄운다.
+   - **구현됨(#120)**: 차 앱이 화면에 보이는 동안 7초마다 `/me/sync`를 확인한다(`TripViewModel.runSyncLoop`, 순수 비교는 `SyncTracker`). `presets` 표시가 바뀌면 `/presets/pending`을 다시 받아 케어 화면의 프리셋 카드를 띄우고(받기에 실패하면 다음 주기에 다시 시도), 401이면 로그인 정보를 지우고 로그인 화면으로 보낸다. `feedings`·`visits`·`family` 영역은 표시만 읽어 두었고 1~4번 작업에서 다시 받기를 붙인다.
 1. **방문 기록 업로드**: 기기의 `Visit`(`VisitStore`)을 서버 `VisitIn`으로 변환해 올린다. `placeName→place_name`, `placeKey→place_key`, `theme→theme`, `arrivedAt`의 날짜→`visited_on`, `departedAt−arrivedAt`(분)→`stayed_minutes`. id는 기기 `id(Long)`에서 만든 안정적인 UUID(예: `UUID.nameUUIDFromBytes("visit:$id")`). 처음 로그인했을 때 `POST /me/visits/bulk`로 한꺼번에, 이후 방문이 생길 때마다 `PUT`. 좌표(`address` 포함)·시각은 올리지 않는다. 다음 날 확인이 필요한 후보는 `status="pending"`으로 올리면 웹이 확인을 받는다.
 2. **수유 기록 동기화**: 음성 "방금 수유했어" → `PUT /me/feedings/{UUID}`. 다음 수유 시각은 `GET /me/feedings/status`로 읽는다.
 3. **공조 카드 3개 구조·음량**: `GET /presets`로 3개를 받아 카드 3개로 보여 주고, 적용하면 `POST /presets/{id}/applied`. `media_volume`이 있으면 미디어 음량도 설정한다. 정차 중 편집은 `PUT /presets/{slot}?applied_on_car=true`.
