@@ -4,10 +4,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -19,9 +22,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import io.github.haeyeonyou.familytrip.data.ClimateSettings
 import io.github.haeyeonyou.familytrip.data.PresetState
 
@@ -32,7 +39,7 @@ data class PresetActions(
     val onDismissMessage: (slot: String) -> Unit,
 )
 
-/** 설정을 한 줄로: "24°C · 풍량 2단 · 에어컨 · 음량 30%" */
+/** 설정을 한 줄로: "24°C · 풍량 2단 · 에어컨 · 음량 30%" (코스 입력 화면의 안내 카드용) */
 fun presetSummary(s: ClimateSettings): String {
     val parts = buildList {
         if (!s.power) {
@@ -53,139 +60,202 @@ fun presetSummary(s: ClimateSettings): String {
 
 private fun trimTemp(value: Float): String = if (value % 1f == 0f) value.toInt().toString() else "%.1f".format(value)
 
-/** 슬롯의 상태 문구. */
-private fun statusLabel(p: PresetState): String = when {
-    !p.sent -> "아직 폰에서 보내지 않았어요 · 기본 설정"
-    p.pending -> "폰에서 보냈어요 · 적용 대기 중"
-    else -> "차에 적용했어요"
+/** 풍량 단계를 말로: 1 미풍 · 2 약풍 · 3~4 중풍 · 5 이상 강풍. 공조를 끄는 프리셋은 '공조 끔'. */
+fun windLabel(s: ClimateSettings): String = when {
+    !s.power -> "공조 끔"
+    s.fanSpeed <= 1 -> "미풍"
+    s.fanSpeed == 2 -> "약풍"
+    s.fanSpeed <= 4 -> "중풍"
+    else -> "강풍"
+}
+
+/** 음량(%)을 말로: 10 이하 최소 · 39 이하 낮게 · 69 이하 보통 · 그 위 높게. 음량을 건드리지 않으면 null. */
+fun volumeLabel(percent: Int?): String? = when {
+    percent == null -> null
+    percent <= 10 -> "음량 최소"
+    percent < 40 -> "음량 낮게"
+    percent < 70 -> "음량 보통"
+    else -> "음량 높게"
+}
+
+/** 디자인(HF03)의 한 줄 요약: "23°C · 미풍 · 음량 최소". 음량이 없으면 적용 시점 문구를 붙인다. */
+fun presetShortSummary(p: PresetState): String {
+    val s = p.settings
+    val tail = volumeLabel(s.mediaVolume) ?: p.whenLabel.takeIf { it.isNotBlank() }
+    return listOfNotNull(if (s.power) "${trimTemp(s.temperature)}°C" else null, windLabel(s), tail).joinToString(" · ")
+}
+
+/** 음성 힌트 칩 ("애 잔다") */
+@Composable
+fun VoiceHintChip(text: String) {
+    Text(
+        "🎙 “$text”",
+        fontSize = 16.sp,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.clip(RoundedCornerShape(10.dp)).background(TripColors.Card).padding(horizontal = 10.dp, vertical = 4.dp),
+    )
 }
 
 /**
- * 공조 프리셋 3개(탑승 준비 · 낮잠 · 수유 정차)를 카드로 보인다. 폰(웹)에서 보낸 것은 '대기 중'으로 눈에 띄고,
- * '차에 적용'을 누르면 차 공조·음량에 적용하고 서버에 알린다. 정차 중에는 '수정'으로 값을 고쳐 저장할 수 있다.
+ * 베이비케어 카드 안의 작은 프리셋 카드 (낮잠·수면 모드, 수유 정차 모드). 누르면 차에 적용하고,
+ * 폰에서 보내 아직 적용하지 않은 것은 초록 테두리로 눈에 띈다. 정차 중에는 '수정'으로 값을 고친다.
  */
 @Composable
-fun PresetSlots(
-    presets: List<PresetState>,
-    messages: Map<String, String>,
-    applyingSlot: String?,
-    isParked: Boolean,
-    narrow: Boolean,
-    actions: PresetActions,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("공조 프리셋", fontSize = 26.sp, fontWeight = FontWeight.Bold)
-        if (presets.isEmpty()) {
-            Text(
-                "로그인하면 폰에서 정한 탑승 준비 · 낮잠 · 수유 정차 설정 3개가 여기에 나타나요",
-                fontSize = 18.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        } else if (narrow) {
-            presets.forEach { PresetCard(it, messages[it.slot], applyingSlot, isParked, actions, Modifier.fillMaxWidth()) }
-        } else {
-            Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-                presets.forEach { PresetCard(it, messages[it.slot], applyingSlot, isParked, actions, Modifier.weight(1f)) }
-            }
-        }
-    }
-}
-
-@Composable
-private fun PresetCard(
+fun PresetTile(
     preset: PresetState,
-    message: String?,
-    applyingSlot: String?,
+    icon: String,
+    title: String,
+    hint: String,
+    applying: Boolean,
+    busy: Boolean,
     isParked: Boolean,
-    actions: PresetActions,
-    modifier: Modifier,
+    onApply: () -> Unit,
+    onEdit: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    var editing by remember(preset.slot) { mutableStateOf(false) }
-    var draft by remember(preset.slot) { mutableStateOf(preset.settings) }
-    val busy = applyingSlot != null
     val highlight = preset.pending
     Column(
         modifier = modifier
-            .clip(RoundedCornerShape(28.dp))
-            .background(if (highlight) TripColors.GreenSoft else TripColors.Card)
-            .border(if (highlight) 2.dp else 1.dp, if (highlight) TripColors.Green else TripColors.Line, RoundedCornerShape(28.dp))
-            .padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+            .clip(RoundedCornerShape(20.dp))
+            .background(TripColors.Tile)
+            .border(if (highlight) 2.dp else 0.dp, if (highlight) TripColors.Green else Color.Transparent, RoundedCornerShape(20.dp))
+            .clickable(enabled = !busy, onClick = onApply)
+            .padding(18.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text(preset.label, fontSize = 24.sp, fontWeight = FontWeight.Bold)
-        if (preset.whenLabel.isNotBlank()) {
-            Text(preset.whenLabel, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconBadge(icon)
+            Box(modifier = Modifier.weight(1f))
+            VoiceHintChip(hint)
         }
-        Text(
-            statusLabel(preset),
-            fontSize = 18.sp,
-            fontWeight = if (highlight) FontWeight.Bold else FontWeight.Normal,
-            color = if (highlight) TripColors.Green else MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        if (editing) {
-            PresetEditor(draft) { draft = it }
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                BigButton(if (applyingSlot == preset.slot) "저장하는 중…" else "차에 적용하고 저장", {
-                    actions.onSave(preset.slot, draft)
-                    editing = false
-                }, enabled = !busy)
-                BigOutlinedButton("취소", { editing = false })
+        Text(title, fontSize = 24.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 4.dp))
+        Text(presetShortSummary(preset), fontSize = 18.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            val status = when {
+                applying -> "적용하는 중…"
+                preset.pending -> "폰에서 보냈어요 · 눌러서 적용"
+                else -> null
             }
-        } else {
-            Text(presetSummary(preset.settings), fontSize = 20.sp)
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                BigButton(if (applyingSlot == preset.slot) "적용하는 중…" else "차에 적용", { actions.onApply(preset.slot) }, enabled = !busy)
-                // 값을 고치는 일은 정차 중에만 (주행 중에는 보여 주기와 적용만)
-                if (isParked) {
-                    BigOutlinedButton("수정", {
-                        draft = preset.settings
-                        editing = true
-                    })
-                }
+            Text(
+                status ?: "눌러서 적용",
+                fontSize = 16.sp,
+                fontWeight = if (highlight || applying) FontWeight.Bold else FontWeight.Normal,
+                color = if (highlight || applying) TripColors.Green else MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f),
+            )
+            // 값을 고치는 일은 정차 중에만 (주행 중에는 적용만)
+            if (isParked) {
+                Text(
+                    "수정",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TripColors.Green,
+                    modifier = Modifier.clip(RoundedCornerShape(12.dp)).clickable(onClick = onEdit).padding(horizontal = 12.dp, vertical = 8.dp),
+                )
             }
-        }
-        message?.let {
-            Text(it, fontSize = 18.sp, color = MaterialTheme.colorScheme.primary, modifier = Modifier.clickable { actions.onDismissMessage(preset.slot) })
         }
     }
 }
 
-/** 버튼으로만 고치는 편집기 (키보드 입력 없음). */
+/** 디자인(HF03-1 프리셋 편집)의 편집 창. 목표 온도 · 풍량 약/중/강 · 음량 낮게/보통/높게. 값은 버튼으로만 고친다. */
 @Composable
-private fun PresetEditor(s: ClimateSettings, onChange: (ClimateSettings) -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        StepRow("온도", "${trimTemp(s.temperature)}°C",
-            { onChange(s.copy(temperature = (s.temperature - 0.5f).coerceAtLeast(16f))) },
-            { onChange(s.copy(temperature = (s.temperature + 0.5f).coerceAtMost(30f))) })
-        StepRow("풍량", "${s.fanSpeed}단",
-            { onChange(s.copy(fanSpeed = (s.fanSpeed - 1).coerceAtLeast(1))) },
-            { onChange(s.copy(fanSpeed = (s.fanSpeed + 1).coerceAtMost(8))) })
-        StepRow("에어컨", if (s.ac) "켜짐" else "꺼짐", { onChange(s.copy(ac = false)) }, { onChange(s.copy(ac = true)) })
-        StepRow("공기청정", if (s.airCleaner) "켜짐" else "꺼짐", { onChange(s.copy(airCleaner = false)) }, { onChange(s.copy(airCleaner = true)) })
-        StepRow("운전석 열선", heatLabel(s.driverSeatHeat),
-            { onChange(s.copy(driverSeatHeat = (s.driverSeatHeat - 1).coerceAtLeast(0))) },
-            { onChange(s.copy(driverSeatHeat = (s.driverSeatHeat + 1).coerceAtMost(3))) })
-        StepRow("조수석 열선", heatLabel(s.passengerSeatHeat),
-            { onChange(s.copy(passengerSeatHeat = (s.passengerSeatHeat - 1).coerceAtLeast(0))) },
-            { onChange(s.copy(passengerSeatHeat = (s.passengerSeatHeat + 1).coerceAtMost(3))) })
-        StepRow("핸들 열선", heatLabel(s.steeringWheelHeat),
-            { onChange(s.copy(steeringWheelHeat = (s.steeringWheelHeat - 1).coerceAtLeast(0))) },
-            { onChange(s.copy(steeringWheelHeat = (s.steeringWheelHeat + 1).coerceAtMost(3))) })
-        // 음량: 0% 아래로 내리면 '건드리지 않음'
-        StepRow("음량", s.mediaVolume?.let { "${it}%" } ?: "건드리지 않음",
-            { onChange(s.copy(mediaVolume = s.mediaVolume?.let { if (it <= 0) null else it - 10 })) },
-            { onChange(s.copy(mediaVolume = ((s.mediaVolume ?: -10) + 10).coerceAtMost(100))) })
+fun PresetEditDialog(preset: PresetState, onDismiss: () -> Unit, onSave: (ClimateSettings) -> Unit) {
+    var draft by remember(preset.slot) { mutableStateOf(preset.settings) }
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Column(
+            modifier = Modifier
+                .width(720.dp)
+                .clip(RoundedCornerShape(28.dp))
+                .background(TripColors.Card)
+                .padding(36.dp),
+            verticalArrangement = Arrangement.spacedBy(22.dp),
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("${preset.label} 편집", fontSize = 32.sp, fontWeight = FontWeight.Bold)
+                Text("정차 중에만 바꿀 수 있어요 · 더 자세한 설정은 웹앱에서", fontSize = 18.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            EditRow("목표 온도") {
+                StepButton("−") { draft = draft.copy(temperature = (draft.temperature - 0.5f).coerceAtLeast(16f)) }
+                Text(
+                    "${trimTemp(draft.temperature)}°C",
+                    fontSize = 34.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TripColors.Green,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.width(140.dp),
+                )
+                StepButton("+") { draft = draft.copy(temperature = (draft.temperature + 0.5f).coerceAtMost(30f)) }
+            }
+            EditRow("풍량") {
+                // 약 1~2단 · 중 3~5단 · 강 6~8단. 고르면 각 구간의 대표 단계(2 · 4 · 6)로 맞춘다.
+                Segmented(
+                    options = listOf("약", "중", "강"),
+                    selected = when { draft.fanSpeed <= 2 -> 0; draft.fanSpeed <= 5 -> 1; else -> 2 },
+                    onSelect = { draft = draft.copy(fanSpeed = listOf(2, 4, 6)[it]) },
+                )
+            }
+            EditRow("음량") {
+                // 낮게 39% 이하 · 보통 40~69% · 높게 70% 이상. 고르면 30 · 50 · 70%로 맞춘다.
+                Segmented(
+                    options = listOf("낮게", "보통", "높게"),
+                    selected = (draft.mediaVolume ?: 30).let { v -> when { v < 40 -> 0; v < 70 -> 1; else -> 2 } },
+                    onSelect = { draft = draft.copy(mediaVolume = listOf(30, 50, 70)[it]) },
+                )
+            }
+            Box(modifier = Modifier.fillMaxWidth().heightIn(min = 1.dp).background(TripColors.Line))
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("웹앱에서도 같은 값으로 바뀌어요", fontSize = 18.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+                BigOutlinedButton("취소", onDismiss)
+                BigButton("저장", { onSave(draft) })
+            }
+        }
     }
 }
 
-private fun heatLabel(level: Int) = if (level == 0) "끔" else "${level}단"
+@Composable
+private fun EditRow(label: String, content: @Composable () -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(label, fontSize = 24.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) { content() }
+    }
+}
 
 @Composable
-private fun StepRow(label: String, value: String, onMinus: () -> Unit, onPlus: () -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text(label, fontSize = 18.sp, modifier = Modifier.weight(1f))
-        BigOutlinedButton("−", onMinus)
-        Text(value, fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 4.dp))
-        BigOutlinedButton("+", onPlus)
+private fun StepButton(label: String, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier.width(64.dp).heightIn(min = 64.dp).clip(RoundedCornerShape(16.dp)).background(TripColors.Tile).clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(label, fontSize = 30.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
+/** 하나를 고르는 묶음 버튼. 고른 것은 초록 테두리로 보인다. */
+@Composable
+private fun Segmented(options: List<String>, selected: Int, onSelect: (Int) -> Unit) {
+    Row(
+        modifier = Modifier.clip(RoundedCornerShape(18.dp)).background(TripColors.Tile).padding(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        options.forEachIndexed { i, label ->
+            val on = i == selected
+            Box(
+                modifier = Modifier
+                    .width(96.dp)
+                    .heightIn(min = 56.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(if (on) TripColors.Card else Color.Transparent)
+                    .border(if (on) 2.dp else 0.dp, if (on) TripColors.Green else Color.Transparent, RoundedCornerShape(14.dp))
+                    .clickable { onSelect(i) },
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    label,
+                    fontSize = 22.sp,
+                    fontWeight = if (on) FontWeight.Bold else FontWeight.Normal,
+                    color = if (on) TripColors.Green else TripColors.Ink,
+                )
+            }
+        }
     }
 }
