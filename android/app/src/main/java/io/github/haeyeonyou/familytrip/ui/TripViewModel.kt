@@ -77,8 +77,8 @@ data class TripUiState(
     /** 폰에서 보냈는데 아직 차에 적용하지 않은 프리셋 중 가장 최근에 보낸 것 (코스 입력 화면의 안내 카드) */
     val pendingPreset: PresetState? get() = presets.filter { it.pending }.maxByOrNull { it.sentAt.orEmpty() }
 
-    /** 베이비케어를 켤 때 쓰는, 폰에서 보낸 탑승 준비 프리셋 */
-    val babyCarePreset: PresetState? get() = presets.firstOrNull { it.slot == "boarding" && it.pending }
+    /** 베이비케어를 켤 때 쓰는 탑승 준비 프리셋 (폰에서 보낸 값, 보낸 적 없으면 서버 기본값). 로그인 전이면 null */
+    val babyCarePreset: PresetState? get() = presets.firstOrNull { it.slot == "boarding" }
 }
 
 /** 홈 필터 칩 (HF01). 칩을 바꾸면 추천을 다시 계산한다. */

@@ -38,6 +38,7 @@ import io.github.haeyeonyou.familytrip.care.Nearby
 import io.github.haeyeonyou.familytrip.care.ToneState
 import io.github.haeyeonyou.familytrip.data.CarePlace
 import io.github.haeyeonyou.familytrip.data.ClimateSettings
+import io.github.haeyeonyou.familytrip.data.PresetState
 
 /** 케어 화면이 밖에 알리는 동작 모음. */
 data class CareActions(
@@ -74,16 +75,23 @@ fun CareScreen(
     ) {
         DelayBannerSlot()
         ScreenTitle("케어", months?.let { "생후 ${it}개월 · 출발 전 준비와 급한 순간" } ?: "출발 전 준비와 급한 순간")
-        PresetSlots(
-            presets = state.presets,
-            messages = state.presetMessages,
-            applyingSlot = state.applyingSlot,
-            isParked = isParked,
-            narrow = narrow,
-            actions = PresetActions(actions.onApplyPreset, actions.onSavePreset, actions.onDismissPreset),
-        )
+        val presetActions = PresetActions(actions.onApplyPreset, actions.onSavePreset, actions.onDismissPreset)
+        // 정차 중 프리셋 편집 창 (HF03-1). 열려 있는 슬롯
+        var editingSlot by rememberSaveable { mutableStateOf<String?>(null) }
+        state.presets.firstOrNull { it.slot == editingSlot }?.let { preset ->
+            PresetEditDialog(
+                preset = preset,
+                onDismiss = { editingSlot = null },
+                onSave = { settings ->
+                    presetActions.onSave(preset.slot, settings)
+                    editingSlot = null
+                },
+            )
+        }
 
-        val babyCare: @Composable (Modifier) -> Unit = { m -> BabyCareCard(state, care, actions.onBabyCare, m) }
+        val babyCare: @Composable (Modifier) -> Unit = { m ->
+            BabyCareCard(state, care, isParked, narrow, actions.onBabyCare, presetActions, { editingSlot = it }, m)
+        }
         val feeding: @Composable (Modifier) -> Unit = { m ->
             FeedingCard(care.feeding, onFed = actions.onFed, onInterval = actions.onInterval, modifier = m)
         }
@@ -91,8 +99,9 @@ fun CareScreen(
             babyCare(Modifier.fillMaxWidth())
             feeding(Modifier.fillMaxWidth())
         } else {
+            // 디자인(HF03 v2)은 베이비케어 카드가 수유 타이머 카드의 두 배 너비
             Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-                babyCare(Modifier.weight(1f))
+                babyCare(Modifier.weight(2f))
                 feeding(Modifier.weight(1f))
             }
         }
@@ -131,7 +140,7 @@ private fun CardFrame(modifier: Modifier = Modifier, content: @Composable () -> 
 }
 
 @Composable
-private fun IconBadge(icon: String) {
+fun IconBadge(icon: String) {
     Box(modifier = Modifier.size(44.dp).clip(CircleShape).background(if (ToneState.current.dark) TripColors.Tile else TripColors.GreenSoft), contentAlignment = Alignment.Center) {
         Text(icon, fontSize = 22.sp)
     }
@@ -148,36 +157,131 @@ private fun CareSwitch(checked: Boolean, enabled: Boolean = true, onChange: (Boo
     )
 }
 
-/** 베이비케어 모드: 켜면 실제로 차 공조(목표 24°C, 약한 바람, 시트·핸들 열선 끔)를 제어한다. */
+/**
+ * 베이비케어 모드 (HF03 v2). 켜면 '탑승 준비' 프리셋(폰에서 보낸 값, 없으면 서버 기본값)으로 실제 차 공조를 제어하고,
+ * 카드 안의 작은 카드 둘(낮잠·수면 모드, 수유 정차 모드)로 나머지 프리셋을 적용·수정한다. 프리셋은 서버 슬롯
+ * boarding · nap · feeding_stop과 같다.
+ */
 @Composable
-private fun BabyCareCard(state: TripUiState, care: CareState, onToggle: (Boolean) -> Unit, modifier: Modifier) {
+private fun BabyCareCard(
+    state: TripUiState,
+    care: CareState,
+    isParked: Boolean,
+    narrow: Boolean,
+    onToggle: (Boolean) -> Unit,
+    presetActions: PresetActions,
+    onEdit: (String) -> Unit,
+    modifier: Modifier,
+) {
+    val boarding = state.babyCarePreset
+    val busy = state.applyingSlot != null
     CardFrame(modifier) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            IconBadge("♡")
-            Text("베이비케어 모드", fontSize = 26.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+            IconBadge("☺")
+            Box(modifier = Modifier.weight(1f))
+            // 탑승 준비 값을 고치는 일은 정차 중에만
+            if (isParked && boarding != null) {
+                Text(
+                    "탑승 준비 수정",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TripColors.Green,
+                    modifier = Modifier.clip(RoundedCornerShape(12.dp)).clickable { onEdit(boarding.slot) }.padding(horizontal = 12.dp, vertical = 8.dp),
+                )
+            }
             CareSwitch(care.babyCare, enabled = !care.babyCareBusy, onChange = onToggle)
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(40.dp)) {
-            Column {
-                Text("차 공조 설정", fontSize = 18.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(care.currentTemperature?.let { "${trim(it)}°C" } ?: "—", fontSize = 48.sp, fontWeight = FontWeight.Bold)
-            }
-            Column {
-                Text("설정한 목표", fontSize = 18.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text("${trim(care.targetTemperature)}°C", fontSize = 48.sp, fontWeight = FontWeight.Bold, color = TripColors.Green)
+        val temps: @Composable () -> Unit = {
+            Row(horizontalArrangement = Arrangement.spacedBy(32.dp)) {
+                Column {
+                    Text("차 공조 설정", fontSize = 18.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(care.currentTemperature?.let { "${trim(it)}°C" } ?: "—", fontSize = 48.sp, fontWeight = FontWeight.Bold)
+                }
+                Column {
+                    Text("설정한 목표", fontSize = 18.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("${trim(care.targetTemperature)}°C", fontSize = 48.sp, fontWeight = FontWeight.Bold, color = TripColors.Green)
+                }
             }
         }
-        val presetName = state.babyCarePreset?.settings?.name
-        Text(
-            when {
-                care.babyCareBusy -> "차에 적용하는 중…"
-                care.climateMessage != null -> care.climateMessage
-                presetName != null -> "켜면 폰에서 보낸 '$presetName' 값으로 공조를 맞춰요"
-                else -> "켜면 24°C · 약한 바람 · 시트와 핸들 열선은 꺼요 (지원 차량에서만)"
-            },
-            fontSize = 18.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        val summary: @Composable (Modifier) -> Unit = { m ->
+            Column(modifier = m, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("베이비케어 모드", fontSize = 26.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    when {
+                        care.babyCareBusy -> "차에 적용하는 중…"
+                        care.climateMessage != null -> care.climateMessage
+                        boarding != null -> presetShortSummary(boarding) + if (boarding.pending) " · 폰에서 보낸 설정" else ""
+                        else -> "켜면 24°C · 약한 바람 · 시트와 핸들 열선은 꺼요 (지원 차량에서만)"
+                    },
+                    fontSize = 18.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        if (narrow) {
+            summary(Modifier.fillMaxWidth())
+            temps()
+        } else {
+            Row(verticalAlignment = Alignment.Bottom) {
+                summary(Modifier.weight(1f))
+                temps()
+            }
+        }
+
+        val nap = state.presets.firstOrNull { it.slot == "nap" }
+        val feedingStop = state.presets.firstOrNull { it.slot == "feeding_stop" }
+        if (nap == null || feedingStop == null) {
+            Text(
+                "로그인하면 폰에서 정한 낮잠·수유 정차 설정이 여기에 나타나요",
+                fontSize = 18.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        } else {
+            PresetTilePair(nap, feedingStop, state, isParked, narrow, presetActions, onEdit)
+        }
+        // 적용·저장 결과 (눌러서 닫는다)
+        listOf("boarding", "nap", "feeding_stop").forEach { slot ->
+            state.presetMessages[slot]?.let {
+                Text(it, fontSize = 18.sp, color = MaterialTheme.colorScheme.primary, modifier = Modifier.clickable { presetActions.onDismissMessage(slot) })
+            }
+        }
+    }
+}
+
+/** 베이비케어 카드 안의 작은 프리셋 카드 둘: 낮잠 · 수면 모드(애 잔다), 수유 정차 모드(수유할게). */
+@Composable
+private fun PresetTilePair(
+    nap: PresetState,
+    feedingStop: PresetState,
+    state: TripUiState,
+    isParked: Boolean,
+    narrow: Boolean,
+    presetActions: PresetActions,
+    onEdit: (String) -> Unit,
+) {
+    @Composable
+    fun tile(p: PresetState, icon: String, title: String, hint: String, modifier: Modifier) = PresetTile(
+        preset = p,
+        icon = icon,
+        title = title,
+        hint = hint,
+        applying = state.applyingSlot == p.slot,
+        busy = state.applyingSlot != null,
+        isParked = isParked,
+        onApply = { presetActions.onApply(p.slot) },
+        onEdit = { onEdit(p.slot) },
+        modifier = modifier,
+    )
+    if (narrow) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            tile(nap, "☾", "낮잠 · 수면 모드", "애 잔다", Modifier.fillMaxWidth())
+            tile(feedingStop, "🍼", "수유 정차 모드", "수유할게", Modifier.fillMaxWidth())
+        }
+    } else {
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            tile(nap, "☾", "낮잠 · 수면 모드", "애 잔다", Modifier.weight(1f))
+            tile(feedingStop, "🍼", "수유 정차 모드", "수유할게", Modifier.weight(1f))
+        }
     }
 }
 
