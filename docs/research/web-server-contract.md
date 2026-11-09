@@ -75,7 +75,7 @@ GET    /me/experience-map     → 경험맵 (웹 그로우 화면이 쓴다)
 ```
 GET  /presets                 → [PresetState × 3]   (슬롯 순서 고정, 보낸 적 없으면 sent=false에 기본값)
 PUT  /presets/{slot}?applied_on_car=false   ClimateSettings → PresetState
-GET  /presets/pending         → (예전 앱용) 탑승 준비의 미적용 프리셋 {id, settings, sent_at}, 없으면 204   [변경 없음]
+GET  /presets/pending         → (예전 앱용) 슬롯에 상관없이 미적용 프리셋 중 가장 최근에 보낸 것 {id, settings, sent_at, slot}, 없으면 204
 POST /presets/{id}/applied    → 204   (슬롯과 상관없이 id로 적용 완료 표시)   [변경 없음]
 ```
 ```json
@@ -86,7 +86,7 @@ POST /presets/{id}/applied    → 204   (슬롯과 상관없이 id로 적용 완
 {"slot":"nap","label":"낮잠","when":"수면 모드와 함께","sent":true,"id":"…","settings":{…},
  "sent_at":"…","applied_at":null,"pending":true}
 ```
-- **하위 호환**: ① `GET /presets/pending`과 `POST /presets/{id}/applied`는 응답 모양 그대로다. 예전 앱(PR #65)은 탑승 준비만 받고, 낮잠·수유 정차를 보내도 `pending`은 204를 준다. ② 예전 웹 폼(`/m/preset`)과 예전 앱이 쓰던 1개는 `boarding` 슬롯이다(기존 DB 행도 `boarding`으로 이어진다). ③ `settings`에 `media_volume`이 늘었지만 앱이 `ignoreUnknownKeys=true`라 파싱이 깨지지 않는다. ④ 새 필드는 모두 선택값이다.
+- **하위 호환**: ① `GET /presets/pending`과 `POST /presets/{id}/applied`는 예전 앱이 그대로 쓸 수 있다. `pending`은 낮잠·수유 정차로 보낸 것도 (가장 최근에 보낸 순으로) 주고, 응답에 선택 필드 `slot`만 늘었다. ② 예전 웹 폼(`/m/preset`)과 예전 앱이 쓰던 1개는 `boarding` 슬롯이다(기존 DB 행도 `boarding`으로 이어진다). ③ `settings`에 `media_volume`이 늘었지만 앱이 `ignoreUnknownKeys=true`라 파싱이 깨지지 않는다. ④ 새 필드는 모두 선택값이다.
 - 기본값: 탑승 준비 24℃·풍량 2·음량 30, 낮잠 23℃·풍량 1·음량 20, 수유 정차 24℃·풍량 1·음량 10.
 - 차에서 정차 중 직접 고쳐 저장하는 것은 `PUT /presets/{slot}?applied_on_car=true` (이미 차에 적용된 값이라 대기로 남지 않는다). 마지막 수정이 이긴다.
 

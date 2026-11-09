@@ -1,7 +1,8 @@
 """공조 프리셋: 폰(웹)에서 정해 '차로 보내기' → 차 앱이 시작할 때 받아 확인·적용.
 
 시동이 꺼진 차는 원격 제어할 수 없으므로(Pleos 앱은 인포테인먼트가 켜져야 동작) 미리 보내 두는 방식이다.
-프리셋은 슬롯 3개(탑승 준비·낮잠·수유 정차)다. 슬롯을 모르는 예전 차 앱은 `GET /presets/pending`으로 탑승 준비만 받는다.
+프리셋은 슬롯 3개(탑승 준비·낮잠·수유 정차)다. 슬롯을 모르는 예전 차 앱은 `GET /presets/pending`으로
+아직 적용하지 않은 것 중 가장 최근에 보낸 하나를 받는다 (어느 슬롯이든 — 웹에서 보냈는데 차가 못 받는 일이 없게).
 """
 
 import uuid
@@ -50,6 +51,8 @@ class PendingPreset(BaseModel):
     id: uuid.UUID
     settings: ClimateSettings
     sent_at: datetime
+    # 예전 앱은 몰라도 되는 선택 값 (ignoreUnknownKeys)
+    slot: str = LEGACY_SLOT
 
 
 class PresetState(BaseModel):
@@ -132,11 +135,16 @@ async def put_preset(
 
 @router.get("/pending", response_model=PendingPreset, responses={204: {"description": "받을 프리셋 없음"}})
 async def pending(user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
-    """(예전 차 앱용) 아직 적용하지 않은 탑승 준비 프리셋이 있으면 준다. 낮잠·수유 정차는 `GET /presets`로 받는다."""
-    preset = await current(db, user)
-    if preset is None or preset.applied_at is not None:
+    """(예전 차 앱용) 아직 적용하지 않은 프리셋 중 가장 최근에 보낸 것을 준다. 슬롯은 `slot`으로 알려 준다."""
+    preset = await db.scalar(
+        select(ClimatePreset)
+        .where(ClimatePreset.user_id == user.id, ClimatePreset.applied_at.is_(None))
+        .order_by(ClimatePreset.sent_at.desc())
+        .limit(1)
+    )
+    if preset is None:
         return Response(status_code=204)
-    return PendingPreset(id=preset.id, settings=ClimateSettings(**preset.settings), sent_at=preset.sent_at)
+    return PendingPreset(id=preset.id, settings=ClimateSettings(**preset.settings), sent_at=preset.sent_at, slot=preset.slot)
 
 
 @router.post("/{preset_id}/applied", status_code=204)
