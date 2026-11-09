@@ -44,8 +44,22 @@ class SyncTracker {
         )
     }
 
-    fun accept(marks: SyncMarks) {
-        accepted = marks
+    /**
+     * [marks]를 반영을 마친 것으로 기억한다. [areas]에 true로 든 영역만 기억하고 나머지는 이전 값을 유지해,
+     * 일부 영역만 실패했을 때 성공한 영역은 다시 받지 않고 실패한 영역만 다음 주기에 다시 받는다.
+     */
+    fun accept(marks: SyncMarks, areas: SyncChange = SyncChange(presets = true, feedings = true, visits = true, family = true, cars = true)) {
+        val base = accepted ?: SyncMarks()
+        val everything = areas.presets && areas.feedings && areas.visits && areas.family && areas.cars
+        accepted = SyncMarks(
+            presets = if (areas.presets) marks.presets else base.presets,
+            feedings = if (areas.feedings) marks.feedings else base.feedings,
+            visits = if (areas.visits) marks.visits else base.visits,
+            family = if (areas.family) marks.family else base.family,
+            cars = if (areas.cars) marks.cars else base.cars,
+            // 모두 반영했을 때만 전체 표시를 기억한다 (같으면 아무것도 안 바뀐 것으로 보는 지름길)
+            all = if (everything) marks.all else base.all,
+        )
     }
 
     /** 로그인한 계정이 바뀌었을 때 처음부터 다시 비교한다. */

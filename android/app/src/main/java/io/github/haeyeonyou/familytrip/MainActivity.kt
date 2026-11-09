@@ -178,6 +178,7 @@ class MainActivity : ComponentActivity() {
                             vm.runSyncLoop(onUnauthorized = { nav.navigate(Routes.LOGIN) { popUpTo(0) } })
                         }
                     }
+                    val visitRevision by container.visits.revision.collectAsStateWithLifecycle()
                     val backStack by nav.currentBackStackEntryAsState()
                     val route = backStack?.destination?.route
                     fun openTab(tab: MainTab) {
@@ -280,7 +281,7 @@ class MainActivity : ComponentActivity() {
                                 isParked = vehicle.isParked,
                                 onLoggedIn = {
                                     container.account.save(it)
-                                    vm.checkPendingPreset()
+                                    vm.syncNow()
                                     goHome()
                                 },
                                 onSkip = {
@@ -294,8 +295,8 @@ class MainActivity : ComponentActivity() {
                                 state = state,
                                 isParked = vehicle.isParked,
                                 rangeMeters = vehicle.rangeRemainingMeters,
-                                // 화면에 들어올 때마다 차 안 기록을 다시 읽는다.
-                                visits = remember { container.visits.all() },
+                                // 서버에서 받은 변경으로 기록이 바뀌면 다시 읽는다.
+                                visits = remember(visitRevision) { container.visits.all() },
                                 saved = remember { container.courses.all() },
                                 actions = HomeActions(
                                     load = vm::loadHome,
@@ -329,7 +330,7 @@ class MainActivity : ComponentActivity() {
                                 onEditProfile = { nav.navigate(Routes.PROFILE) },
                                 onUseProfile = vm::conditionsFromProfile,
                                 onApplyPreset = vm::applyPreset,
-                                onDismissPreset = vm::dismissPreset,
+                                onDismissPreset = { vm.dismissPreset(it) },
                             )
                         }
                         composable(Routes.CARE) {
@@ -341,16 +342,16 @@ class MainActivity : ComponentActivity() {
                                 isParked = vehicle.isParked,
                                 actions = CareActions(
                                     // 폰에서 보낸 공조 프리셋이 있으면 그 값으로 베이비케어를 맞춘다.
-                                    onBabyCare = { on -> care.setBabyCare(on, state.pendingPreset, onApplied = vm::dismissPreset) },
+                                    onBabyCare = { on -> care.setBabyCare(on, state.babyCarePreset, onApplied = { vm.dismissPreset("boarding") }) },
                                     onSleepMode = care::setSleepMode,
                                     onFed = care::markFed,
                                     onInterval = care::setFeedingInterval,
                                     onFind = { kind -> scope.launch { care.findNearby(kind) } },
                                     onAddWaypoint = { place -> care.addWaypoint(place) },
                                     onApplyPreset = vm::applyPreset,
-                                    onDismissPreset = vm::dismissPreset,
+                                    onSavePreset = vm::savePreset,
+                                    onDismissPreset = { vm.dismissPreset(it) },
                                     onEnter = {
-                                        care.reloadFeeding()
                                         care.refreshClimate()
                                         scope.launch { CareKind.cards.forEach { care.findNearby(it) } }
                                     },
@@ -376,9 +377,9 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         composable(Routes.EXPERIENCE) {
-                            // 화면에 들어올 때마다 차 안 기록을 다시 읽는다.
+                            // 도착·떠남이나 서버(웹)에서 받은 변경으로 기록이 바뀌면 다시 읽는다.
                             ExperienceScreen(
-                                visits = remember { container.visits.all() },
+                                visits = remember(visitRevision) { container.visits.all() },
                                 courses = remember { container.courses.all() },
                                 childName = state.profile?.childName.orEmpty(),
                                 isParked = vehicle.isParked,

@@ -46,8 +46,8 @@ fun InputScreen(
     onMakeCourse: () -> Unit,
     onEditProfile: () -> Unit,
     onUseProfile: () -> Unit,
-    onApplyPreset: () -> Unit,
-    onDismissPreset: () -> Unit,
+    onApplyPreset: (slot: String) -> Unit,
+    onDismissPreset: (slot: String) -> Unit,
 ) = DrivingAware(isParked) {
     Column(
         modifier = Modifier.padding(40.dp).verticalScroll(rememberScrollState()),
@@ -167,38 +167,25 @@ private fun ConditionsEditor(
     }
 }
 
-/** 폰에서 보낸 공조 프리셋 (#62). 적용 후에는 결과 문구만 남는다. */
+/** 폰에서 보내 아직 적용하지 않은 공조 프리셋 (#62). 적용 후에는 결과 문구만 남는다. 3개 전체는 케어 화면에 있다. */
 @Composable
-fun PresetCard(state: TripUiState, onApply: () -> Unit, onDismiss: () -> Unit) {
+fun PresetCard(state: TripUiState, onApply: (String) -> Unit, onDismiss: (String) -> Unit) {
     val preset = state.pendingPreset
     if (preset == null) {
-        state.presetMessage?.let { Text(it, fontSize = 22.sp, color = MaterialTheme.colorScheme.primary) }
+        state.presetMessages.values.firstOrNull()?.let { Text(it, fontSize = 22.sp, color = MaterialTheme.colorScheme.primary) }
         return
     }
-    val s = preset.settings
-    val parts = buildList {
-        if (!s.power) {
-            add("공조 끄기")
-        } else {
-            add("${s.temperature}°C")
-            add("풍량 ${s.fanSpeed}단")
-            if (s.ac) add("에어컨")
-            if (s.airCleaner) add("공기청정")
-        }
-        if (s.driverSeatHeat > 0) add("운전석 열선 ${s.driverSeatHeat}단")
-        if (s.passengerSeatHeat > 0) add("조수석 열선 ${s.passengerSeatHeat}단")
-        if (s.steeringWheelHeat > 0) add("핸들 열선 ${s.steeringWheelHeat}단")
-    }
+    val applying = state.applyingSlot != null
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column(modifier = Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("폰에서 보낸 설정 · ${s.name}", fontSize = 26.sp, color = MaterialTheme.colorScheme.onPrimaryContainer)
-            Text(parts.joinToString(" · "), fontSize = 24.sp, color = MaterialTheme.colorScheme.onPrimaryContainer)
+            Text("폰에서 보낸 설정 · ${preset.label.ifBlank { preset.settings.name }}", fontSize = 26.sp, color = MaterialTheme.colorScheme.onPrimaryContainer)
+            Text(presetSummary(preset.settings), fontSize = 24.sp, color = MaterialTheme.colorScheme.onPrimaryContainer)
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                BigButton(if (state.applyingPreset) "적용하는 중…" else "차에 적용", onApply, enabled = !state.applyingPreset)
-                BigOutlinedButton("나중에", onDismiss)
+                BigButton(if (applying) "적용하는 중…" else "차에 적용", { onApply(preset.slot) }, enabled = !applying)
+                BigOutlinedButton("나중에", { onDismiss(preset.slot) })
             }
         }
     }

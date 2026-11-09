@@ -14,12 +14,16 @@ import io.github.haeyeonyou.familytrip.data.StartBody
 import io.github.haeyeonyou.familytrip.data.WeatherInfo
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeoutOrNull
 import io.github.haeyeonyou.familytrip.data.CourseResponse
 import io.github.haeyeonyou.familytrip.data.LatLng
 import io.github.haeyeonyou.familytrip.data.ParseRequest
-import io.github.haeyeonyou.familytrip.data.PendingPreset
+import io.github.haeyeonyou.familytrip.data.ClimateSettings
+import io.github.haeyeonyou.familytrip.data.PresetState
 import io.github.haeyeonyou.familytrip.data.SavedCourse
+import io.github.haeyeonyou.familytrip.data.SyncChange
 import io.github.haeyeonyou.familytrip.data.SyncTracker
 import io.github.haeyeonyou.familytrip.data.ScheduleRequest
 import io.github.haeyeonyou.familytrip.data.ScheduleStop
@@ -51,12 +55,13 @@ data class TripUiState(
     val message: String? = null,
     /** 한 번 등록한 가족 정보. 없으면 등록을 권한다. */
     val profile: FamilyProfile? = null,
-    /** 폰에서 보내 아직 적용하지 않은 공조 프리셋 (#62) */
-    val pendingPreset: PendingPreset? = null,
-    /** 프리셋 적용 결과 문구 */
-    val presetMessage: String? = null,
-    val applyingPreset: Boolean = false,
-    /** 수유 루틴 (#67). 기기에만 저장 */
+    /** 서버의 공조 프리셋 슬롯 3개 (탑승 준비·낮잠·수유 정차). 로그인 전이면 비어 있다. */
+    val presets: List<PresetState> = emptyList(),
+    /** 슬롯별 적용·저장 결과 문구 */
+    val presetMessages: Map<String, String> = emptyMap(),
+    /** 차에 적용하는 중인 슬롯 */
+    val applyingSlot: String? = null,
+    /** 수유 루틴 (#67). 기기에 저장하고, 로그인했다면 서버와 맞춘다 */
     val feeding: FeedingRoutine = FeedingRoutine(),
     val homeFilters: HomeFilters = HomeFilters(),
     /** 홈 추천을 만든 조건 (코스를 열면 이 조건으로 편집한다) */
@@ -68,7 +73,13 @@ data class TripUiState(
     val weather: WeatherInfo? = null,
     /** 장소 키 → 최근 1시간 안에 시작한 수 */
     val going: Map<String, Int> = emptyMap(),
-)
+) {
+    /** 폰에서 보냈는데 아직 차에 적용하지 않은 프리셋 중 가장 최근에 보낸 것 (코스 입력 화면의 안내 카드) */
+    val pendingPreset: PresetState? get() = presets.filter { it.pending }.maxByOrNull { it.sentAt.orEmpty() }
+
+    /** 베이비케어를 켤 때 쓰는, 폰에서 보낸 탑승 준비 프리셋 */
+    val babyCarePreset: PresetState? get() = presets.firstOrNull { it.slot == "boarding" && it.pending }
+}
 
 /** 홈 필터 칩 (HF01). 칩을 바꾸면 추천을 다시 계산한다. */
 data class HomeFilters(
@@ -112,29 +123,25 @@ class TripViewModel(private val container: AppContainer) : ViewModel() {
                 _state.update { it.copy(feeding = f) }
             }
         }
-        checkPendingPreset()
+        // 서버에서 받은 프리셋 슬롯과 가족 정보를 화면 상태에 반영한다.
+        viewModelScope.launch {
+            container.serverSync.presets.collect { list ->
+                // 적용하는 중에는 같은 프리셋이 다시 대기로 보이지 않게 건드리지 않는다.
+                if (_state.value.applyingSlot == null) _state.update { it.copy(presets = list) }
+            }
+        }
+        viewModelScope.launch {
+            container.profile.profile.collect { p ->
+                if (p != null && p != _state.value.profile) _state.update { it.copy(profile = p, conditions = it.conditions?.let(p::applyTo)) }
+            }
+        }
     }
 
-    /** 로그인한 계정으로 폰에서 보낸 프리셋이 있는지 본다 (앱 시작, 로그인 직후). */
-    fun checkPendingPreset() {
-        if (container.account.token == null) return
-        viewModelScope.launch { fetchPendingPreset() }
-    }
+    private val wake = Channel<Unit>(Channel.CONFLATED)
 
-    /** 서버의 대기 프리셋을 받아 카드에 반영한다. 성공하면 true, 요청 실패는 false(로그만), 401이면 [onUnauthorized]. */
-    private suspend fun fetchPendingPreset(onUnauthorized: () -> Unit = {}): Boolean {
-        val res = runCatching { container.api.pendingPreset() }
-            .onFailure { e -> Log.w(TAG, "pending preset check failed", e) }
-            .getOrNull() ?: return false
-        if (res.code() == 401) {
-            onUnauthorized()
-            return false
-        }
-        // 적용하는 중에는 같은 프리셋이 다시 보이지 않게 건드리지 않는다.
-        if (!_state.value.applyingPreset) {
-            _state.update { it.copy(pendingPreset = res.body().takeIf { res.isSuccessful }) }
-        }
-        return res.isSuccessful
+    /** 로그인한 직후 등 서버와 바로 맞추고 싶을 때 (다음 주기를 기다리지 않는다). */
+    fun syncNow() {
+        wake.trySend(Unit)
     }
 
     /**
@@ -154,7 +161,8 @@ class TripViewModel(private val container: AppContainer) : ViewModel() {
             } else {
                 lastToken = null
             }
-            delay(SYNC_INTERVAL_MS)
+            // 다음 주기까지 쉬되, 로그인 직후처럼 바로 맞춰야 할 때는 [syncNow]가 깨운다.
+            withTimeoutOrNull(SYNC_INTERVAL_MS) { wake.receive() }
         }
     }
 
@@ -177,55 +185,89 @@ class TripViewModel(private val container: AppContainer) : ViewModel() {
         }
         if (marks == null) return
         val change = tracker.diff(marks)
-        if (!change.any) return
-        Log.d(TAG, "sync changed: $change")
-        // 프리셋을 다시 받지 못하면 표시를 받아들이지 않아 다음 주기에 다시 시도한다.
-        if (change.presets && !fetchPendingPreset { unauthorized = true }) {
-            if (unauthorized) handleUnauthorized(onUnauthorized)
+        // 표시가 바뀐 영역과, 전에 못 올린 것이 남은 영역을 서버와 맞춘다. 반영을 마친 영역만 기억해 실패한 영역은 다음 주기에 다시 한다.
+        val result = container.serverSync.refresh(change)
+        if (result.unauthorized) {
+            handleUnauthorized(onUnauthorized)
             return
         }
-        // TODO(#24 6절 1~4): feedings·visits·family 영역이 바뀌면 여기서 다시 받는다. 지금은 표시만 읽는다.
-        tracker.accept(marks)
+        if (change.any) Log.d(TAG, "sync changed: $change, done: ${result.done}")
+        tracker.accept(marks, SyncChange(
+            presets = !change.presets || result.done.presets,
+            feedings = !change.feedings || result.done.feedings,
+            visits = !change.visits || result.done.visits,
+            family = !change.family || result.done.family,
+            cars = true,
+        ))
     }
 
     private fun handleUnauthorized(onUnauthorized: () -> Unit) {
         Log.i(TAG, "sync: 401, 로그인 정보를 지웁니다")
         container.account.clear()
-        _state.update { it.copy(pendingPreset = null, applyingPreset = false) }
+        _state.update { it.copy(presets = emptyList(), applyingSlot = null) }
         onUnauthorized()
     }
 
-    /** 받은 프리셋을 차 공조에 적용하고 서버에 적용 완료로 알린다. */
-    fun applyPreset() {
-        val preset = _state.value.pendingPreset ?: return
+    /** [slot]의 프리셋을 차 공조(와 미디어 음량)에 적용하고, 폰에서 보낸 것이었다면 서버에 적용 완료로 알린다. */
+    fun applyPreset(slot: String) {
+        val preset = _state.value.presets.firstOrNull { it.slot == slot } ?: return
+        if (_state.value.applyingSlot != null) return
         viewModelScope.launch {
-            _state.update { it.copy(applyingPreset = true) }
+            _state.update { it.copy(applyingSlot = slot, presetMessages = it.presetMessages - slot) }
             val result = container.vehicle.applyClimate(preset.settings)
-            runCatching { container.api.presetApplied(preset.id) }
-            val message = buildString {
-                if (result.applied.isNotEmpty()) append("적용했어요: ${result.applied.joinToString()}")
-                if (result.failed.isNotEmpty()) {
-                    if (isNotEmpty()) append("\n")
-                    append("이 차에서 바꾸지 못한 항목: ${result.failed.joinToString()}")
-                }
+            // 차에 하나라도 적용됐을 때만 '적용했어요'로 알린다 (시동이 꺼져 아무것도 못 바꿨다면 대기로 남긴다).
+            val applied = result.applied.isNotEmpty()
+            if (applied && preset.pending && preset.id != null) container.serverSync.onPresetApplied(slot, preset.id)
+            val message = presetResultMessage(result.applied, result.failed)
+            _state.update { s ->
+                s.copy(
+                    applyingSlot = null,
+                    presets = container.serverSync.presets.value.ifEmpty { s.presets },
+                    presetMessages = s.presetMessages + (slot to message),
+                )
             }
-            _state.update { it.copy(pendingPreset = null, applyingPreset = false, presetMessage = message) }
         }
     }
 
-    /** 이번에는 적용하지 않는다. 서버에는 그대로 남아 다음에 앱을 켜면 다시 보인다. */
-    fun dismissPreset() = _state.update { it.copy(pendingPreset = null, presetMessage = null) }
-
-    /** '지금 수유했어요': 마지막 수유를 지금으로 기록한다. */
-    fun markFed() = updateFeeding { it.copy(lastFedAt = System.currentTimeMillis()) }
-
-    fun setFeedingInterval(minutes: Int) = updateFeeding { it.copy(intervalMinutes = minutes) }
-
-    private fun updateFeeding(transform: (FeedingRoutine) -> FeedingRoutine) {
-        val updated = transform(_state.value.feeding)
-        container.feeding.save(updated)
-        _state.update { it.copy(feeding = updated) }
+    /**
+     * 정차 중 고친 [settings]를 차에 적용하고 슬롯에 저장한다 (`PUT /presets/{slot}?applied_on_car=true`).
+     * 서버에 올리지 못해도 차에는 적용되어 있고, 저장은 다음 주기에 다시 시도한다.
+     */
+    fun savePreset(slot: String, settings: ClimateSettings) {
+        if (_state.value.applyingSlot != null) return
+        viewModelScope.launch {
+            _state.update { it.copy(applyingSlot = slot, presetMessages = it.presetMessages - slot) }
+            val result = container.vehicle.applyClimate(settings)
+            val saved = container.serverSync.savePresetEdit(slot, settings)
+            val message = presetResultMessage(result.applied, result.failed) + if (saved) "\n폰에도 저장했어요" else "\n폰에는 연결되면 저장할게요"
+            _state.update { s ->
+                s.copy(
+                    applyingSlot = null,
+                    presets = container.serverSync.presets.value.ifEmpty { s.presets },
+                    presetMessages = s.presetMessages + (slot to message),
+                )
+            }
+        }
     }
+
+    private fun presetResultMessage(applied: List<String>, failed: List<String>) = buildString {
+        if (applied.isNotEmpty()) append("적용했어요: ${applied.joinToString()}")
+        if (failed.isNotEmpty()) {
+            if (isNotEmpty()) append("\n")
+            append("이 차에서 바꾸지 못한 항목: ${failed.joinToString()}")
+        }
+        if (isEmpty()) append("이 차에서는 공조를 제어할 수 없어요 (지원 차량에서만 · 시동이 켜져 있어야 해요)")
+    }
+
+    /** 안내 문구를 닫는다. 서버에는 그대로 남아 있다. */
+    fun dismissPreset(slot: String? = null) = _state.update {
+        it.copy(presetMessages = if (slot == null) emptyMap() else it.presetMessages - slot)
+    }
+
+    /** '지금 수유했어요': 마지막 수유를 지금으로 기록한다 (케어 컨트롤러가 차에 저장하고 서버에도 올린다). */
+    fun markFed() = container.care.markFed()
+
+    fun setFeedingInterval(minutes: Int) = container.care.setFeedingInterval(minutes)
 
     // 홈 추천 (HF01)
 
@@ -343,6 +385,7 @@ class TripViewModel(private val container: AppContainer) : ViewModel() {
 
     fun saveProfile(profile: FamilyProfile) {
         container.profile.save(profile)
+        container.serverSync.onFamilyEdited()
         _state.update {
             it.copy(profile = profile, conditions = it.conditions?.let(profile::applyTo), homeFilters = defaultFilters(profile), options = emptyList())
         }

@@ -4,19 +4,29 @@ import android.content.Context
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import java.io.File
 import java.time.YearMonth
 
 /** 아이 한 명. 생년월만 저장하고 나이는 그때그때 계산한다. */
 @Serializable
-data class Child(val birthYear: Int, val birthMonth: Int, val name: String = "") {
+data class Child(
+    val birthYear: Int,
+    val birthMonth: Int,
+    val name: String = "",
+    /** 서버(웹)에 등록된 이 아이의 id. 서버와 맞춘 아이에게만 있다. */
+    val serverId: String? = null,
+) {
     fun ageMonths(now: YearMonth = YearMonth.now()): Int =
         ((now.year - birthYear) * 12 + (now.monthValue - birthMonth)).coerceAtLeast(0)
 }
 
 /**
  * 한 번 등록해 두는 가족 정보 (지수 덱 개인정보 원칙, 혜연 P09).
- * 생년월은 차 안에만 두고, 서버로는 계산한 나이(개월 수 포함)만 보낸다 (#47 결정).
+ * 코스 요청에는 생년월이 아니라 계산한 나이(개월 수 포함)만 보낸다 (#47 결정). 로그인한 사용자의 아이 정보는
+ * 서버 `Child.birth_month`와 같은 값이라 가족 정보 API로는 생년월을 맞춘다 (docs/research/web-server-contract.md 6절).
  */
 @Serializable
 data class FamilyProfile(
@@ -47,13 +57,25 @@ fun ageLabel(months: Int): String = when {
     else -> "${months / 12}살"
 }
 
-/** 가족 정보를 앱 내부 파일에만 저장한다. */
-class ProfileStore(context: Context) {
-    private val file = File(context.filesDir, "family_profile.json")
-    private val json = Json { ignoreUnknownKeys = true }
+/**
+ * 가족 정보를 앱 내부 파일에 저장한다. 로그인했다면 [FamilySync]가 아이 정보를 서버와 맞춘다.
+ * 바뀔 때마다 [profile] 흐름이 알려, 서버에서 받은 변경도 화면에 바로 반영된다.
+ */
+class ProfileStore(private val file: File) : ProfileRepo {
+    constructor(context: Context) : this(File(context.filesDir, "family_profile.json"))
 
-    fun load(): FamilyProfile? =
+    private val json = Json { ignoreUnknownKeys = true }
+    private val _profile = MutableStateFlow(read())
+    val profile: StateFlow<FamilyProfile?> = _profile.asStateFlow()
+
+    private fun read(): FamilyProfile? =
         runCatching { json.decodeFromString<FamilyProfile>(file.readText()) }.getOrNull()
 
-    fun save(profile: FamilyProfile) = file.writeText(json.encodeToString(profile))
+    override fun load(): FamilyProfile? = _profile.value
+
+    @Synchronized
+    override fun save(profile: FamilyProfile) {
+        file.writeText(json.encodeToString(profile))
+        _profile.value = profile
+    }
 }
