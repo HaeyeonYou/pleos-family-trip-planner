@@ -19,11 +19,17 @@ PUT    /me/members/{member_id}       MemberIn → MemberOut    (12명까지)
 DELETE /me/members/{member_id}       204
 ```
 ```json
-// ChildIn (필수는 nickname, birth_month)
-{"nickname":"서아","birth_month":"2025-09","feeding_type":"mixed","feed_interval_minutes":180,"nap_count":2}
+// ChildIn (필수는 nickname, birth_month. 나머지는 모두 선택값이라 예전 앱의 요청도 그대로 받는다)
+{"nickname":"서아","birth_month":"2025-09","feeding_type":"mixed","feed_interval_minutes":180,"nap_count":2,
+ "temperament":["animal","active"],"nap_times":"10:30–12:00 · 15:00–16:00","nap_in_car":true,
+ "heat_sensitivity":"hot","motion_sickness":false,"noise_sensitivity":"sensitive","stroller_use":true}
 // ChildOut = ChildIn + {"id":"…","age_months":14}
-// feeding_type: breast(모유) | formula(분유) | mixed(혼합) | solid(이유식 후기·유아식)
+// feeding_type: breast(모유) | formula(분유) | mixed(혼합) | solid(이유식 후기) | toddler(완료기·유아식)
 // feed_interval_minutes 60~360, nap_count 0~4
+// temperament(성향, 중복은 합침): animal | active | quiet | shy | vehicle | music
+// heat_sensitivity: hot | normal | cold (공조 권장 온도 ±1℃) · noise_sensitivity: sensitive | normal (낮잠 권장 음량)
+// motion_sickness(멀미 → 코스 편도 이동 시간 20분으로 시작) · stroller_use(유모차 → 코스 조건 '유모차 길')
+// 알레르기·식이 제한 같은 건강 정보는 받지 않는다. 알 수 없는 값은 422
 // MemberIn
 {"label":"엄마","is_driver":true,"is_default":true}   // is_default=false면 '자주 함께'
 ```

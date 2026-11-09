@@ -208,16 +208,28 @@ async def course_page(
     lat: float | None = None,
     lng: float | None = None,
     theme: str = "",
-    minutes: int = 40,
+    minutes: int | None = None,
     user: User | None = Depends(optional_web_user),
     db: AsyncSession = Depends(get_db),
 ):
     if user is None:
         return _login_redirect("/m/course")
+    children = await family.list_children(db, user)
     needs = [n for n in request.query_params.getlist("need") if n in dict(_NEEDS)]
     indoor = request.query_params.get("indoor") == "1"
     theme = theme if theme in visits.THEME_LABELS else ""
+    # 아이 정보로 처음 값을 정한다: 멀미가 있으면 이동 시간을 짧게, 유모차를 쓰면 유모차 길을 미리 고른다 (조건을 보낸 뒤에는 사용자가 고른 그대로)
+    hints = []
+    if minutes is None:
+        sick = [c.nickname for c in children if c.motion_sickness]
+        minutes = 20 if sick else 40
+        if sick:
+            hints.append(f"{family.subject(sick[0])} 멀미가 있어 편도 이동 시간을 20분으로 시작했어요. 바꿔도 돼요.")
+    if lat is None and not needs and any(c.stroller_use for c in children):
+        needs = ["stroller"]
+        hints.append("유모차를 쓰는 가족이라 「유모차 길」을 미리 골라 두었어요.")
     context = {
+        "hints": hints,
         "title": "추천 코스 받기",
         "lat": lat,
         "lng": lng,
@@ -234,7 +246,6 @@ async def course_page(
     if lat is None or lng is None:
         return templates.TemplateResponse(request, "course.html", context)
 
-    children = await family.list_children(db, user)
     members = await family.list_members(db, user)
     try:
         conditions = TripConditions(

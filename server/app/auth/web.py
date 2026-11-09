@@ -15,6 +15,8 @@ from app.models import User
 
 router = APIRouter(prefix="/m", include_in_schema=False)
 templates = Jinja2Templates(directory=Path(__file__).resolve().parents[1] / "templates")
+_CSS = Path(__file__).resolve().parents[1] / "static" / "m.css"
+templates.env.globals["css_version"] = lambda: int(_CSS.stat().st_mtime)
 
 
 def _safe_next(next_url: str) -> str:
@@ -70,16 +72,24 @@ async def signup(
     password: str = Form(...),
     display_name: str = Form(""),
     next: str = Form("/m/"),
+    password2: str | None = Form(None),
+    agree: str = Form(""),
     db: AsyncSession = Depends(get_db),
     settings: Settings = Depends(get_settings),
 ):
     try:
-        user = await service.signup(db, login_id, password, display_name)
+        if not agree:
+            raise service.AuthError("개인정보 수집·이용 안내에 동의해야 가입할 수 있어요")
+        if password2 is not None and password2 != password:
+            raise service.AuthError("비밀번호 확인이 맞지 않아요")
+        user = await service.signup(db, login_id, password, display_name, agreed=True)
     except service.AuthError as e:
         context = {"title": "회원가입", "next": next, "login_id": login_id, "display_name": display_name, "error": str(e)}
         return templates.TemplateResponse(request, "signup.html", context, status_code=400)
     token = await service.create_session(db, settings, user, "web", request.headers.get("user-agent", "")[:60])
-    return _with_session(RedirectResponse(_safe_next(next), status_code=303), token, settings)
+    # 처음 가입하면 아이 정보 입력(온보딩)으로 이어진다
+    destination = "/m/start/child" if next == "/m/" else _safe_next(next)
+    return _with_session(RedirectResponse(destination, status_code=303), token, settings)
 
 
 @router.get("/logout")
@@ -97,7 +107,7 @@ async def car_page(request: Request, code: str, user: User | None = Depends(opti
     """차 화면 QR이 여는 주소. 로그인 전이면 로그인(또는 가입) 후 이 화면으로 돌아온다."""
     next_url = f"/m/car?code={quote(code)}"
     if user is None:
-        return _login_redirect(next_url)
+        return RedirectResponse(f"/m/start?code={quote(code)}", status_code=303)  # S01 QR 랜딩
     context = {"title": "차에서 로그인", "user": user, "code": code, "next": next_url}
     try:
         login = await service.pending_car_login(db, code)
