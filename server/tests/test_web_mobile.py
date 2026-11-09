@@ -412,6 +412,9 @@ def test_course_page_builds_conditions_from_family_and_shows_options():
             form = (await mom.get("/m/course")).text  # 위치 없이: 조건 폼과 위치 요청만
             assert "내 위치로 코스 받기" in form and "추천 코스 3개" not in form and "위치는 저장하지 않고" in form
             assert not planner.requests
+            # 위치가 막힌 이유를 구분해 안내한다 (HTTPS가 아닌 주소 / 권한 거부 / 시간 초과)
+            assert "window.isSecureContext" in form and "보안 연결(HTTPS)이 아니라" in form
+            assert "위치 권한이 없어" in form and "시간이 너무 걸려요" in form
 
             res = await mom.get("/m/course?lat=37.55&lng=127.07&need=nursing_room&need=bogus&indoor=1&minutes=60&theme=nature")
             assert res.status_code == 200 and "추천 코스 1개" in res.text and "아차산 생태공원" in res.text and "수유실" in res.text
