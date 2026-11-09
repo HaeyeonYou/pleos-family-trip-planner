@@ -446,7 +446,6 @@ class TripViewModel(private val container: AppContainer) : ViewModel() {
         container.courses.clear()
         container.feeding.save(FeedingRoutine())
         container.settings.clear()
-        container.care.reloadFeeding()
         shownKeys.clear()
         indoorTouched = false
         val prefs = loadPreferences(null)
