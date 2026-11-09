@@ -7,7 +7,7 @@
 <title>{{ title }} · 오늘, 어디 가지?</title>
 <link rel="stylesheet" href="/m/assets/m.css">
 </head>
-<body class="{{ 'with-tabs' if tab }}">
+<body class="{{ 'with-tabs' if tab }}"{% if reload_to %} data-reload="{{ reload_to }}"{% endif %}>
 <div class="app">
 <main class="page">
 {% block header %}<h1 class="title">{{ title }}</h1>{% endblock %}
@@ -21,5 +21,33 @@
 </nav>
 {% endif %}
 </div>
+{% if tab or sync_poll %}
+<script>
+  // 차 앱·다른 폰에서 바뀐 것(프리셋 적용, 수유·방문 기록, 연결된 차)을 몇 초마다 확인해 화면에 맞춘다.
+  (function () {
+    var base = null, busy = false, dirty = false;
+    document.addEventListener("input", function () { dirty = true; }, true);
+    function editing() {
+      var a = document.activeElement;
+      return dirty || (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName));
+    }
+    function check() {
+      if (busy || document.hidden) return;
+      busy = true;
+      fetch("/me/sync", { credentials: "same-origin", cache: "no-store" }).then(function (r) {
+        if (r.status === 401) { location.href = "/m/login?next=" + encodeURIComponent(location.pathname + location.search); return null; }
+        return r.ok ? r.json() : null;
+      }).then(function (j) {
+        if (!j) return;
+        if (base === null) base = j.all;
+        else if (j.all !== base && !editing()) { var to = document.body.dataset.reload; if (to) location.replace(to); else location.reload(); }
+      }).catch(function () {}).then(function () { busy = false; });
+    }
+    check();
+    setInterval(check, 6000);
+    document.addEventListener("visibilitychange", check);
+  })();
+</script>
+{% endif %}
 </body>
 </html>

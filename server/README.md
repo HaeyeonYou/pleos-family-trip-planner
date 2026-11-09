@@ -19,6 +19,7 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 차 화면 QR로 여는 모바일 웹. 서버 렌더링(Jinja, `app/templates/`)이고 CSS는 `app/static/m.css` 하나입니다 (외부 CDN 없음).
 - 하단 탭: 홈 `/m/` · 케어 `/m/care` · 그로우 `/m/grow` · MY `/m/my`, 공조 프리셋 편집 `/m/preset`
 - 기준 디자인과 서버에 없는 데이터 구분: `docs/research/web-mobile-screens.md`
+- 변경 동기화: 로그인한 화면은 6초마다 `GET /me/sync`로 확인해 차 앱·다른 기기에서 바뀐 것을 화면에 맞춥니다. 차 앱도 같은 주소를 쓰면 됩니다 (`docs/research/web-server-contract.md` 5-1절).
 - 로컬에서 보려면 서버를 띄우고 브라우저를 모바일 폭(375px)으로 열면 됩니다. `--reload`를 붙이면 템플릿·CSS 수정이 바로 반영됩니다.
 
 ## 주차장 데이터 (`parking_lots`)
