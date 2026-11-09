@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block header %}<div class="topbar"><span class="back-spacer"></span><a class="skip" href="/m/">나중에</a></div><h1 class="title">차와 연결</h1>{% endblock %}
+{% block body %}
+<section class="card">
+  <div class="row" style="padding:0"><span class="dot" aria-hidden="true" style="background:var(--primary)"></span><span class="grow"><span class="name">{{ icon("car", 18) }} {{ device }}</span><br><span class="meta">QR에서 연결 요청이 왔어요</span></span></div>
+</section>
+<p class="lead">연결하면 이 계정의 프리셋이 차 앱에 전달되고, 차에서 쌓은 기록이 폰에도 보여요.</p>
+<form method="post" action="/m/car">
+  <input type="hidden" name="code" value="{{ code }}">
+  <button class="btn" type="submit">이 차와 연결하기</button>
+</form>
+<a class="btn ghost" href="/m/">나중에 할게요</a>
+<p class="muted small" style="margin-top:12px;text-align:center">연결한 차는 MY에서 언제든 해제할 수 있어요</p>
+{% endblock %}

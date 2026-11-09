@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block header %}<div class="topbar"><a class="back" href="javascript:history.back()" aria-label="뒤로">←</a></div><h1 class="title">{{ title }}</h1>{% endblock %}
+{% block body %}
+<p class="lead">「오늘, 어디 가지?」가 서버에 저장하는 것과 저장하지 않는 것이에요.</p>
+<section class="card"><h2 style="font-size:16px">저장하는 것</h2>
+<ul class="plain">
+  <li><b>계정</b> · 아이디, 이름(별명), 비밀번호(복원할 수 없게 암호화), 로그인한 기기</li>
+  <li><b>아이</b> · 애칭, 태어난 달, 수유 방식·간격, 낮잠, 성향 태그, 더위·추위, 멀미, 소리, 유모차 사용</li>
+  <li><b>외출 멤버</b> · 호칭(엄마·아빠 …)과 운전자 여부</li>
+  <li><b>수유 기록</b> · 시각, 종류, 양</li>
+  <li><b>방문 기록</b> · 장소 이름, 분야, 날짜, 머문 시간, 아이 기분</li>
+  <li><b>공조 프리셋</b> · 온도·풍량·열선·음량 설정</li>
+</ul></section>
+<section class="card"><h2 style="font-size:16px">저장하지 않는 것</h2>
+<ul class="plain">
+  <li>위치 좌표. 코스를 찾을 때 현재 위치는 그 요청에만 쓰고 저장하지 않아요.</li>
+  <li>음성, 사진, 알레르기 같은 건강 정보</li>
+</ul></section>
+<section class="card"><h2 style="font-size:16px">쓰는 곳과 지우는 방법</h2>
+<ul class="plain">
+  <li>코스 추천, 다음 수유 시각, 공조 권장값, 경험맵을 만드는 데만 써요.</li>
+  <li>MY에서 방문·수유 기록을 지우거나 계정 전체를 지울 수 있고, 계정을 지우면 위 정보가 모두 삭제돼요.</li>
+  <li>코스와 날씨를 찾으려고 공공 데이터 서비스에 요청할 때 현재 위치가 요청에 쓰여요.</li>
+</ul></section>
+{% endblock %}

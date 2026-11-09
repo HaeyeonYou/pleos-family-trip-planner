@@ -1,0 +1,7 @@
+{# 가입·로그인 위쪽 탭 (S01-1) #}
+{% macro tabs(active, next) %}
+<div class="tabs" role="tablist" aria-label="계정">
+  <a role="tab" href="/m/signup?next={{ next | urlencode }}" {% if active == 'signup' %}aria-selected="true"{% else %}aria-selected="false"{% endif %}>가입</a>
+  <a role="tab" href="/m/login?next={{ next | urlencode }}" {% if active == 'login' %}aria-selected="true"{% else %}aria-selected="false"{% endif %}>로그인</a>
+</div>
+{% endmacro %}

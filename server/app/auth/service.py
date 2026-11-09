@@ -24,13 +24,15 @@ class AuthError(Exception):
     """사용자에게 그대로 보여 줄 수 있는 오류 문구."""
 
 
-async def signup(db: AsyncSession, login_id: str, password: str, display_name: str) -> User:
+async def signup(db: AsyncSession, login_id: str, password: str, display_name: str, agreed: bool = False) -> User:
     login_id = login_id.strip().lower()
     if not LOGIN_ID.match(login_id):
         raise AuthError("아이디는 영문 소문자·숫자·밑줄 4~20자로 만들어 주세요")
     if len(password) < MIN_PASSWORD:
         raise AuthError(f"비밀번호는 {MIN_PASSWORD}자 이상이어야 해요")
-    user = User(login_id=login_id, password_hash=hash_password(password), display_name=display_name.strip() or login_id)
+    user = User(
+        login_id=login_id, password_hash=hash_password(password), display_name=display_name.strip() or login_id, agreed_at=utcnow() if agreed else None
+    )
     db.add(user)
     try:
         await db.commit()

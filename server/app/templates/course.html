@@ -2,6 +2,7 @@
 {% block header %}<div class="topbar"><a class="back" href="/m/" aria-label="홈으로 돌아가기">←</a></div><h1 class="title">추천 코스 받기</h1>{% endblock %}
 {% block body %}
 <p class="lead">{% if theme_label %}「{{ theme_label }}」 분야를 중심으로 {% endif %}가족에게 맞는 코스 3개를 찾아 드려요. 아이 정보와 다녀온 곳을 반영해요.</p>
+{% for h in hints %}<p class="notice" style="margin-top:12px">{{ h }}</p>{% endfor %}
 <form method="get" action="/m/course" id="course-form">
   <input type="hidden" name="lat" id="lat" value="{{ lat if lat is not none else '' }}">
   <input type="hidden" name="lng" id="lng" value="{{ lng if lng is not none else '' }}">
