@@ -3,18 +3,17 @@ package io.github.haeyeonyou.familytrip.ui
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculateCentroid
 import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -36,10 +35,15 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.onSizeChanged
@@ -49,133 +53,33 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import io.github.haeyeonyou.familytrip.data.Visit
-import java.time.LocalDate
 import java.time.format.DateTimeFormatter
-import java.time.temporal.ChronoUnit
-import kotlin.math.atan2
-import kotlin.math.cos
-import kotlin.math.hypot
 import kotlin.math.max
-import kotlin.math.min
-import kotlin.math.sin
-import kotlin.random.Random
 
 internal val MONTH_DAY: DateTimeFormatter = DateTimeFormatter.ofPattern("MM.dd")
 
-/** 분야 노드 하나. 크기는 방문 횟수에 비례한다. */
-internal class FieldNode(val key: String, val label: String, val color: Color, val count: Int, val last: LocalDate?)
+// Figma HF 04 'Graph · space' 색
+private val SpaceBg = Color(0xFF0B0F1B)
+private val EdgeCenter = Color(0xFF9FB3D9)
+private val SatelliteColor = Color(0xFFC9D4EA)
+private val TagDot = Color(0xFFE8EEFC)
+private val OnSpace = Color(0xFF0B1220)
 
-/** 방문한 장소 노드. 같은 장소를 여러 번 가면 횟수만 늘어난다. */
-internal class PlaceNode(val name: String, val field: String, val count: Int, val last: LocalDate, val latest: Boolean)
+private fun fieldColor(key: String) = Color(FIELD_ARGB.getValue(key))
 
-internal class UniverseData(val fields: List<FieldNode>, val places: List<PlaceNode>) {
-    val isEmpty get() = places.isEmpty()
-}
-
-private val FIELD_COLORS = mapOf(
-    "play" to TripColors.FieldShop,
-    "exhibition" to TripColors.FieldExhibit,
-    "experience" to TripColors.FieldExperience,
-    "nature" to TripColors.FieldNature,
-)
-
-/** 분야 노드가 놓이는 자리 (캔버스 폭·높이의 비율). 가운데는 우리 아이. */
-private val FIELD_ANCHORS = mapOf(
-    "play" to Offset(0.24f, 0.30f),
-    "exhibition" to Offset(0.74f, 0.30f),
-    "experience" to Offset(0.72f, 0.74f),
-    "nature" to Offset(0.26f, 0.74f),
-)
-
-/** 육아 편의·상황 태그 (피그마 HF04). 자리만 두고 장소와는 이어 두지 않는다. */
-private val TAG_NODES = listOf(
-    "수유실" to Offset(0.50f, 0.10f),
-    "반려견 동반" to Offset(0.08f, 0.50f),
-    "유모차" to Offset(0.93f, 0.50f),
-    "비 오는 날" to Offset(0.50f, 0.86f),
-)
-
-internal fun buildUniverse(visits: List<Visit>): UniverseData {
-    val outings = visits.filter { it.role == "outing" && it.theme in EXPERIENCE_FIELDS }.sortedBy { it.arrivedAt }
-    val latestId = outings.lastOrNull()?.id
-    val fields = EXPERIENCE_FIELDS.map { (key, label) ->
-        val inField = outings.filter { it.theme == key }
-        FieldNode(key, label, FIELD_COLORS.getValue(key), inField.size, inField.lastOrNull()?.date)
-    }
-    val places = outings.groupBy { it.theme.orEmpty() to it.placeName }.map { (key, list) ->
-        PlaceNode(key.second, key.first, list.size, list.last().date, list.any { it.id == latestId })
-    }.sortedByDescending { it.last }
-    return UniverseData(fields, places)
-}
-
-internal class Insight(val title: String, val body: String, val action: String?)
-
-/** 기기에 쌓인 방문으로 가장 오래 비어 있는 분야를 찾는다. */
-internal fun experienceInsight(visits: List<Visit>, today: LocalDate = LocalDate.now()): Insight {
-    val outings = visits.filter { it.role == "outing" && it.theme in EXPERIENCE_FIELDS }
-    if (outings.isEmpty()) {
-        return Insight("첫 나들이를 기록해 보세요", "나들이 장소에 도착하면 우주에 별이 하나씩 생겨요.", "코스 만들기")
-    }
-    val gaps = EXPERIENCE_FIELDS.map { (key, label) ->
-        val last = outings.filter { it.theme == key }.maxOfOrNull { it.date }
-        Triple(key, label, last?.let { ChronoUnit.DAYS.between(it, today) / 7 })
-    }
-    // 가장 오래 비어 있는 분야 (한 번도 안 간 곳이 먼저, 같으면 자연 먼저)
-    val worst = gaps.maxWith(compareBy({ it.third ?: Long.MAX_VALUE }, { if (it.first == "nature") 1 else 0 }))
-    val label = worst.second
-    val weeks = worst.third
-    return when {
-        weeks == null -> Insight("$label 체험이 아직 없어요", "$label 나들이로 다음 영역을 넓혀 볼까요?", "코스 만들기")
-        weeks >= 2 -> Insight("$label 체험이 ${weeks}주째 없어요", "$label 나들이로 비어 있는 영역을 넓혀 볼까요?", "코스 만들기")
-        else -> Insight("골고루 다니고 있어요", "최근 2주 안에 모든 분야를 다녀왔어요.", null)
-    }
-}
-
-private class Placed<T>(val item: T, val pos: Offset, val radius: Float)
-
-private class UniverseLayout(
-    val center: Offset,
-    val centerRadius: Float,
-    val fields: List<Placed<FieldNode>>,
-    val places: List<Placed<PlaceNode>>,
-    val tags: List<Pair<String, Offset>>,
-)
-
-private fun layoutUniverse(data: UniverseData, size: Size, dp: Float): UniverseLayout {
-    val center = Offset(size.width * 0.5f, size.height * 0.5f)
-    val fields = data.fields.map { f ->
-        val a = FIELD_ANCHORS.getValue(f.key)
-        val r = if (f.count == 0) 18f * dp else (16f + min(f.count, 8) * 4.5f) * dp
-        Placed(f, Offset(size.width * a.x, size.height * a.y), r)
-    }
-    val places = fields.flatMap { field ->
-        val mine = data.places.filter { it.field == field.item.key }.take(MAX_PLACES_PER_FIELD)
-        val away = atan2(field.pos.y - center.y, field.pos.x - center.x)
-        mine.mapIndexed { i, p ->
-            val angle = away + (i - (mine.size - 1) / 2f) * 0.85f
-            val dist = field.radius + (84f + (i % 2) * 22f) * dp
-            val raw = field.pos + Offset(cos(angle) * dist, sin(angle) * dist)
-            // 크기를 아직 모를 때(0)도 범위가 뒤집히지 않게 한다.
-            val lo = 24f * dp
-            val pos = Offset(raw.x.coerceIn(lo, max(lo, size.width - lo)), raw.y.coerceIn(lo, max(lo, size.height - lo)))
-            Placed(p, pos, (8f + min(p.count, 4) * 1.5f) * dp)
-        }
-    }
-    val tags = TAG_NODES.map { (label, a) -> label to Offset(size.width * a.x, size.height * a.y) }
-    return UniverseLayout(center, 42f * dp, fields, places, tags)
-}
-
-private const val MAX_PLACES_PER_FIELD = 6
 private const val MIN_SCALE = 0.6f
 private const val MAX_SCALE = 3f
 
 /**
- * 별 배경 위의 경험 우주. 핀치로 확대·축소하고 끌어서 옮기며, 장소 노드를 누르면 [onPlaceClick]을 부른다.
- * 화면에 그리는 위치 = 캔버스 위치 × scale + offset.
+ * 별 배경 위의 경험 우주 (Figma HF 04 'Graph · space'). 핀치로 확대·축소하고 끌어서 옮기며,
+ * 장소 노드를 누르면 [onPlaceClick]을 부른다.
+ * 그리는 위치 = (설계 좌표 × 창 맞춤 배율 + 여백) × scale + offset.
  */
 @Composable
 internal fun UniverseCanvas(
@@ -185,16 +89,15 @@ internal fun UniverseCanvas(
     onPlaceClick: (PlaceNode?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val dp = LocalDensity.current.density
+    val density = LocalDensity.current
     val textMeasurer = rememberTextMeasurer()
     var size by remember { mutableStateOf(IntSize.Zero) }
     var scale by remember { mutableFloatStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
-    val layout = remember(data, size) { layoutUniverse(data, Size(size.width.toFloat(), size.height.toFloat()), dp) }
-    val stars = remember {
-        val rnd = Random(7)
-        List(120) { Triple(Offset(rnd.nextFloat(), rnd.nextFloat()), 0.8f + rnd.nextFloat() * 1.6f, 0.25f + rnd.nextFloat() * 0.6f) }
-    }
+    val geometry = remember(data) { computeGeometry(data) }
+    val fit = remember(size) { fitDesign(size.width.toFloat(), size.height.toFloat()) }
+    val glows = remember { HashMap<Long, FloatArray>() }
+    val u = fit.unit
 
     fun zoomAt(factor: Float, at: Offset) {
         val next = (scale * factor).coerceIn(MIN_SCALE, MAX_SCALE)
@@ -205,8 +108,13 @@ internal fun UniverseCanvas(
         scale = 1f
         offset = Offset.Zero
     }
+    fun toScreen(x: Float, y: Float) = Pt((fit.left + x * u) * scale + offset.x, (fit.top + y * u) * scale + offset.y)
 
-    Box(modifier = modifier.clipToBounds().background(TripColors.Universe)) {
+    // 확대·축소 버튼 등 겹쳐 놓는 요소의 크기 (설계 픽셀 → dp)
+    fun px(v: Float): Dp = with(density) { (v * u).toDp() }
+    fun fs(v: Float) = with(density) { max(v * u, minOf(v, 13f)).toSp() }
+
+    Box(modifier = modifier.clipToBounds().background(SpaceBg)) {
         Canvas(
             modifier = Modifier.fillMaxSize()
                 .onSizeChanged { size = it }
@@ -229,150 +137,213 @@ internal fun UniverseCanvas(
                         } while (event.changes.any { it.pressed })
                     }
                 }
-                .pointerInput(layout) {
+                .pointerInput(geometry, fit) {
                     detectTapGestures { tap ->
-                        val hit = layout.places.minByOrNull { hypot(tap.x - (it.pos.x * scale + offset.x), tap.y - (it.pos.y * scale + offset.y)) }
-                            ?.takeIf { hypot(tap.x - (it.pos.x * scale + offset.x), tap.y - (it.pos.y * scale + offset.y)) <= max(it.radius * scale, 30f * dp) }
-                        onPlaceClick(hit?.item)
+                        val hit = hitPlace(geometry.places, tap.x, tap.y, ::toScreen, u * scale, 30f * density.density)
+                        onPlaceClick(hit?.let { geometry.places[it].item })
                     }
                 },
         ) {
-            drawUniverse(layout, stars, textMeasurer, centerLabel, selected, scale, offset, dp)
+            drawUniverse(geometry, data.isEmpty, textMeasurer, glows, centerLabel, selected, fit, scale, offset)
         }
 
-        UniverseLegend(data, Modifier.align(Alignment.TopStart).padding(20.dp))
-        Column(
-            modifier = Modifier.align(Alignment.BottomEnd).padding(20.dp).clip(RoundedCornerShape(16.dp)).background(Color(0xFF161B2E)),
+        // 범례 칩 (Figma 24,22)
+        Row(
+            modifier = Modifier.align(Alignment.TopStart).padding(start = px(24f), top = px(22f))
+                .clip(RoundedCornerShape(percent = 50)).background(Color.White.copy(alpha = 0.08f))
+                .padding(horizontal = px(16f), vertical = px(10f)),
+            horizontalArrangement = Arrangement.spacedBy(px(16f)),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            ZoomButton("+") { zoomAt(1.4f, Offset(size.width / 2f, size.height / 2f)) }
-            ZoomButton("−") { zoomAt(1f / 1.4f, Offset(size.width / 2f, size.height / 2f)) }
-            ZoomButton("⤢") { reset() }
+            FIELD_TITLES.forEach { (key, title) ->
+                Row(horizontalArrangement = Arrangement.spacedBy(px(6f)), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(px(10f)).clip(CircleShape).background(fieldColor(key)))
+                    Text(title, fontSize = fs(14f), fontWeight = FontWeight.Medium, color = Color.White.copy(alpha = 0.8f))
+                }
+            }
+        }
+
+        // 확대·축소·맞춤 (Figma 오른쪽 아래, 가장자리에서 24)
+        Column(
+            modifier = Modifier.align(Alignment.BottomEnd).padding(end = px(24f), bottom = px(24f))
+                .clip(RoundedCornerShape(px(14f))).background(Color.White.copy(alpha = 0.08f)),
+        ) {
+            ZoomButton("＋", max(px(56f).value, 52f).dp, fs(22f)) { zoomAt(1.4f, Offset(size.width / 2f, size.height / 2f)) }
+            ZoomButton("－", max(px(56f).value, 52f).dp, fs(22f)) { zoomAt(1f / 1.4f, Offset(size.width / 2f, size.height / 2f)) }
+            ZoomButton("⤢", max(px(56f).value, 52f).dp, fs(22f)) { reset() }
         }
         Text(
             "핀치로 확대 · 노드를 누르면 그곳의 코스를 다시 볼 수 있어요",
-            fontSize = 18.sp,
-            color = Color(0xFF9AA3BD),
-            modifier = Modifier.align(Alignment.BottomStart).padding(20.dp),
+            fontSize = fs(14f),
+            color = Color.White.copy(alpha = 0.5f),
+            modifier = Modifier.align(Alignment.BottomStart).padding(start = px(24f), bottom = px(23f)),
         )
     }
 }
 
 @Composable
-private fun ZoomButton(text: String, onClick: () -> Unit) {
-    Box(modifier = Modifier.size(64.dp).clickable(onClick = onClick), contentAlignment = Alignment.Center) {
-        Text(text, fontSize = 28.sp, color = Color.White)
-    }
-}
-
-@Composable
-private fun UniverseLegend(data: UniverseData, modifier: Modifier) {
-    Row(
-        modifier = modifier.clip(RoundedCornerShape(24.dp)).background(Color(0xFF161B2E)).padding(horizontal = 18.dp, vertical = 10.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        data.fields.forEach { f ->
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(12.dp).clip(CircleShape).background(f.color))
-                Text(f.label, fontSize = 18.sp, color = Color(0xFFD5DAEA))
-            }
-        }
+private fun ZoomButton(text: String, size: Dp, fontSize: androidx.compose.ui.unit.TextUnit, onClick: () -> Unit) {
+    Box(modifier = Modifier.size(size).clickable(onClick = onClick), contentAlignment = Alignment.Center) {
+        Text(text, fontSize = fontSize, fontWeight = FontWeight.Medium, color = Color.White.copy(alpha = 0.85f))
     }
 }
 
 private fun DrawScope.drawUniverse(
-    layout: UniverseLayout,
-    stars: List<Triple<Offset, Float, Float>>,
+    g: UniverseGeometry,
+    empty: Boolean,
     tm: TextMeasurer,
+    glows: HashMap<Long, FloatArray>,
     centerLabel: String,
     selected: String?,
+    fit: Fit,
     scale: Float,
     offset: Offset,
-    dp: Float,
 ) {
-    fun at(p: Offset) = p * scale + offset
-    val dashed = PathEffect.dashPathEffect(floatArrayOf(10f * dp, 8f * dp))
-    val labelStyle = TextStyle(color = Color(0xFFD5DAEA), fontSize = 18.sp)
+    val us = fit.unit * scale // 설계 1픽셀이 화면에서 차지하는 픽셀
+    fun at(x: Float, y: Float) = Offset((fit.left + x * fit.unit) * scale + offset.x, (fit.top + y * fit.unit) * scale + offset.y)
+    fun w(v: Float) = max(v * us, 0.8f)
+    fun dash(on: Float, off: Float) = PathEffect.dashPathEffect(floatArrayOf(on * us, off * us))
+    fun style(px: Float, weight: FontWeight, color: Color) = TextStyle(color = color, fontSize = max(px * us, minOf(px, 13f)).toSp(), fontWeight = weight)
+    val center = at(CENTER.x, CENTER.y)
 
-    stars.forEach { (p, r, a) -> drawCircle(Color.White.copy(alpha = a), r * dp * 0.8f, Offset(p.x * size.width, p.y * size.height)) }
+    // 별
+    STARS.forEach { drawCircle(Color.White.copy(alpha = it.alpha), max(it.r * us, 0.4f), at(it.x, it.y)) }
 
-    // 이음선: 우리 아이 → 분야 → 장소, 태그는 희미하게
-    layout.tags.forEach { (_, p) -> drawLine(TripColors.UniverseLine.copy(alpha = 0.5f), at(layout.center), at(p), 1f * dp, pathEffect = dashed) }
-    layout.fields.forEach { f ->
+    // 가운데 → 분야 (아직 안 간 분야는 분야 색의 점선)
+    g.fields.forEach { f ->
+        val key = f.item.key
         if (f.item.count == 0) {
-            drawLine(TripColors.FieldNature.copy(alpha = 0.55f), at(layout.center), at(f.pos), 1.5f * dp, pathEffect = dashed)
+            drawLine(fieldColor(key).copy(alpha = 0.5f), center, at(f.x, f.y), w(1.5f), pathEffect = dash(5f, 7f))
         } else {
-            drawLine(f.item.color.copy(alpha = 0.45f), at(layout.center), at(f.pos), 1.5f * dp)
+            drawLine(EdgeCenter.copy(alpha = 0.45f), center, at(f.x, f.y), w(2f))
         }
     }
-    layout.places.forEach { p ->
-        val field = layout.fields.first { it.item.key == p.item.field }
-        drawLine(field.item.color.copy(alpha = 0.6f), at(field.pos), at(p.pos), 1.2f * dp)
+    // 분야 → 장소 → 위성 점
+    g.places.forEach { p ->
+        val f = g.fields.first { it.item.key == p.item.field }
+        drawLine(fieldColor(p.item.field).copy(alpha = 0.45f), at(f.x, f.y), at(p.x, p.y), w(1.4f))
     }
+    g.satellites.forEach { s ->
+        val p = g.places[s.placeIndex]
+        drawLine(SatelliteColor.copy(alpha = 0.25f), at(p.x, p.y), at(s.x, s.y), w(1f))
+    }
+    // 태그 ↔ 장소: 아주 희미한 점선
+    g.tagLinks.forEach { l ->
+        val t = g.tags[l.tag]
+        val p = g.places[l.place]
+        drawLine(Color.White.copy(alpha = 0.12f), at(t.x, t.y), at(p.x, p.y), w(1f), pathEffect = dash(2f, 5f))
+    }
+
+    g.satellites.forEach { drawCircle(SatelliteColor, 2.5f * us, at(it.x, it.y)) }
 
     // 태그
-    layout.tags.forEach { (label, p) ->
-        drawCircle(Color.White, 5f * dp, at(p))
-        centered(tm, label, at(p) + Offset(0f, 12f * dp), labelStyle.copy(fontSize = 17.sp, color = Color(0xFFB9C0D8)))
+    g.tags.forEach { t ->
+        glow(glows, at(t.x, t.y), 6f, TAG_GLOW_SIGMA, TagDot, us)
+        drawCircle(TagDot, 6f * us, at(t.x, t.y))
+        centered(tm, t.label, at(t.x, t.y + 10f), style(14f, FontWeight.Normal, Color.White.copy(alpha = 0.55f)), 160f * us)
     }
 
-    // 분야 노드
-    layout.fields.forEach { f ->
-        val c = at(f.pos)
-        val r = f.radius * scale
+    // 장소
+    g.places.forEach { p ->
+        val c = at(p.x, p.y)
+        val color = fieldColor(p.item.field)
+        glow(glows, c, p.r, placeGlowSigma(p.r), color, us)
+        drawCircle(color, p.r * us, c)
+        if (p.item.latest) drawCircle(Color.White, (p.r + 8.25f) * us, c, style = Stroke(w(1.5f)))
+        if (p.item.name == selected) drawCircle(Color.White, (p.r + 12f) * us, c, style = Stroke(w(1.5f), pathEffect = dash(4f, 4f)))
+        val labelColor = if (p.item.latest) Color.White else Color.White.copy(alpha = 0.7f)
+        centered(tm, p.item.name, at(p.x, p.y + p.r + 4f), style(14f, FontWeight.Normal, labelColor), 150f * us)
+    }
+    // 가장 최근 방문의 말풍선
+    g.places.firstOrNull { it.item.latest }?.let { p -> chip(tm, "방금 기록 · ${p.item.last.format(MONTH_DAY)}", at(p.x, p.y - p.r - 16f), us) }
+
+    // 분야
+    g.fields.forEach { f ->
+        val c = at(f.x, f.y)
+        val color = fieldColor(f.item.key)
         if (f.item.count == 0) {
-            drawCircle(f.item.color, r, c, style = Stroke(2f * dp, pathEffect = dashed))
-            centered(tm, f.item.label, c + Offset(0f, r + 6f * dp), labelStyle.copy(fontSize = 20.sp, fontWeight = FontWeight.Medium))
-            centered(tm, "다음에 넓어질 영역", c + Offset(0f, r + 32f * dp), labelStyle.copy(fontSize = 16.sp, color = f.item.color))
+            drawCircle(color, f.r * us, c, style = Stroke(w(2f), pathEffect = dash(9f, 5.1f)))
+            centered(tm, f.item.title, at(f.x, f.y + f.r + 6f), style(17f, FontWeight.SemiBold, color), 200f * us)
+            centered(tm, "다음에 넓어질 영역", at(f.x, f.y + f.r + 32f), style(13f, FontWeight.Normal, color.copy(alpha = 0.75f)), 200f * us)
         } else {
-            drawCircle(f.item.color.copy(alpha = 0.18f), r * 1.9f, c)
-            drawCircle(f.item.color, r, c)
-            centered(tm, "${f.item.label} · ${f.item.count}", c + Offset(0f, r + 8f * dp), labelStyle.copy(fontSize = 20.sp, color = f.item.color, fontWeight = FontWeight.Medium))
+            glow(glows, c, f.r, fieldGlowSigma(f.r), color, us)
+            drawCircle(color, f.r * us, c)
+            centered(tm, "${f.item.title} · ${f.item.count}", at(f.x, f.y + f.r + 6f), style(17f, FontWeight.SemiBold, color), 200f * us)
         }
-    }
-
-    // 장소 노드 (가장 최근 방문은 흰 테두리와 '방금 기록' 칩)
-    layout.places.forEach { p ->
-        val field = layout.fields.first { it.item.key == p.item.field }
-        val c = at(p.pos)
-        val r = p.radius * scale
-        drawCircle(field.item.color, r, c)
-        if (p.item.latest) drawCircle(Color.White, r + 6f * dp, c, style = Stroke(2.5f * dp))
-        if (p.item.name == selected) drawCircle(Color.White, r + 12f * dp, c, style = Stroke(1.5f * dp, pathEffect = dashed))
-        val name = if (p.item.name.length > 9) p.item.name.take(9) + "…" else p.item.name
-        centered(tm, name, c + Offset(0f, r + 8f * dp), labelStyle)
-        if (p.item.latest) chip(tm, "방금 기록 · ${p.item.last.format(MONTH_DAY)}", c - Offset(0f, r + 40f * dp))
     }
 
     // 가운데 우리 아이
-    val cc = at(layout.center)
-    val cr = layout.centerRadius * scale
-    drawCircle(Color.White.copy(alpha = 0.15f), cr * 1.6f, cc)
-    drawCircle(Color.White, cr, cc)
-    val ink = TextStyle(color = TripColors.Ink, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+    glow(glows, center, CENTER_RADIUS, CENTER_GLOW_SIGMA, Color.White, us)
+    drawCircle(Color.White, CENTER_RADIUS * us, center)
     if (centerLabel == "우리 아이") {
-        centered(tm, centerLabel, cc - Offset(0f, 13f * dp), ink)
+        centered(tm, centerLabel, at(CENTER.x, CENTER.y - 10f), style(18f, FontWeight.Bold, OnSpace), 66f * us)
     } else {
-        centered(tm, centerLabel, cc - Offset(0f, 24f * dp), ink)
-        centered(tm, "우리 아이", cc + Offset(0f, 2f * dp), ink.copy(fontSize = 15.sp, fontWeight = FontWeight.Normal, color = TripColors.InkSoft))
+        centered(tm, centerLabel, at(CENTER.x, CENTER.y - 19f), style(16f, FontWeight.Bold, OnSpace), 62f * us)
+        centered(tm, "우리 아이", at(CENTER.x, CENTER.y + 3f), style(11f, FontWeight.Normal, OnSpace.copy(alpha = 0.6f)), 62f * us)
+    }
+
+    if (empty) {
+        centered(tm, "나들이 장소에 도착하면", at(CENTER.x, CENTER.y + 84f), style(17f, FontWeight.Normal, Color.White.copy(alpha = 0.6f)), 300f * us)
+        centered(tm, "우주에 별이 하나씩 생겨요", at(CENTER.x, CENTER.y + 108f), style(17f, FontWeight.Normal, Color.White.copy(alpha = 0.6f)), 300f * us)
     }
 }
 
+/** Figma 그림자 효과(같은 색, σ 번짐, 0.75)를 방사형 그라디언트로 그린다. */
+private fun DrawScope.glow(cache: HashMap<Long, FloatArray>, c: Offset, r: Float, sigma: Float, color: Color, us: Float, strength: Float = 1f) {
+    val key = (r * 100).toLong() * 1_000_000L + (sigma * 100).toLong()
+    val profile = cache.getOrPut(key) { glowProfile(r, sigma) }
+    val reach = glowReach(r, sigma) * us
+    val last = profile.size - 1
+    val stops = Array(profile.size) { k -> k.toFloat() / last to color.copy(alpha = GLOW_ALPHA * strength * profile[k]) }
+    drawCircle(Brush.radialGradient(colorStops = stops, center = c, radius = reach), radius = reach, center = c)
+}
+
 /** 가로 가운데 맞춤, [top]은 글자 윗변 위치. */
-private fun DrawScope.centered(tm: TextMeasurer, text: String, top: Offset, style: TextStyle) {
-    val r = tm.measure(text, style)
+private fun DrawScope.centered(tm: TextMeasurer, text: String, top: Offset, style: TextStyle, maxWidth: Float) {
+    val r = tm.measure(text, style, overflow = TextOverflow.Ellipsis, maxLines = 1, constraints = Constraints(maxWidth = maxWidth.toInt().coerceAtLeast(1)))
     drawText(r, topLeft = Offset(top.x - r.size.width / 2f, top.y))
 }
 
-private fun DrawScope.chip(tm: TextMeasurer, text: String, center: Offset) {
-    val r = tm.measure(text, TextStyle(color = TripColors.Ink, fontSize = 17.sp, fontWeight = FontWeight.Medium))
-    val pad = 12f * density
-    val w = r.size.width + pad * 2
-    val h = r.size.height + pad * 0.8f
-    val topLeft = Offset(center.x - w / 2f, center.y - h / 2f)
+/** 흰 알약 말풍선 (px 12, py 6, 14 semibold). [center]는 말풍선 아래 가운데. */
+private fun DrawScope.chip(tm: TextMeasurer, text: String, bottomCenter: Offset, us: Float) {
+    val r = tm.measure(text, TextStyle(color = OnSpace, fontSize = max(14f * us, 13f).toSp(), fontWeight = FontWeight.SemiBold), maxLines = 1)
+    val padX = 12f * us
+    val padY = 6f * us
+    val w = r.size.width + padX * 2
+    val h = r.size.height + padY * 2
+    val topLeft = Offset(bottomCenter.x - w / 2f, bottomCenter.y - h)
     drawRoundRect(Color.White, topLeft, Size(w, h), CornerRadius(h / 2f))
-    drawText(r, topLeft = Offset(topLeft.x + pad, topLeft.y + pad * 0.4f))
+    drawText(r, topLeft = Offset(topLeft.x + padX, topLeft.y + padY))
 }
+
+/** Figma 아이콘(24/26/20 격자, 둥근 선 2)을 같은 경로 데이터로 그린다. */
+@Composable
+internal fun SvgIcon(paths: List<String>, color: Color, size: Dp, viewBox: Float, modifier: Modifier = Modifier) {
+    val parsed = remember(paths) { paths.map { PathParser().parsePathString(it).toPath() } }
+    androidx.compose.foundation.Canvas(modifier.size(size)) {
+        val k = this.size.width / viewBox
+        withTransform({ scale(k, k, Offset.Zero) }) {
+            parsed.forEach { drawPath(it, color, style = Stroke(2f, cap = StrokeCap.Round, join = StrokeJoin.Round)) }
+        }
+    }
+}
+
+internal val ICON_NAV = listOf("M3.25 11.9167L23.8333 2.16667L14.0833 22.75L11.9167 14.0833L3.25 11.9167Z")
+internal val ICON_CHEV = listOf("M7.5 15L12.5 10L7.5 5")
+internal val ICON_SPROUT = listOf(
+    "M7.58333 21.6667H18.4167",
+    "M10.8333 21.6667C16.7917 18.9583 11.7 14.7333 14.0833 10.8333",
+    "M10.2917 10.1833C11.4833 11.05 12.2417 12.5667 12.7833 14.1917C10.6167 14.625 8.99167 14.625 7.58333 13.8667C6.28333 13.2167 5.09167 11.8083 4.33333 9.31667C7.36667 8.775 9.1 9.31667 10.2917 10.1833Z",
+    "M15.275 6.5C14.4491 7.79085 14.0336 9.30166 14.0833 10.8333C16.1417 10.725 17.6583 10.1833 18.7417 9.31667C19.825 8.23333 20.475 6.825 20.5833 4.33333C17.6583 4.44167 16.25 5.41667 15.275 6.5Z",
+)
+internal val ICON_QR = listOf(
+    "M4 3H7C7.55228 3 8 3.44772 8 4V7C8 7.55228 7.55228 8 7 8H4C3.44772 8 3 7.55228 3 7V4C3 3.44772 3.44772 3 4 3Z",
+    "M17 3H20C20.5523 3 21 3.44772 21 4V7C21 7.55228 20.5523 8 20 8H17C16.4477 8 16 7.55228 16 7V4C16 3.44772 16.4477 3 17 3Z",
+    "M4 16H7C7.55228 16 8 16.4477 8 17V20C8 20.5523 7.55228 21 7 21H4C3.44772 21 3 20.5523 3 20V17C3 16.4477 3.44772 16 4 16Z",
+    "M21 16H18C17.4696 16 16.9609 16.2107 16.5858 16.5858C16.2107 16.9609 16 17.4696 16 18V21",
+    "M21 21V21.01", "M12 7V10C12 10.5304 11.7893 11.0391 11.4142 11.4142C11.0391 11.7893 10.5304 12 10 12H7",
+    "M3 12H3.01", "M12 3H12.01", "M12 16V16.01", "M16 12H17", "M21 12V12.01", "M12 21V20",
+)
 
 /** 눌러 둔 장소 카드. 저장한 코스에 있으면 다시 볼 수 있다. */
 @Composable
