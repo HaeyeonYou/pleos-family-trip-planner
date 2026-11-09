@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block header %}{% endblock %}
+{% block body %}
+<section class="hero" aria-hidden="true">
+  <svg viewBox="0 0 320 150" width="100%" role="img" focusable="false">
+    <rect x="0" y="0" width="320" height="150" rx="16" fill="#dce8ef"/>
+    <path d="M30 108h150l-14-30a12 12 0 0 0-11-7H70a12 12 0 0 0-11 7z" fill="#263746"/>
+    <rect x="22" y="104" width="166" height="22" rx="8" fill="#263746"/>
+    <circle cx="58" cy="128" r="12" fill="#fff" stroke="#263746" stroke-width="5"/>
+    <circle cx="152" cy="128" r="12" fill="#fff" stroke="#263746" stroke-width="5"/>
+    <rect x="86" y="82" width="28" height="18" rx="4" fill="#dce8ef"/>
+    <rect x="214" y="30" width="72" height="104" rx="12" fill="#fff" stroke="#263746" stroke-width="4"/>
+    <rect x="226" y="46" width="48" height="8" rx="4" fill="#d5dbe1"/>
+    <rect x="226" y="62" width="48" height="26" rx="6" fill="#dce8ef"/>
+    <rect x="226" y="96" width="48" height="8" rx="4" fill="#d5dbe1"/>
+    <path d="M190 92h16" stroke="#263746" stroke-width="3" stroke-dasharray="3 5" stroke-linecap="round"/>
+  </svg>
+</section>
+{% if device %}<p class="badge">QR로 들어왔어요 · {{ device }}</p>{% endif %}
+<h1 class="title" style="margin-top:12px">차에서 하기 불편한 설정,<br>폰에서 미리 해두세요</h1>
+<ul class="feat">
+  <li><span class="icon">{{ icon("sliders", 22) }}</span><span><b>프리셋 미리 세팅</b><br><small>다음 탑승 때 차 앱에서 한 번에 적용해요</small></span></li>
+  <li><span class="icon">{{ icon("route", 22) }}</span><span><b>추천 코스 받기</b><br><small>아이 월령과 다녀온 곳에 맞춰 코스 3개</small></span></li>
+  <li><span class="icon">{{ icon("grow", 22) }}</span><span><b>경험맵 어디서나</b><br><small>차에서 쌓인 기록을 크게 보여요</small></span></li>
+</ul>
+<a class="btn" href="/m/signup?next={{ signup_next | urlencode }}">계정 만들기</a>
+<a class="btn ghost" href="/m/login?next={{ login_next | urlencode }}">로그인</a>
+<p class="muted small" style="margin-top:16px;text-align:center">계정 없이도 차 안 앱은 그대로 쓸 수 있어요</p>
+{% endblock %}

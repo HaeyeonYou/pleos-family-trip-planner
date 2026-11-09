@@ -3,6 +3,7 @@
 {% block body %}
 <p class="lead">정해 두고 「차로 보내기」를 누르면, 시동을 걸고 차 앱을 켰을 때 이 설정을 확인하고 「차에 적용」으로 적용할 수 있어요. ({{ meta.when }})</p>
 {% if status %}<p class="{{ 'form-error' if error else 'form-ok' }}" role="status">{{ status }}</p>{% endif %}
+{% for a in advice %}<p class="notice" style="margin-top:12px">{{ a }}</p>{% endfor %}
 <form method="post">
   <input type="hidden" name="slot" value="{{ slot }}">
   <label class="field" for="name">설정 이름</label>
