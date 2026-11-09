@@ -90,7 +90,17 @@ POST /presets/{id}/applied    → 204   (슬롯과 상관없이 id로 적용 완
 - 기본값: 탑승 준비 24℃·풍량 2·음량 30, 낮잠 23℃·풍량 1·음량 20, 수유 정차 24℃·풍량 1·음량 10.
 - 차에서 정차 중 직접 고쳐 저장하는 것은 `PUT /presets/{slot}?applied_on_car=true` (이미 차에 적용된 값이라 대기로 남지 않는다). 마지막 수정이 이긴다.
 
+## 5-1. 주기적 동기화 (`GET /me/sync`)
+폰 웹과 차 앱이 서로의 변경을 몇 초 안에 알아채게 하는 가벼운 확인이다. 내용은 주지 않고 영역별 **변경 표시**만 준다. 쿠키(웹)와 Bearer(차) 모두 쓴다.
+```
+GET /me/sync → {"presets":"…","feedings":"…","visits":"…","family":"…","cars":"…","all":"…"}   (12자 표시, Cache-Control: no-store)
+```
+- 표시는 내용을 해시한 것이라 **고치거나 지워도 바뀌고**, 두 기기의 시계가 달라도 상관없다. 아무것도 안 바뀌면 `all`이 같다.
+- 쓰는 법: 앱이 켜져 있는 동안 5~10초마다 부르고, 이전 값과 `all`이 다르면 달라진 영역만 다시 받는다 — `presets`→`GET /presets`(또는 `/presets/pending`), `feedings`→`GET /me/feedings/status`, `visits`→`GET /me/visits`, `family`→`GET /me/family`, `cars`→(웹이 차 연결을 끊으면 이 차의 토큰이 만료되어 **401**이 온다 → 로그인 화면으로).
+- 폰 웹은 로그인 화면을 보는 동안 6초마다 확인하고, 바뀌면 화면을 새로 연다(입력 중이면 미룸, 화면이 보이지 않을 땐 쉼). 웹에서 프리셋을 보내면 차 앱이 이 확인으로 몇 초 안에 받고, 차에서 적용하면 웹의 '차에서 적용했어요'가 몇 초 안에 바뀐다.
+
 ## 6. 안드로이드 쪽이 할 일 (별도 세션)
+0. **주기적 확인(먼저)**: 지금 차 앱은 앱을 켤 때·로그인 직후에만 `GET /presets/pending`을 부르기 때문에, 웹에서 프리셋을 보내도 앱을 다시 켜기 전에는 반응이 없다. 앱이 켜져 있는 동안 `GET /me/sync`를 5~10초마다 불러(5-1절) 바뀐 영역만 다시 받는다. 프리셋이 새로 오면 홈·케어의 프리셋 카드를 바로 띄운다.
 1. **방문 기록 업로드**: 기기의 `Visit`(`VisitStore`)을 서버 `VisitIn`으로 변환해 올린다. `placeName→place_name`, `placeKey→place_key`, `theme→theme`, `arrivedAt`의 날짜→`visited_on`, `departedAt−arrivedAt`(분)→`stayed_minutes`. id는 기기 `id(Long)`에서 만든 안정적인 UUID(예: `UUID.nameUUIDFromBytes("visit:$id")`). 처음 로그인했을 때 `POST /me/visits/bulk`로 한꺼번에, 이후 방문이 생길 때마다 `PUT`. 좌표(`address` 포함)·시각은 올리지 않는다. 다음 날 확인이 필요한 후보는 `status="pending"`으로 올리면 웹이 확인을 받는다.
 2. **수유 기록 동기화**: 음성 "방금 수유했어" → `PUT /me/feedings/{UUID}`. 다음 수유 시각은 `GET /me/feedings/status`로 읽는다.
 3. **공조 카드 3개 구조·음량**: `GET /presets`로 3개를 받아 카드 3개로 보여 주고, 적용하면 `POST /presets/{id}/applied`. `media_volume`이 있으면 미디어 음량도 설정한다. 정차 중 편집은 `PUT /presets/{slot}?applied_on_car=true`.

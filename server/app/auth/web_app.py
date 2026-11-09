@@ -286,6 +286,9 @@ def _preset_page_context(slot: str, settings: dict, state: presets.PresetState, 
         "volumes": _VOLUMES,
         "volume": "" if settings.get("media_volume") is None else str(settings["media_volume"]),
         "status": _preset_status(state),
+        # 차에서 적용하면 '적용됨' 표시를 바꾸려고 주기적으로 확인한다. 보낸 직후 화면은 POST 결과라 GET 주소로 다시 연다.
+        "sync_poll": True,
+        "reload_to": f"/m/preset?slot={slot}",
     }
     return context | extra
 
