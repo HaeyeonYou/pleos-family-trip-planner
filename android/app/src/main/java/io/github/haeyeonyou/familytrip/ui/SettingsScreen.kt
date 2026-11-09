@@ -318,10 +318,10 @@ private fun DataCard(loggedIn: Boolean, onWipe: suspend (Boolean) -> String?, mo
     SettingsCard("개인정보 · 데이터", FigmaIcons.Shield, modifier) {
         // 문구는 docs/research/web-server-contract.md 7절(폰 웹과 공통)을 따른다. Figma 문구와 다른 점은 PR에 적었다.
         SettingRow("생년월일 · 방문 기록", last = false) { ValueText(if (loggedIn) "차 안 + 내 계정(서버)에 저장" else "차 안에만 저장") }
-        SettingRow("서버 전송", last = true) { ValueText("생년월일의 일 · 위치 좌표 · 음성은 안 보내요") }
+        SettingRow("서버 전송", last = true) { ValueText("생년월일의 일 · 방문 시각 · 음성은 안 보내요") }
         Text(
-            if (loggedIn) "로그인 중이라 아이 정보·수유 기록·방문 기록이 서버에 저장돼 폰과 차에서 같이 봐요. 서버에는 태어난 연·월만 가요."
-            else "로그인하지 않아 서버에는 저장하지 않아요. 코스를 찾을 때만 아이 나이(개월)·다녀온 곳 요약·현재 위치가 그 요청에 쓰이고, 저장하지 않아요.",
+            if (loggedIn) "로그인 중이라 아이 정보·수유 기록·방문 기록이 서버에 저장돼 폰과 차에서 같이 봐요. 서버에는 태어난 연·월만 가요. 코스를 찾을 때 쓰는 위치·아이 나이(개월)·다녀온 곳 요약은 저장하지 않아요."
+            else "로그인하지 않아 아이·수유·방문 기록은 서버에 저장하지 않아요. 코스를 찾을 때만 위치·아이 나이(개월)·다녀온 곳 요약이 그 요청에 쓰이고, 저장하지 않아요.",
             fontSize = 17.sp,
             color = TripColors.InkSoft,
             modifier = Modifier.padding(top = 4.dp, bottom = 6.dp),
