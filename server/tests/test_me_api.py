@@ -228,16 +228,17 @@ def test_three_presets_with_volume_and_legacy_car_still_works():
             nap = {"name": "낮잠", "temperature": 23, "fan_speed": 1, "media_volume": 15}
             res = await mom.put("/presets/nap", json=nap)
             assert res.status_code == 200 and res.json()["pending"] and res.json()["settings"]["media_volume"] == 15
-            # 예전 차 앱은 탑승 준비만 본다: 낮잠을 보내도 pending은 비어 있다
-            assert (await client.get("/presets/pending", headers=car)).status_code == 204
+            # 슬롯을 모르는 예전 차 앱도 낮잠으로 보낸 것을 받는다 (slot은 덤으로 온다)
+            seen = (await client.get("/presets/pending", headers=car)).json()
+            assert seen["slot"] == "nap" and seen["settings"]["temperature"] == 23 and set(seen) == {"id", "settings", "sent_at", "slot"}
 
-            # 웹 폼(예전 방식)은 탑승 준비 슬롯에 저장된다
+            # 웹 폼(예전 방식)은 탑승 준비 슬롯에 저장된다. 더 최근에 보냈으니 이것이 먼저 온다
             await mom.post("/m/preset", data=PRESET_FORM)
             legacy = (await client.get("/presets/pending", headers=car)).json()
-            assert legacy["settings"]["temperature"] == 24.5 and legacy["settings"]["media_volume"] is None
-            assert set(legacy) == {"id", "settings", "sent_at"}
+            assert legacy["slot"] == "boarding" and legacy["settings"]["temperature"] == 24.5 and legacy["settings"]["media_volume"] is None
             assert (await client.post(f"/presets/{legacy['id']}/applied", headers=car)).status_code == 204
-            assert (await client.get("/presets/pending", headers=car)).status_code == 204
+            # 탑승 준비를 적용했으니 아직 남은 낮잠이 다음으로 온다
+            assert (await client.get("/presets/pending", headers=car)).json()["slot"] == "nap"
 
             states = {s["slot"]: s for s in (await client.get("/presets", headers=car)).json()}
             assert states["boarding"]["sent"] and not states["boarding"]["pending"] and states["nap"]["pending"]
