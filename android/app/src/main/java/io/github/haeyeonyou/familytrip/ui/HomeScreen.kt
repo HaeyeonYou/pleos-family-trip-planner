@@ -1,5 +1,7 @@
 package io.github.haeyeonyou.familytrip.ui
 
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.material3.Icon
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -85,7 +87,7 @@ fun HomeScreen(
     val filters = state.homeFilters
 
     val cards: @Composable (Modifier) -> Unit = { m ->
-        Column(modifier = m, verticalArrangement = Arrangement.spacedBy(20.dp)) {
+        Column(modifier = m, verticalArrangement = Arrangement.spacedBy(24.dp)) {
             when {
                 state.optionsLoading && state.options.isEmpty() -> LoadingCards(wide)
                 state.optionsError != null && state.options.isEmpty() -> ErrorCard(state.optionsError, actions.retry)
@@ -108,8 +110,8 @@ fun HomeScreen(
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 48.dp, vertical = 36.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp),
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(start = 56.dp, end = 56.dp, top = 48.dp, bottom = 40.dp),
+        verticalArrangement = Arrangement.spacedBy(24.dp),
     ) {
         // 맨 위: 시각, 제목, 음성 안내 칩
         FlowRow(
@@ -118,17 +120,17 @@ fun HomeScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Column(modifier = Modifier.padding(end = 16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("${nowLabel(now)} · 탑승을 감지했어요", fontSize = 22.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("${nowLabel(now)} · 탑승을 감지했어요", fontSize = 20.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text("오늘 아이와 갈 수 있는 코스", fontSize = 44.sp, fontWeight = FontWeight.Bold)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 // 음성 요청(#19)은 아직이라, 예시 문구를 누르면 실내 필터를 켜서 같은 결과를 보여 준다.
-                PillButton("🎙  \"근처 실내 놀거리 찾아줘\"", onClick = { if (!filters.indoor) actions.toggleFilter { it.copy(indoor = true) } })
+                PillButton("\u201c근처 실내 놀거리 찾아줘\u201d", icon = FigmaIcons.Mic, onClick = { if (!filters.indoor) actions.toggleFilter { it.copy(indoor = true) } })
                 PillButton("조건 바꾸기", onClick = actions.changeConditions)
             }
         }
         InfoChips(state, rangeMeters)
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             FilterChip("수유실", filters.nursingRoom) { actions.toggleFilter { it.copy(nursingRoom = !it.nursingRoom) } }
             FilterChip("유모차", filters.stroller) { actions.toggleFilter { it.copy(stroller = !it.stroller) } }
             FilterChip("반려동물", filters.pet) { actions.toggleFilter { it.copy(pet = !it.pet) } }
@@ -138,7 +140,7 @@ fun HomeScreen(
             FilterChip("주차", filters.parking) { actions.toggleFilter { it.copy(parking = !it.parking) } }
         }
         if (wide) {
-            Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
                 cards(Modifier.weight(3f))
                 side(Modifier.weight(1f))
             }
@@ -157,17 +159,20 @@ private fun nowLabel(nowMs: Long): String {
 }
 
 @Composable
-private fun PillButton(text: String, onClick: () -> Unit) {
-    Text(
-        text,
-        fontSize = 22.sp,
+private fun PillButton(text: String, onClick: () -> Unit, icon: ImageVector? = null) {
+    Row(
         modifier = Modifier
-            .clip(RoundedCornerShape(30.dp))
+            .clip(RoundedCornerShape(999.dp))
             .background(Color.White)
-            .border(1.dp, TripColors.Line, RoundedCornerShape(30.dp))
+            .border(1.dp, TripColors.Line, RoundedCornerShape(999.dp))
             .clickable(onClick = onClick)
-            .padding(horizontal = 24.dp, vertical = 16.dp),
-    )
+            .padding(horizontal = 26.dp, vertical = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        icon?.let { Icon(it, contentDescription = null, tint = TripColors.Green, modifier = Modifier.size(26.dp)) }
+        Text(text, fontSize = 20.sp, fontWeight = FontWeight.Medium)
+    }
 }
 
 /** 정보 칩 한 줄: 위치·반경, 날씨, 생후 개월, 반려견, 다음 수유, (읽을 수 있으면) 주행 가능 거리 */
@@ -176,49 +181,51 @@ private fun PillButton(text: String, onClick: () -> Unit) {
 private fun InfoChips(state: TripUiState, rangeMeters: Float?) {
     val child = state.profile?.children?.firstOrNull()
     FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        InfoChip("📍  ${state.weather?.region?.takeIf { it.isNotBlank() } ?: "현재 위치"} · 반경 10km")
+        InfoChip("${state.weather?.region?.takeIf { it.isNotBlank() } ?: "현재 위치"} · 반경 10km", FigmaIcons.Pin)
         state.weather?.let { w ->
             val temp = w.temperature?.let { " · ${Math.round(it)}°C" }.orEmpty()
-            InfoChip("${if (w.rainy) "🌧" else "☀"}  ${w.condition}$temp")
+            // 피그마에는 맑음(해) 아이콘만 있어, 비·눈일 때는 기호로 구분한다.
+            if (w.rainy) InfoChip("🌧  ${w.condition}$temp") else InfoChip("${w.condition}$temp", FigmaIcons.Sun)
         }
         child?.let {
             val months = it.ageMonths()
-            InfoChip("👶  ${if (months < 36) "생후 ${ageLabel(months)}" else "아이 ${ageLabel(months)}"}")
+            InfoChip(if (months < 36) "생후 ${ageLabel(months)}" else "아이 ${ageLabel(months)}", FigmaIcons.Baby)
         }
-        if (state.homeFilters.pet) InfoChip("🐕  반려견 동반")
-        state.feeding.nextAt?.let { InfoChip("🍼  다음 수유 ${clockLabel(it)}") }
+        if (state.homeFilters.pet) InfoChip("반려견 동반", FigmaIcons.Paw)
+        state.feeding.nextAt?.let { InfoChip("다음 수유 ${clockLabel(it)}", FigmaIcons.Clock) }
         rangeMeters?.takeIf { it > 0 }?.let { InfoChip("🔋  주행 가능 ${Math.round(it / 1000)}km") }
     }
 }
 
+/** 피그마 Context pill: 흰 바탕, 반지름 14, 선 아이콘 24 + 글자 22 */
 @Composable
-private fun InfoChip(text: String) {
-    Text(
-        text,
-        fontSize = 22.sp,
-        modifier = Modifier
-            .clip(RoundedCornerShape(18.dp))
-            .background(Color.White)
-            .border(1.dp, TripColors.Line, RoundedCornerShape(18.dp))
-            .padding(horizontal = 20.dp, vertical = 12.dp),
-    )
+private fun InfoChip(text: String, icon: ImageVector? = null) {
+    Row(
+        modifier = Modifier.clip(RoundedCornerShape(14.dp)).background(Color.White).padding(horizontal = 20.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        icon?.let { Icon(it, contentDescription = null, tint = TripColors.InkSoft, modifier = Modifier.size(24.dp)) }
+        Text(text, fontSize = 22.sp, fontWeight = FontWeight.Medium)
+    }
 }
 
 @Composable
 private fun FilterChip(label: String, on: Boolean, onClick: () -> Unit) {
-    Text(
-        if (on) "✓  $label" else label,
-        fontSize = 22.sp,
-        color = if (on) TripColors.Green else TripColors.Ink,
-        fontWeight = if (on) FontWeight.Bold else FontWeight.Normal,
+    Row(
         modifier = Modifier
             .heightIn(min = 56.dp)
-            .clip(RoundedCornerShape(28.dp))
+            .clip(RoundedCornerShape(999.dp))
             .background(if (on) TripColors.GreenSoft else TripColors.Tile)
-            .border(2.dp, if (on) TripColors.Green else Color.Transparent, RoundedCornerShape(28.dp))
+            .border(2.dp, if (on) TripColors.Green else Color.Transparent, RoundedCornerShape(999.dp))
             .clickable(onClick = onClick)
-            .padding(horizontal = 26.dp, vertical = 14.dp),
-    )
+            .padding(horizontal = 24.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        if (on) Icon(FigmaIcons.Check, contentDescription = null, tint = TripColors.Green, modifier = Modifier.size(20.dp))
+        Text(label, fontSize = 22.sp, fontWeight = FontWeight.Medium, color = if (on) TripColors.Green else TripColors.Ink)
+    }
 }
 
 // 추천 코스 카드
@@ -231,7 +238,7 @@ private fun CourseCards(state: TripUiState, wide: Boolean, onOpen: (CourseOption
         CourseCard(option, state.going[option.placeKey] ?: 0, m) { onOpen(option) }
     }
     if (wide) {
-        Row(modifier = Modifier.height(IntrinsicSize.Max), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+        Row(modifier = Modifier.height(IntrinsicSize.Max), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
             state.options.forEach { cards(it, Modifier.weight(1f).fillMaxHeight()) }
             // 후보가 3개보다 적어도 카드 폭을 맞춘다
             repeat((3 - state.options.size).coerceAtLeast(0)) { Spacer(Modifier.weight(1f)) }
@@ -247,58 +254,67 @@ private fun CourseCard(option: CourseOption, going: Int, modifier: Modifier, onS
     val outing = option.course.stops.firstOrNull { it.role == "outing" }?.place
     Column(
         modifier = modifier
-            .clip(RoundedCornerShape(28.dp))
+            .clip(RoundedCornerShape(24.dp))
             .background(Color.White)
-            .border(1.dp, TripColors.Line, RoundedCornerShape(28.dp))
-            .padding(20.dp),
+            .border(1.dp, TripColors.Line, RoundedCornerShape(24.dp))
+            .padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Box(
-            modifier = Modifier.fillMaxWidth().height(150.dp).clip(RoundedCornerShape(18.dp)).background(TripColors.Tile),
+            modifier = Modifier.fillMaxWidth().height(120.dp).clip(RoundedCornerShape(16.dp)).background(TripColors.Tile),
             contentAlignment = Alignment.Center,
         ) {
-            // 사진이 없거나 못 받으면 분야 아이콘이 보인다
-            Text(THEME_ICONS[outing?.theme] ?: "🧭", fontSize = 48.sp)
+            // 사진이 없거나 못 받으면 분야 아이콘(없으면 피그마의 가방 아이콘)이 보인다
+            val themeIcon = THEME_ICONS[outing?.theme]
+            if (themeIcon != null) Text(themeIcon, fontSize = 40.sp)
+            else Icon(FigmaIcons.Bag, contentDescription = null, tint = TripColors.InkSoft, modifier = Modifier.size(40.dp))
             if (outing != null && outing.imageUrl.isNotBlank()) {
                 AsyncImage(model = outing.imageUrl, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
             }
         }
-        Text(option.name, fontSize = 28.sp, lineHeight = 36.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-        Text(option.summary, fontSize = 20.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
-        Text(
-            "◷  총 ${durationLabel(option.totalMinutes.toLong())} · 첫 이동 ${option.firstDriveMinutes}분",
-            fontSize = 21.sp,
-        )
+        Text(option.name, fontSize = 26.sp, lineHeight = 36.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Text(option.summary, fontSize = 19.sp, lineHeight = 28.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Icon(FigmaIcons.Clock, contentDescription = null, tint = TripColors.InkSoft, modifier = Modifier.size(20.dp))
+            Text("총 ${durationLabel(option.totalMinutes.toLong())} · 첫 이동 ${option.firstDriveMinutes}분", fontSize = 19.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
         // 편의 칩: 나들이 장소에서 '있음'이 확인된 것만
         val available = outing?.amenities?.filterValues { it == "available" }?.keys.orEmpty().filter { it in AMENITY_LABELS }
         if (available.isNotEmpty()) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 available.forEach {
-                    Text(
-                        "✓ ${AMENITY_LABELS[it]}",
-                        fontSize = 18.sp,
-                        modifier = Modifier.clip(RoundedCornerShape(10.dp)).background(TripColors.Tile).padding(horizontal = 12.dp, vertical = 6.dp),
-                    )
+                    Row(
+                        modifier = Modifier.clip(RoundedCornerShape(10.dp)).background(TripColors.Tile).padding(horizontal = 14.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Icon(FigmaIcons.Check, contentDescription = null, tint = TripColors.Green, modifier = Modifier.size(18.dp))
+                        Text(AMENITY_LABELS.getValue(it), fontSize = 19.sp, fontWeight = FontWeight.Medium)
+                    }
                 }
             }
         }
         // 숫자만 보여 주고, 0이면 줄을 숨긴다 (개인 식별 정보 없음)
         if (going > 0) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Box(Modifier.size(12.dp).clip(CircleShape).background(TripColors.Green))
-                Text("지금 ${going}대 가는 중", fontSize = 20.sp, fontWeight = FontWeight.Medium)
+                Box(Modifier.size(10.dp).clip(CircleShape).background(TripColors.Green))
+                Text("지금 ${going}대 가는 중", fontSize = 19.sp, fontWeight = FontWeight.Medium)
             }
         }
         Spacer(Modifier.weight(1f))
-        Box(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 76.dp)
-                .clip(RoundedCornerShape(24.dp))
+                .heightIn(min = 80.dp)
+                .clip(RoundedCornerShape(20.dp))
                 .background(TripColors.Green)
                 .clickable(onClick = onStart),
-            contentAlignment = Alignment.Center,
-        ) { Text("➤  코스 시작", fontSize = 26.sp, fontWeight = FontWeight.Bold, color = Color.White) }
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
+        ) {
+            Icon(FigmaIcons.Nav, contentDescription = null, tint = Color.White, modifier = Modifier.size(26.dp))
+            Text("코스 시작", fontSize = 26.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
+        }
     }
 }
 
@@ -309,8 +325,8 @@ private fun LoadingCards(wide: Boolean) {
     Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
         repeat(if (wide) 3 else 1) {
             Column(
-                modifier = Modifier.weight(1f).height(480.dp).clip(RoundedCornerShape(28.dp)).background(Color.White)
-                    .border(1.dp, TripColors.Line, RoundedCornerShape(28.dp)).padding(20.dp),
+                modifier = Modifier.weight(1f).height(480.dp).clip(RoundedCornerShape(24.dp)).background(Color.White)
+                    .border(1.dp, TripColors.Line, RoundedCornerShape(24.dp)).padding(24.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
@@ -337,9 +353,9 @@ private fun ErrorCard(message: String, onRetry: () -> Unit) {
 
 private fun sideCard(modifier: Modifier = Modifier) = modifier
     .fillMaxWidth()
-    .clip(RoundedCornerShape(28.dp))
+    .clip(RoundedCornerShape(24.dp))
     .background(Color.White)
-    .border(1.dp, TripColors.Line, RoundedCornerShape(28.dp))
+    .border(1.dp, TripColors.Line, RoundedCornerShape(24.dp))
 
 /** 우리 아이 경험 나무: 이번 달 방문 수와 분야 수 (기록은 기기 VisitStore) */
 @Composable
@@ -349,16 +365,21 @@ private fun ExperienceSummaryCard(visits: List<Visit>, onOpen: () -> Unit) {
     val places = thisMonth.map { it.placeName }.distinct().size
     val fields = thisMonth.mapNotNull { it.theme }.distinct().size
     val insight = remember(visits) { experienceInsight(visits) }
-    Column(sideCard().padding(24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("🌱  우리 아이 경험 나무", fontSize = 20.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text("이번 달 ${places}곳 · ${fields}개 분야", fontSize = 30.sp, fontWeight = FontWeight.Bold)
-        Text("${insight.title}. ${insight.body}", fontSize = 18.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(
-            "경험 나무 보기  ›",
-            fontSize = 21.sp,
-            fontWeight = FontWeight.Bold,
+    Column(sideCard().padding(horizontal = 28.dp, vertical = 26.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Icon(FigmaIcons.Sprout, contentDescription = null, tint = TripColors.Green, modifier = Modifier.size(24.dp))
+            Text("우리 아이 경험 나무", fontSize = 20.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Text("이번 달 ${places}곳 · ${fields}개 분야", fontSize = 24.sp, fontWeight = FontWeight.SemiBold)
+        Text("${insight.title}. ${insight.body}", fontSize = 18.sp, lineHeight = 28.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Row(
             modifier = Modifier.clip(RoundedCornerShape(12.dp)).clickable(onClick = onOpen).padding(vertical = 8.dp),
-        )
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text("경험 나무 보기", fontSize = 19.sp, fontWeight = FontWeight.Medium, color = TripColors.Green)
+            Icon(FigmaIcons.Chev, contentDescription = null, tint = TripColors.Green, modifier = Modifier.size(20.dp))
+        }
     }
 }
 
