@@ -19,6 +19,8 @@ data class PendingFeeding(
     val kind: String,
     /** 기록할 때 로그인해 있던 계정. 로그인 전이면 null (나중에 로그인한 계정에 올린다). */
     val owner: String? = null,
+    /** 어느 아이의 수유인지 (서버 아이 id). null이면 첫째 아이 (C07). */
+    val childId: String? = null,
 )
 
 @Serializable
@@ -31,7 +33,8 @@ data class FeedingQueueData(
 /** 서버 수유 API. 테스트에서는 가짜로 바꾼다. */
 interface FeedingRemote {
     suspend fun put(id: String, body: FeedingIn)
-    suspend fun status(): FeedingStatus
+    /** [childId] 아이의 수유 상태. null이면 서버가 첫째 아이로 본다. */
+    suspend fun status(childId: String? = null): FeedingStatus
 }
 
 class TripApiFeedingRemote(private val api: TripApi) : FeedingRemote {
@@ -40,7 +43,7 @@ class TripApiFeedingRemote(private val api: TripApi) : FeedingRemote {
         if (!res.isSuccessful) throw HttpException(res)
     }
 
-    override suspend fun status() = api.feedingStatus()
+    override suspend fun status(childId: String?) = api.feedingStatus(childId)
 }
 
 /** 마지막 수유 시각과 간격을 담고 꺼내는 곳 ([FeedingStore]). */
@@ -81,13 +84,16 @@ class FeedingSync(
     /** 지금 로그인한 계정 (없으면 null) */
     private val owner: () -> String?,
     private val now: () -> Long = System::currentTimeMillis,
+    /** 지금 고른 아이 (서버 아이 id, null = 첫째). [routine]도 이 아이의 루틴이어야 한다. */
+    private val childId: () -> String? = { null },
 ) {
     private val lock = Mutex()
 
     /** 방금 수유한 것을 기록한다 (차에 저장 + 대기열). 서버로 올리는 것은 [flush]가 한다. */
     fun record(fedAtMs: Long = now()) {
         val q = queue.load()
-        val item = PendingFeeding(feedingId(fedAtMs), fedAtMs, kind(), owner())
+        val child = childId()
+        val item = PendingFeeding(feedingId(fedAtMs, child), fedAtMs, kind(), owner(), child)
         if (q.pending.none { it.id == item.id }) {
             queue.save(q.copy(pending = (q.pending + item).takeLast(MAX_QUEUE)))
         }
@@ -111,7 +117,7 @@ class FeedingSync(
             }
             if (me == null) return@withLock  // 로그인 전에는 쌓아 두기만 한다
             try {
-                remote.put(item.id, FeedingIn(isoOf(item.fedAtMs), item.kind, null, "car"))
+                remote.put(item.id, FeedingIn(isoOf(item.fedAtMs), item.kind, null, "car", item.childId))
                 drop(item.id)
             } catch (e: HttpException) {
                 if (!isPermanentFailure(e.code())) throw e
@@ -125,10 +131,13 @@ class FeedingSync(
      * 간격은 가족 정보([FamilySync])가 맞추므로 여기서는 건드리지 않는다.
      */
     suspend fun pull() = lock.withLock {
-        val status = remote.status()
+        val child = childId()
+        val status = remote.status(child)
         val serverLast = status.lastFedAt?.let { OffsetDateTime.parse(it).toInstant().toEpochMilli() }
         val me = owner()
-        val pendingLast = queue.load().pending.filter { it.owner == null || it.owner == me }.maxOfOrNull { it.fedAtMs }
+        val pendingLast = queue.load().pending.filter { (it.owner == null || it.owner == me) && it.childId == child }.maxOfOrNull { it.fedAtMs }
+        // 받는 사이 다른 아이를 골랐으면 반영하지 않는다 (다음 pull이 맞춘다).
+        if (childId() != child) return@withLock
         val last = listOfNotNull(serverLast, pendingLast).maxOrNull()
         val current = routine.load()
         if (current.lastFedAt != last) routine.save(current.copy(lastFedAt = last))
@@ -163,7 +172,8 @@ class FeedingSync(
 
     companion object {
         /** 수유 시각에서 만든 안정적인 id. 같은 기록을 다시 올려도 서버에 중복되지 않는다. */
-        fun feedingId(fedAtMs: Long): String = UUID.nameUUIDFromBytes("feeding:$fedAtMs".toByteArray()).toString()
+        fun feedingId(fedAtMs: Long, childId: String? = null): String =
+            UUID.nameUUIDFromBytes((if (childId == null) "feeding:$fedAtMs" else "feeding:$childId:$fedAtMs").toByteArray()).toString()
 
         fun isoOf(ms: Long): String = Instant.ofEpochMilli(ms).atZone(ZoneId.systemDefault()).toOffsetDateTime().withNano(0).format(ISO_OFFSET)
     }
