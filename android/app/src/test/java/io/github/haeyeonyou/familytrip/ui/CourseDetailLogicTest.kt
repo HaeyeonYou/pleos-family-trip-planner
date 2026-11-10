@@ -111,4 +111,38 @@ class CourseDetailLogicTest {
         assertEquals("600m · 경로에서 +2분", replacementMeta(Replacement(brunch, 600, 2, true)))
         assertEquals("1.1km · 추가 이동 없음", replacementMeta(Replacement(brunch, 1100, 0, true)))
     }
+
+    @Test
+    fun `장소 추가 후보는 코스에 없는 곳만 역할 순서로`() {
+        val extra = place("국밥집", 37.5, 126.9)
+        val cafe2 = place("카페2", 37.5, 126.9)
+        val groups = addCandidates(course(mapOf("cafe" to listOf(waffle, cafe2), "meal" to listOf(brunch, extra), "outing" to listOf(palace))))
+        assertEquals(listOf("meal" to listOf(extra), "cafe" to listOf(cafe2)), groups)
+    }
+
+    @Test
+    fun `서버가 준 우회 분과 거리를 어림값보다 먼저 쓴다`() {
+        val far = place("먼카페", 37.60, 127.05).copy(distanceM = 640, detourMinutes = 7)
+        val shorter = place("지름길카페", 37.60, 127.05).copy(distanceM = 1100, detourMinutes = -3)
+        val r = replacements(course(mapOf("cafe" to listOf(far, shorter))), 2, null)
+        assertEquals(listOf("지름길카페", "먼카페"), r.map { it.place.name })
+        assertEquals(0, r[0].detourMinutes)
+        assertEquals(1100, r[0].distanceM)
+        assertEquals(7, r[1].detourMinutes)
+        assertEquals(640, r[1].distanceM)
+    }
+
+    @Test
+    fun `경로가 바뀐 재계산이면 이전 후보의 서버 우회 값을 지우고 코스에 들어간 곳은 뺀다`() {
+        val c = course(mapOf("cafe" to listOf(place("카페2", 37.5, 126.9).copy(distanceM = 300, detourMinutes = 4), waffle)))
+        fun req(vararg ps: CoursePlace) = ps.map { io.github.haeyeonyou.familytrip.data.ScheduleStop("x", it) }
+        val same = mergeAlternatives(c, req(brunch, palace, waffle), emptyMap())
+        assertEquals(4, same.getValue("cafe").single().detourMinutes)
+        val moved = mergeAlternatives(c, req(palace, brunch, waffle), emptyMap())
+        assertNull(moved.getValue("cafe").single().detourMinutes)
+        assertNull(moved.getValue("cafe").single().distanceM)
+        val fresh = mergeAlternatives(c, req(palace, brunch), mapOf("outing" to listOf(home)))
+        assertEquals(listOf(home), fresh["outing"])
+        assertEquals(2, fresh.getValue("cafe").size)
+    }
 }
