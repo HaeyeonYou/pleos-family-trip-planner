@@ -15,6 +15,7 @@ from zoneinfo import ZoneInfo
 from app import interests
 from app.course import classify, parking_rank, ranking
 from app.schemas import (
+    Alternative,
     Amenity,
     CourseOption,
     CourseRequest,
@@ -48,6 +49,7 @@ ALTERNATIVES = 3
 PUBLIC_FACILITY_LIMIT = 10  # 박물관·미술관·도서관은 가까운 10곳까지 후보로
 SUGGESTIONS = 3  # 홈에 보여 줄 추천 코스 수
 MAX_INTEREST_SEARCHES = 3  # 관심사 키워드 검색은 앞의 3개까지 (카카오 호출 수)
+DETOUR_RATIO_RANGE = (0.5, 2.0)  # 실제 길찾기/추정 시간 비율 보정의 한계 (이상치 방지)
 
 STAY_MINUTES = {StopRole.MEAL: 60, StopRole.OUTING: 120, StopRole.CAFE: 40}
 INFANT_OUTING_MINUTES = 90  # 만 2세 이하는 나들이를 짧게
@@ -199,11 +201,11 @@ class CoursePlanner:
             if self._late(course, departure, cond.return_by_hour):
                 warnings.append(f"{cond.return_by_hour}시까지 귀가하기 어려워요 (예상 {course.return_at})")
 
-        course.alternatives = {
+        course.alternatives = _with_detours(course, origin, {
             StopRole.OUTING: others[:ALTERNATIVES],
             StopRole.MEAL: meals[1 : 1 + ALTERNATIVES],
             StopRole.CAFE: cafes[1 : 1 + ALTERNATIVES],
-        }
+        })
         course.warnings = warnings
         log.info("코스: %s", describe(course))
         return course
@@ -221,12 +223,15 @@ class CoursePlanner:
         if cond.return_by_hour is not None and self._late(course, departure, cond.return_by_hour):
             course.warnings = [f"{cond.return_by_hour}시까지 귀가하기 어려워요 (예상 {course.return_at})"]
         if req.suggest_nearby:
-            course.alternatives = self._nearby_alternatives(stops)
+            found = self._nearby_alternatives(stops, req.origin, cond)
+            course.alternatives = _with_detours(course, req.origin, found)
         log.info("재계산: %s", describe(course))
         return course
 
-    def _nearby_alternatives(self, stops: list[tuple[StopRole, Place]]) -> dict[StopRole, list[Place]]:
-        """나들이 장소 근처 식사·카페 후보. 이미 코스에 있는 곳은 뺀다."""
+    def _nearby_alternatives(
+        self, stops: list[tuple[StopRole, Place]], origin: LatLng, cond: TripConditions
+    ) -> dict[StopRole, list[Place]]:
+        """나들이 장소 근처 식사·카페 후보와 다른 나들이 후보. 이미 코스에 있는 곳은 뺀다."""
         outing = next((p for role, p in stops if role == StopRole.OUTING), None)
         if outing is None:
             return {}
@@ -234,9 +239,26 @@ class CoursePlanner:
         meals = self._nearby_kakao(CATEGORY_RESTAURANT, outing, NEARBY_MEAL_RADIUS_M, classify.restaurant_is_suitable)
         cafes = self._nearby_kakao(CATEGORY_CAFE, outing, NEARBY_CAFE_RADIUS_M, classify.cafe_is_suitable)
         return {
+            StopRole.OUTING: self._outing_alternatives(stops, origin, cond),
             StopRole.MEAL: [p for p in meals if p.source_id not in taken][:ALTERNATIVES],
             StopRole.CAFE: [p for p in cafes if p.source_id not in taken][:ALTERNATIVES],
         }
+
+    def _outing_alternatives(
+        self, stops: list[tuple[StopRole, Place]], origin: LatLng, cond: TripConditions
+    ) -> list[Place]:
+        """재계산 뒤 나들이 교체 후보: 출발지 기준 후보 점수 순으로, 코스에 이미 있는 곳은 뺀다.
+
+        TourAPI·카카오 응답은 메모리 캐시에 있어 직전 /course와 같은 출발지·조건이면 외부 호출이 늘지 않는다.
+        후보를 못 가져와도 재계산 결과는 그대로 준다.
+        """
+        try:
+            ranked = self._rank_outings(origin, cond, None, self._today())
+        except Exception as e:  # noqa: BLE001 - 후보 조회 장애가 재계산을 막지 않는다
+            log.warning("재계산 나들이 후보를 못 가져옴: %s", type(e).__name__)
+            return []
+        taken = {(p.source, p.source_id) for _, p in stops}
+        return [c.place for c in ranked if (c.place.source, c.place.source_id) not in taken][:ALTERNATIVES]
 
     # 후보 수집과 점수
 
@@ -658,6 +680,48 @@ def _kakao_place(p: KakaoPlace) -> Place:
         source="kakao",
         source_id=p.place_id,
     )
+
+
+def _with_detours(
+    course: CourseResponse, origin: LatLng, candidates: dict[StopRole, list[Place]]
+) -> dict[StopRole, list[Alternative]]:
+    """후보마다 교체 대상에서의 직선거리와 '바꾸면 늘어나는 이동 분'을 붙인다. 외부 API는 부르지 않는다.
+
+    앞 지점(바로 앞 경유지, 없으면 출발지) → 후보 → 뒤 지점(바로 뒤 경유지, 없으면 귀가)의 추정 시간에서
+    지금 장소를 지나는 추정 시간을 뺀 뒤, 코스 전체의 실제 이동 시간 ÷ 추정 시간 비율을 곱해 보정한다.
+    (구간 하나로 비율을 잡으면 1분짜리 짧은 구간의 고정 지연이 우회 시간을 크게 부풀린다.)
+    코스에 그 역할이 없으면 두 값은 비운다.
+    """
+    visits = course.stops  # 마지막은 귀가
+    points = [(origin.latitude, origin.longitude)] + [(s.place.latitude, s.place.longitude) for s in visits]
+    est_total = sum(_estimate_minutes(a, b) for a, b in zip(points, points[1:]))
+    actual_total = sum(s.drive_minutes for s in visits)
+    low, high = DETOUR_RATIO_RANGE
+    ratio = min(max(actual_total / est_total, low), high) if est_total > 0 else 1.0
+    result: dict[StopRole, list[Alternative]] = {}
+    for role, places in candidates.items():
+        i = next((k for k, s in enumerate(visits[:-1]) if s.role == role), None)
+        if i is None:
+            result[role] = [Alternative.model_validate(p.model_dump()) for p in places]
+            continue
+        before, current, after = points[i], points[i + 1], points[i + 2]
+        est_now = _estimate_minutes(before, current) + _estimate_minutes(current, after)
+        alternatives = []
+        for p in places:
+            x = (p.latitude, p.longitude)
+            est_new = _estimate_minutes(before, x) + _estimate_minutes(x, after)
+            alternatives.append(
+                Alternative.model_validate(
+                    p.model_dump()
+                    | {"distance_m": round(_haversine_m(current, x)), "detour_minutes": round((est_new - est_now) * ratio)}
+                )
+            )
+        result[role] = alternatives
+    return result
+
+
+def _estimate_minutes(a: tuple[float, float], b: tuple[float, float]) -> float:
+    return _estimate_leg(a, b).duration_s / 60
 
 
 def _estimate_leg(a: tuple[float, float], b: tuple[float, float]) -> Leg:

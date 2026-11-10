@@ -54,7 +54,7 @@
 | `docs/settings-hf05.md` | HF05 설정 화면 상세 명세: 선호 조건 코스 가점 반영, 데이터 전체 삭제 |
 | `docs/research/web-server-contract.md` | 서버-웹-앱 API 계약: 가족 정보, 수유, 방문 기록, 공조 프리셋 3개, /me/sync |
 | `docs/research/web-mobile-screens.md` | 모바일 웹(`/m`) 화면 상세 (Figma 수진 MOBILE 09) |
-| `server/` | FastAPI 서버 (`/health`, `/parse`, `/course`, `/me/*`, `/presets/*`), 테스트 180개 |
+| `server/` | FastAPI 서버 (`/health`, `/parse`, `/course`, `/me/*`, `/presets/*`), 테스트 187개 |
 | `android/` | 차량 앱 (Kotlin + Compose, minSdk 28, compileSdk 35) |
 | `tools/geo_drive.py` | 에뮬레이터 주행 시뮬레이션 |
 | `.env.example` | 필요한 환경 변수 키 목록 (실제 키는 `.env`에만 보관) |
@@ -175,5 +175,6 @@
 | 주행 중 음성 1곳 제안 D01 | ✅ 에뮬레이터 모양 확인·보정 병합(2026-11-10), 실차 확인 남음 | #151 · PR #152, #158 | [drive-voice-d01.md](docs/agent-tasks/drive-voice-d01.md) |
 | 그로우 G01 경험 우주 + 젤리 12종 성장 | ✅ 에뮬레이터 확인·병합 (2026-11-10), B안 원본 그림 교체·서버 12분류 남음 | #164 · `feature/164-grow-g01` | [164-grow-g01.md](docs/agent-tasks/164-grow-g01.md) |
 | Figma 11/10 디자인 변경 감시 (주기 확인·기록·세션 전달) | 🔶 스크립트·테스트 PR #159 병합, 3시간 주기 실행 중, 사용자 `FIGMA_TOKEN` 발급 대기 (2026-11-10) | #157 · `feature/157-figma-watch` | [157-figma-watch.md](docs/agent-tasks/157-figma-watch.md) |
+| 서버: 대체 후보 우회 시간·거리, 재계산 뒤 나들이 후보 | ✅ 완료 (2026-11-10), 앱 반영은 home-finish 몫 | #160 · `feature/160-server-detour` | [160-server-detour.md](docs/agent-tasks/160-server-detour.md) |
 
 - **이어받는 법:** [docs/agent-tasks/next-agent-prompt.md](docs/agent-tasks/next-agent-prompt.md)의 프롬프트를 새 에이전트에 그대로 붙여 넣는다.
