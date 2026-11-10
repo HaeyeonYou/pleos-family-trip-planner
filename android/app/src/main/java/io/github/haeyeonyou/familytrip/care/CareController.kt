@@ -10,6 +10,7 @@ import io.github.haeyeonyou.familytrip.data.LatLng
 import io.github.haeyeonyou.familytrip.data.PresetState
 import io.github.haeyeonyou.familytrip.data.ServerSync
 import io.github.haeyeonyou.familytrip.data.TripApi
+import io.github.haeyeonyou.familytrip.data.VisitStore
 import io.github.haeyeonyou.familytrip.guide.GuideNotifier
 import io.github.haeyeonyou.familytrip.guide.GuideSession
 import io.github.haeyeonyou.familytrip.location.LocationRepository
@@ -26,9 +27,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-/** 급한 케어 찾기의 세 종류. [api]는 서버 kind 값. */
+/** 급한 케어 찾기의 종류. [api]는 서버 kind 값. */
 enum class CareKind(val api: String, val label: String) {
     NURSING("nursing", "수유실"),
+    /** 음성으로만 찾는다 (케어 화면 카드에는 없다: 피그마 HF03 v2는 수유실·정차 공간 두 장) */
     DIAPER("diaper", "기저귀 교환대"),
     REST("rest", "정차 공간"),
 
@@ -38,7 +40,7 @@ enum class CareKind(val api: String, val label: String) {
 
     companion object {
         /** 케어 화면에 카드로 보이는 종류 */
-        val cards: List<CareKind> = listOf(NURSING, DIAPER, REST)
+        val cards: List<CareKind> = listOf(NURSING, REST)
     }
 }
 
@@ -63,6 +65,8 @@ data class CareState(
     val nearby: Map<CareKind, Nearby> = emptyMap(),
     /** 경유지 추가 결과 문구 */
     val waypointMessage: String? = null,
+    /** 자주 가는 케어 장소 (방문 기록에서). 없으면 케어 화면이 그 영역을 그리지 않는다. */
+    val frequent: List<FrequentCarePlace> = emptyList(),
 )
 
 const val BABY_TARGET_TEMPERATURE = 24f
@@ -88,6 +92,7 @@ class CareController(
     private val notifier: GuideNotifier,
     private val feedingStore: FeedingStore,
     private val serverSync: ServerSync,
+    private val visits: VisitStore,
     private val scope: CoroutineScope,
 ) {
     private val prefs = context.getSharedPreferences("care", Context.MODE_PRIVATE)
@@ -108,6 +113,8 @@ class CareController(
         ToneState.sleep = _state.value.sleepMode
         // 수유 루틴은 저장소가 하나뿐이다: 홈·음성·서버에서 받은 변경도 같은 값을 본다.
         scope.launch { feedingStore.routine.collect { f -> _state.update { it.copy(feeding = f) } } }
+        // 방문 기록이 바뀌면(도착·서버에서 받은 변경) 자주 가는 케어 장소를 다시 고른다.
+        scope.launch { visits.revision.collect { refreshFrequent() } }
         // 수면 모드 중 도착 5분 전에 한 번만 조용히 알린다.
         scope.launch {
             navi.state.collect { n ->
@@ -125,10 +132,9 @@ class CareController(
     // 수유 루틴 (hf01-home과 같은 FeedingStore 사용)
 
     /** 방금 수유했다: 차에 저장하고, 로그인했다면 서버에도 기록한다 (못 올리면 쌓아 두었다가 다시 올린다). */
-    fun markFed() {
-        val now = System.currentTimeMillis()
-        feedingStore.save(feedingStore.load().copy(lastFedAt = now))
-        serverSync.onFed(now)
+    fun markFed(at: Long = System.currentTimeMillis()) {
+        feedingStore.save(feedingStore.load().copy(lastFedAt = at))
+        serverSync.onFed(at)
     }
 
     /** 수유 간격을 바꾼다. 로그인했다면 첫째 아이의 수유 간격으로 서버에도 올린다. */
@@ -272,12 +278,20 @@ class CareController(
         return try {
             val res = api.careNearby(kind.api, here.latitude, here.longitude, to?.latitude, to?.longitude, limit)
             _state.update { it.copy(nearby = it.nearby + (kind to Nearby.Found(res.places))) }
+            refreshFrequent()
             res.places
         } catch (e: Exception) {
             Log.w(TAG, "careNearby $kind failed", e)
             _state.update { it.copy(nearby = it.nearby + (kind to Nearby.Failed("서버에서 ${kind.label}을 찾지 못했어요"))) }
             null
         }
+    }
+
+    /** 방문 기록과 지금 위치, 찾아 둔 케어 후보로 '자주 가는 케어 장소'를 다시 고른다. */
+    fun refreshFrequent() {
+        val nearby = _state.value.nearby.values.flatMap { (it as? Nearby.Found)?.places.orEmpty() }
+        val frequent = FrequentCarePlaces.from(visits.all(), currentLocation(), nearby)
+        _state.update { if (it.frequent == frequent) it else it.copy(frequent = frequent) }
     }
 
     /** 찾은 곳을 경유지로 넣는다. 안내 중이 아니면 그곳을 목적지로 길안내를 시작한다. */
