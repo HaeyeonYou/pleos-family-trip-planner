@@ -149,7 +149,7 @@ fun VoicePanel(
             if (state.options.isNotEmpty()) {
                 Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
                     state.options.forEachIndexed { i, place ->
-                        OptionCard(i + 1, place, selected = state.chosen == i + 1, accent = accent, modifier = Modifier.weight(1f)) {
+                        OptionCard(i + 1, place, if (state.optionsAreDestinations) place.note else placeDetail(place), selected = state.chosen == i + 1, accent = accent, modifier = Modifier.weight(1f)) {
                             onSubmit("${i + 1}번으로 가줘")
                         }
                     }
@@ -183,7 +183,7 @@ fun VoicePanel(
 }
 
 @Composable
-private fun OptionCard(number: Int, place: CarePlace, selected: Boolean, accent: Color, modifier: Modifier, onClick: () -> Unit) {
+private fun OptionCard(number: Int, place: CarePlace, detail: String, selected: Boolean, accent: Color, modifier: Modifier, onClick: () -> Unit) {
     val shape = RoundedCornerShape(24.dp)
     Column(
         modifier = modifier
@@ -198,7 +198,7 @@ private fun OptionCard(number: Int, place: CarePlace, selected: Boolean, accent:
             Text("$number", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = TripColors.Panel)
         }
         Text(place.name, fontSize = 26.sp, fontWeight = FontWeight.Bold)
-        Text(placeDetail(place), fontSize = 18.sp, color = if (place.onRoute) accent else MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(detail, fontSize = 18.sp, color = if (place.onRoute) accent else MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

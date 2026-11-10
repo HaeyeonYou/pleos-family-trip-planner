@@ -31,6 +31,24 @@ class VoiceCommandTest {
     // 동작 이름 → 앱 동작 연결
 
     @Test
+    fun growActionsMapToAppSteps() {
+        assertEquals(
+            Step.GrowShow(null, io.github.haeyeonyou.familytrip.grow.GrowPeriod.LAST_MONTH),
+            toStep(VoiceInterpretation(action = "grow_show", period = "last_month", confidence = 0.9)),
+        )
+        assertEquals(Step.GrowShow(io.github.haeyeonyou.familytrip.grow.JellyKind.SCIENCE, null), toStep(interp("grow_show", "science")))
+        assertEquals(Step.GrowShow(null, null), toStep(interp("grow_show")))
+        assertEquals(Step.GrowRevisit, toStep(interp("grow_revisit")))
+        assertEquals(Step.GrowGo("서울숲"), toStep(VoiceInterpretation(action = "grow_go", place = "서울숲", confidence = 0.9)))
+        // 서버 규칙 해석(Haiku 실패 시)도 실행한다
+        assertEquals(Step.GrowRevisit, toStep(interp("grow_revisit", source = "rule")))
+        // 모르는 분류·기간, 장소 없는 grow_go는 되묻는다
+        assertNull(toStep(interp("grow_show", "dragon")))
+        assertNull(toStep(VoiceInterpretation(action = "grow_show", period = "last_year", confidence = 0.9)))
+        assertNull(toStep(interp("grow_go")))
+    }
+
+    @Test
     fun serverActionsMapToAppSteps() {
         assertEquals(Step.Situation(CareSituation.DIAPER), toStep(interp("care_situation", "diaper")))
         assertEquals(Step.Sleep(true), toStep(interp("sleep_mode", on = true)))
