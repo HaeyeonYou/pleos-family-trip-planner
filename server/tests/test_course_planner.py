@@ -301,3 +301,81 @@ def test_infant_detected_from_months():
     assert not TripConditions(child_age_months=[40], child_ages=[2]).has_infant()  # 개월 정보가 우선
     assert TripConditions(child_ages=[2]).has_infant()
     assert not TripConditions().has_infant()
+
+
+# 교체 후보의 우회 시간·거리 (#160)
+
+def _kakao_at(pid, name, category, lat, lng):
+    return KakaoPlace(place_id=pid, name=name, category=category, latitude=lat, longitude=lng, address="서울", distance_m=100.0, url="")
+
+
+def _swap_course(kakao_src, tour_src=None, conditions=None):
+    """식사(37.5, 127.0) → 어린이박물관 순서의 코스를 다시 계산하며 근처 후보를 받는다."""
+    stops = [
+        ScheduleStop(role=StopRole.MEAL, place=Place(name="한식당", latitude=37.5, longitude=127.0, source="kakao", source_id="r1")),
+        ScheduleStop(role=StopRole.OUTING, place=MUSEUM_PLACE),
+    ]
+    planner = CoursePlanner(tour_src or FakeTour(), kakao_src, now=NOW)
+    return planner.reschedule(
+        ScheduleRequest(conditions=conditions or TripConditions(), origin=ORIGIN, stops=stops, suggest_nearby=True)
+    )
+
+
+def test_alternative_at_same_spot_has_no_detour():
+    res = _swap_course(FakeKakao(restaurants=[_kakao_at("r9", "옆집 한식", "음식점 > 한식", 37.5, 127.0)], cafes=[]))
+    alt = res.alternatives[StopRole.MEAL][0]
+    assert alt.distance_m == 0
+    assert alt.detour_minutes == 0
+
+
+def test_far_alternative_adds_detour_and_scales_with_real_route():
+    far = [_kakao_at("r9", "먼 한식당", "음식점 > 한식", 37.46, 126.95)]  # 지금 식당에서 남서쪽 약 6km
+    # 출발→식당 약 7분, 식당→박물관 약 11분이 직선거리 추정과 비슷한 실제 시간이다
+    normal = _swap_course(FakeKakao(restaurants=far, cafes=[], legs_minutes=[7, 11, 10])).alternatives[StopRole.MEAL][0]
+    jammed = _swap_course(FakeKakao(restaurants=far, cafes=[], legs_minutes=[14, 22, 20])).alternatives[StopRole.MEAL][0]
+    assert 5_500 < normal.distance_m < 7_500
+    assert normal.detour_minutes > 0
+    # 지금 구간이 실제로 두 배 걸리면(정체) 우회 시간도 두 배 가깝게 잡는다
+    assert jammed.detour_minutes > normal.detour_minutes * 1.5
+
+
+def test_alternative_closer_to_route_has_negative_detour():
+    # 출발지(강남역)와 박물관 사이에 있는 식당은 지금 식당(서쪽으로 벗어난 곳)보다 덜 돈다
+    on_route = [_kakao_at("r9", "가는 길 한식", "음식점 > 한식", 37.503, 127.033)]
+    alt = _swap_course(FakeKakao(restaurants=on_route, cafes=[], route_fails=True)).alternatives[StopRole.MEAL][0]
+    assert alt.detour_minutes < 0
+
+
+def test_alternative_for_missing_role_has_no_values():
+    # 코스에 카페가 없으면 카페 후보는 비교할 대상이 없어 값을 비운다
+    res = _swap_course(FakeKakao(cafes=[kakao("c2", "새 카페", "음식점 > 카페")]))
+    alt = res.alternatives[StopRole.CAFE][0]
+    assert alt.distance_m is None and alt.detour_minutes is None
+
+
+def test_reschedule_suggests_other_outings_too():
+    tour_src = FakeTour({CONTENT_TYPE_ATTRACTION: [PARK, FARM], CONTENT_TYPE_CULTURE: [MUSEUM]})
+    res = _swap_course(FakeKakao(), tour_src=tour_src)
+    names = [p.name for p in res.alternatives[StopRole.OUTING]]
+    assert set(names) == {"역삼공원", "체험농장"}  # 코스에 있는 어린이박물관은 뺀다
+    assert all(p.distance_m is not None and p.detour_minutes is not None for p in res.alternatives[StopRole.OUTING])
+
+
+def test_reschedule_survives_outing_lookup_failure():
+    class BrokenTour(FakeTour):
+        def nearby(self, *args, **kwargs):
+            raise RuntimeError("TourAPI down")
+
+    res = _swap_course(FakeKakao(), tour_src=BrokenTour())
+    assert res.alternatives[StopRole.OUTING] == []
+    assert [p.name for p in res.alternatives[StopRole.MEAL]] == []  # r1은 코스에 있어 빠진다
+    assert res.stops[-1].role == StopRole.HOME
+
+
+def test_plan_alternatives_carry_detour():
+    res = plan(tour_src=FakeTour({CONTENT_TYPE_ATTRACTION: [PARK, FARM]}))
+    alt = res.alternatives[StopRole.OUTING][0]
+    assert alt.distance_m is not None and alt.detour_minutes is not None
+    # 응답 JSON은 기존 Place 필드를 모두 유지하고 두 필드만 더한다 (앱 호환)
+    dumped = alt.model_dump()
+    assert set(Place.model_fields) <= set(dumped) and {"distance_m", "detour_minutes"} <= set(dumped)
