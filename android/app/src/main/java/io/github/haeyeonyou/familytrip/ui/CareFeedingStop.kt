@@ -192,3 +192,23 @@ fun BoxScope.CareNoticeToast(message: String?, at: Long) {
         Text(message, style = SitterText.Body1, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 16.dp))
     }
 }
+
+/** 오른쪽 슬롯 "잠든 지 N분" (C04 수면 모드, 다크 팔레트에서 그려진다). */
+@Composable
+fun SleepSlot(startedAt: Long?, now: Long, voicePercent: Int, onWake: () -> Unit, modifier: Modifier = Modifier) {
+    val s = SitterSurface.current
+    SitterCard(modifier.fillMaxWidth(), tone = SitterCardTone.Active, contentPadding = PaddingValues(start = 20.dp, top = 22.dp, end = 16.dp, bottom = 16.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            SitterIcon(SitterIcons.Moon, s.primary, size = SitterIconSize.Medium)
+            Text(io.github.haeyeonyou.familytrip.care.sleepingLabel(startedAt, now) ?: "수면 모드 켜짐", style = SitterText.Title2, color = s.ink, modifier = Modifier.padding(start = 12.dp))
+        }
+        Text("낮잠 · 수면 모드 적용 중", style = SitterText.Caption, color = s.primary, modifier = Modifier.padding(start = 36.dp, top = 6.dp))
+        Column(Modifier.padding(top = 26.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+            CheckLine("안내 음성 $voicePercent% · 알림은 소리 없이")
+            CheckLine("앱 화면 어둡게")
+            CheckLine("도착 5분 전 조용히 알림")
+        }
+        Spacer(Modifier.weight(1f))
+        SitterButton("수면 모드 끄기 · “애 깼다”", onClick = onWake, kind = SitterButtonKind.Soft, modifier = Modifier.fillMaxWidth().height(64.dp))
+    }
+}
