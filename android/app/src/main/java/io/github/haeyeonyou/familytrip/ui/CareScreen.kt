@@ -138,7 +138,7 @@ fun CareScreen(
             },
         )
         SitterChipRow {
-            SitterChip(chipLabel, selected = true, onClick = { if (isParked && children.size > 1) choosingChild = true }, icon = SitterIcons.Baby, trailing = if (children.size > 1) SitterIcons.ChevronDown else null)
+            SitterChip(chipLabel, selected = true, onClick = { if (isParked && children.size > 1) choosingChild = true }, icon = SitterIcons.Baby, trailingIcon = if (children.size > 1) SitterIcons.ChevronDown else null)
             CareKindChip(CareKind.NURSING, actions)
             CareKindChip(CareKind.DIAPER, actions)
             CareKindChip(CareKind.REST, actions)

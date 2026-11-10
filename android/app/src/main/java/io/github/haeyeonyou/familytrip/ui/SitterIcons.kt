@@ -98,11 +98,6 @@ object SitterIcons {
         "M9 18L15 12L9 6",
     )
 
-    /** 아래 화살표 (C07 아이 칩 드롭다운, ChevronRight를 돌린 모양) */
-    val ChevronDown = sitterIcon("cd", 24, 2.2f,
-        "M6 9L12 15L18 9",
-    )
-
     /** icon/grip (원본 26, 선 2.2) */
     val Grip = sitterIcon("grip", 26, 2.2f,
         "M4.33325 9.75H21.6666",
@@ -283,5 +278,27 @@ object SitterIcons {
     val Refresh = sitterIcon("refresh", 24, 2.0f,
         "M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8",
         "M21 3v5h-5",
+    )
+    // ── 홈 칩용 (H01 칩 아이콘. Figma SVG 미보관이라 같은 선 아이콘 계열(Lucide, 24·선 2)로 그렸다) ──
+
+    /** 반려견 동반 칩 (발자국, Lucide paw-print) */
+    val Paw = sitterIcon("paw", 24, 2.0f,
+        "M9 4a2 2 0 1 0 4 0a2 2 0 1 0-4 0",
+        "M16 8a2 2 0 1 0 4 0a2 2 0 1 0-4 0",
+        "M18 16a2 2 0 1 0 4 0a2 2 0 1 0-4 0",
+        "M9 10a5 5 0 0 1 5 5v3.5a3.5 3.5 0 0 1-6.84 1.045Q6.52 17.48 4.46 16.84A3.5 3.5 0 0 1 5.5 10Z",
+    )
+
+    /** 아이(생후 개월) 칩 (사람 둘, Lucide users) */
+    val Users = sitterIcon("users", 24, 2.0f,
+        "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2",
+        "M5 7a4 4 0 1 0 8 0a4 4 0 1 0-8 0",
+        "M22 21v-2a4 4 0 0 0-3-3.87",
+        "M16 3.13a4 4 0 0 1 0 7.75",
+    )
+
+    /** 드롭다운 화살표 (반경 칩, Lucide chevron-down) */
+    val ChevronDown = sitterIcon("chevron-down", 24, 2.0f,
+        "M6 9l6 6 6-6",
     )
 }
