@@ -2,6 +2,9 @@ package io.github.haeyeonyou.familytrip.voice
 
 import io.github.haeyeonyou.familytrip.care.CareKind
 import io.github.haeyeonyou.familytrip.data.VoiceInterpretation
+import io.github.haeyeonyou.familytrip.grow.GrowPeriod
+import io.github.haeyeonyou.familytrip.grow.JellyKind
+import io.github.haeyeonyou.familytrip.grow.jellyKindOf
 import io.github.haeyeonyou.familytrip.vehicle.ClimateChange
 import io.github.haeyeonyou.familytrip.vehicle.ClimateReading
 import kotlin.math.roundToInt
@@ -27,6 +30,15 @@ sealed interface Step {
     data object Cancel : Step
     data object KeepGoing : Step
     data class Query(val topic: VoiceTopic) : Step
+
+    /** 그로우: 기간·분류로 거르기. 둘 다 null이면 전체 (#185) */
+    data class GrowShow(val kind: JellyKind?, val period: GrowPeriod?) : Step
+
+    /** 그로우: 다시 가볼 곳 고르기 */
+    data object GrowRevisit : Step
+
+    /** 그로우: 다녀온 곳 [place]로 다시 안내 */
+    data class GrowGo(val place: String) : Step
 
     /** 해석은 됐지만 앱에서 할 수 없는 요청 */
     data object Unsupported : Step
@@ -58,9 +70,9 @@ data class ClimateRequest(
     val steeringWheelHeat: Int? = null,
 )
 
-/** 서버가 해석한 결과를 앱 동작으로 바꾼다. 알 수 없는 값은 null (되묻는다). */
+/** 서버가 해석한 결과를 앱 동작으로 바꾼다. 알 수 없는 값은 null (되묻는다). rule은 Haiku 실패 시 서버 규칙 해석(그로우만). */
 fun toStep(i: VoiceInterpretation): Step? {
-    if (i.source != "llm") return null
+    if (i.source != "llm" && i.source != "rule") return null
     val target = i.target
     return when (i.action) {
         "care_situation" -> when (target) {
@@ -98,6 +110,14 @@ fun toStep(i: VoiceInterpretation): Step? {
         "cancel" -> Step.Cancel
         "keep_going" -> Step.KeepGoing
         "query" -> VoiceTopic.entries.firstOrNull { it.api == target }?.let(Step::Query)
+        "grow_show" -> {
+            val kind = jellyKindOf(target)
+            val period = GrowPeriod.of(i.period)
+            // 알 수 없는 분류·기간 값이 오면 전체로 바꾸지 않고 되묻는다
+            if ((target != null && kind == null) || (i.period != null && period == null)) null else Step.GrowShow(kind, period)
+        }
+        "grow_revisit" -> Step.GrowRevisit
+        "grow_go" -> i.place?.takeIf { it.isNotBlank() }?.let(Step::GrowGo)
         else -> null
     }
 }

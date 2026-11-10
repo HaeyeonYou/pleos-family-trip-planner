@@ -265,6 +265,8 @@ data class VoiceScreen(
     @SerialName("child_months") val childMonths: Int? = null,
     @SerialName("has_options") val hasOptions: Boolean = false,
     @SerialName("has_home_options") val hasHomeOptions: Boolean = false,
+    /** 그로우: 다녀온 곳 이름(최근 순, 최대 30). "○○ 다시 가자"의 장소는 이 안에서만 고른다 (#185). */
+    val places: List<String> = emptyList(),
 )
 
 @Serializable
@@ -283,6 +285,10 @@ data class VoiceInterpretation(
     @SerialName("driver_seat_heat") val driverSeatHeat: Int? = null,
     @SerialName("passenger_seat_heat") val passengerSeatHeat: Int? = null,
     @SerialName("steering_heat") val steeringHeat: Int? = null,
+    /** grow_show: this_month | last_month */
+    val period: String? = null,
+    /** grow_go: 다녀온 곳 이름 */
+    val place: String? = null,
     val confidence: Double = 0.0,
     val reply: String = "",
     val source: String = "llm",

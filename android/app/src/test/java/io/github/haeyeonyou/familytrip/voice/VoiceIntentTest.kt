@@ -35,6 +35,19 @@ class VoiceIntentTest {
     }
 
     @Test
+    fun thisMonthIsNotNumberTwo() {
+        // "이번 달"의 "이번"을 2번 고르기로 읽지 않는다 (#185) → 서버 해석으로 넘어간다
+        listOf("이번 달 어디 갔어?", "이번달 간 곳 보여줘", "이번 주에 간 곳", "이번에 서울숲 다시 가자").forEach {
+            assertEquals(it, Utterance.Unknown, parseUtterance(it))
+        }
+        assertEquals(Utterance.Choose(2), parseUtterance("이번으로 가줘"))
+        assertEquals(Utterance.Choose(2), parseUtterance("두 번째"))
+        assertEquals(Utterance.Choose(1), parseUtterance("1번에 넣어줘"))
+        assertEquals(Utterance.Unknown, parseUtterance("지난달 간 곳 보여줘"))
+        assertEquals(Utterance.Unknown, parseUtterance("다시 가볼 곳 알려줘"))
+    }
+
+    @Test
     fun diaperComesBeforeFeedWhenBothAreSaid() {
         assertEquals(CareSituation.DIAPER, situation("애 쌌고 배고파해"))
     }

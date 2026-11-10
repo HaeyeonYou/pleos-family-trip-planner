@@ -21,6 +21,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -42,6 +44,7 @@ import io.github.haeyeonyou.familytrip.grow.JellyKind
 import io.github.haeyeonyou.familytrip.grow.JellyStage
 import io.github.haeyeonyou.familytrip.grow.JellyState
 import io.github.haeyeonyou.familytrip.grow.Revisit
+import io.github.haeyeonyou.familytrip.grow.GrowVoiceBus
 import io.github.haeyeonyou.familytrip.grow.agoText
 import io.github.haeyeonyou.familytrip.grow.experiences
 import io.github.haeyeonyou.familytrip.grow.jellyStates
@@ -89,23 +92,40 @@ fun ExperienceScreen(
     var showKinds by remember { mutableStateOf(false) }
     val driving = LocalDriveMode.current.isDriving
     val births = remember(states, celebrated) { pendingBirths(states, celebrated) }
+    val thisMonth = remember(today) { java.time.YearMonth.from(today) }
+
+    // 음성 명령(#185): "지난달 간 곳 보여줘" → 거르기, "공룡 별 보여줘" → 분류 팝업, "○○ 다시 가자" → 장소 팝업
+    val voiceView by GrowVoiceBus.view.collectAsState()
+    LaunchedEffect(voiceView) {
+        val v = GrowVoiceBus.consume() ?: return@LaunchedEffect
+        filter = GrowFilter(kind = v.kind, month = v.period?.month(today))
+        selectedKind = v.kind?.takeIf { v.place == null }
+        selectedPlace = v.place
+        showKinds = false
+    }
 
     fun courseWith(placeName: String) = courses.firstOrNull { c -> c.course.stops.any { it.place.name == placeName } }
 
     SitterVoiceBar(
-        hint = "무엇을 볼까요?  “근처 실내 놀거리 찾아줘”",
+        hint = "무엇을 볼까요?  “지난달 간 곳 보여줘”",
         avatarLabel = name?.take(1),
         weather = { weather?.let { SitterWeather(it.temperature?.let { t -> "${Math.round(t)}°" } ?: "--", listOf(it.condition, it.region).filter(String::isNotBlank).joinToString(" · ")) } },
     )
     SitterChipRow {
         SitterChip("전체", filter == GrowFilter.All, onClick = { filter = GrowFilter.All })
-        states.filter { it.count > 0 }.sortedByDescending { it.count }.take(4).forEach { st ->
-            val on = filter == GrowFilter.Kind(st.kind)
-            SitterChip(st.kind.chip, on, onClick = { filter = if (on) GrowFilter.All else GrowFilter.Kind(st.kind) })
+        // 음성으로 고른 분류가 상위 4개 밖이어도 칩으로 보인다
+        val top = states.filter { it.count > 0 }.sortedByDescending { it.count }.take(4).map { it.kind }
+        (top + listOfNotNull(filter.kind?.takeIf { it !in top })).forEach { kind ->
+            val on = filter.kind == kind
+            SitterChip(kind.chip, on, onClick = { filter = filter.copy(kind = if (on) null else kind) })
         }
-        SitterChip("이번 달", filter == GrowFilter.ThisMonth, onClick = {
-            filter = if (filter == GrowFilter.ThisMonth) GrowFilter.All else GrowFilter.ThisMonth
+        SitterChip("이번 달", filter.month == thisMonth, onClick = {
+            filter = filter.copy(month = if (filter.month == thisMonth) null else thisMonth)
         })
+        // 지난달은 음성으로 골랐을 때만 칩이 생긴다 (누르면 해제)
+        filter.month?.takeIf { it != thisMonth }?.let { m ->
+            SitterChip(if (m == thisMonth.minusMonths(1)) "지난달" else "${m.monthValue}월", true, onClick = { filter = filter.copy(month = null) })
+        }
         child?.let { c ->
             Text(
                 listOfNotNull(name, "${c.ageMonths()}개월").joinToString(" · "),
@@ -143,7 +163,7 @@ fun ExperienceScreen(
                                 } else {
                                     selectedKind = hit.kind
                                     selectedPlace = null
-                                    if (st.count > 0) filter = GrowFilter.Kind(hit.kind)
+                                    if (st.count > 0) filter = GrowFilter(kind = hit.kind)
                                 }
                             }
                             null -> {
@@ -181,8 +201,8 @@ fun ExperienceScreen(
                     value = "${month.places}곳",
                     caption = monthDeltaText(month.delta),
                     captionColor = SitterSurface.current.primary,
-                    action = if (filter == GrowFilter.ThisMonth) "전체 보기" else "이번 달 보기",
-                    onAction = { filter = if (filter == GrowFilter.ThisMonth) GrowFilter.All else GrowFilter.ThisMonth },
+                    action = if (filter == GrowFilter(month = thisMonth)) "전체 보기" else "이번 달 보기",
+                    onAction = { filter = if (filter == GrowFilter(month = thisMonth)) GrowFilter.All else GrowFilter(month = thisMonth) },
                     modifier = Modifier.weight(1f),
                 )
                 StatTile(

@@ -27,11 +27,11 @@ import io.github.haeyeonyou.familytrip.grow.JellyKind
 import java.time.LocalDate
 import java.time.YearMonth
 
-/** 우주를 거르는 칩 (G01 "분야 칩으로 거르기"). */
-internal sealed interface GrowFilter {
-    data object All : GrowFilter
-    data class Kind(val kind: JellyKind) : GrowFilter
-    data object ThisMonth : GrowFilter
+/** 우주를 거르는 칩 (G01 "분야 칩으로 거르기"). 분류·달은 함께 걸 수 있다(음성 "지난달 물놀이 간 곳", #185). 둘 다 없으면 전체. */
+internal data class GrowFilter(val kind: JellyKind? = null, val month: YearMonth? = null) {
+    companion object {
+        val All = GrowFilter()
+    }
 }
 
 private val StarGray = Color(0xFFC9D2DC)
@@ -73,17 +73,14 @@ internal fun JellyUniverseCanvas(
     }
 }
 
-private fun kindVisible(filter: GrowFilter, node: KindNode, month: YearMonth, places: List<PlaceDot>): Boolean = when (filter) {
-    GrowFilter.All -> true
-    is GrowFilter.Kind -> node.state.kind == filter.kind
-    GrowFilter.ThisMonth -> places.any { it.place.kind == node.state.kind && month in it.place.months }
-}
+@Suppress("UNUSED_PARAMETER")
+private fun kindVisible(filter: GrowFilter, node: KindNode, month: YearMonth, places: List<PlaceDot>): Boolean =
+    (filter.kind == null || node.state.kind == filter.kind) &&
+        (filter.month == null || places.any { it.place.kind == node.state.kind && filter.month in it.place.months })
 
-private fun placeVisible(filter: GrowFilter, p: GrowPlace, month: YearMonth): Boolean = when (filter) {
-    GrowFilter.All -> true
-    is GrowFilter.Kind -> p.kind == filter.kind
-    GrowFilter.ThisMonth -> month in p.months
-}
+@Suppress("UNUSED_PARAMETER")
+private fun placeVisible(filter: GrowFilter, p: GrowPlace, month: YearMonth): Boolean =
+    (filter.kind == null || p.kind == filter.kind) && (filter.month == null || filter.month in p.months)
 
 private fun DrawScope.drawUniverse(
     g: JellyGeometry,

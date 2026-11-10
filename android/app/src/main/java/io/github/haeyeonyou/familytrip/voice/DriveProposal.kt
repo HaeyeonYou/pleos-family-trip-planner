@@ -2,6 +2,7 @@ package io.github.haeyeonyou.familytrip.voice
 
 import io.github.haeyeonyou.familytrip.care.CareKind
 import io.github.haeyeonyou.familytrip.data.CarePlace
+import io.github.haeyeonyou.familytrip.grow.JellyKind
 
 /**
  * 주행 중 음성 1곳 제안 (11/10 디자인 D01). 목록 대신 최우선 1곳만 말하고 "좋아 · 추가"/"아니요"로 답받는다.
@@ -19,11 +20,16 @@ const val PROPOSAL_CANDIDATES = 3
 
 enum class ProposalAnswer { ACCEPTED, DECLINED }
 
-/** 지금 제안 중인 1곳. [answer]가 null이면 아직 답을 기다리는 중이다. */
+/**
+ * 지금 제안 중인 1곳. [answer]가 null이면 아직 답을 기다리는 중이다.
+ * 케어 장소는 [kind]가 있고 경유지로 넣는다. 그로우 "다시 가볼 곳"(#185)은 [kind] 없이 [jelly]가 있고 [destination]이라 목적지로 안내한다.
+ */
 data class DriveProposal(
-    val kind: CareKind,
+    val kind: CareKind?,
     val place: CarePlace,
     val answer: ProposalAnswer? = null,
+    val jelly: JellyKind? = null,
+    val destination: Boolean = false,
 ) {
     val waiting: Boolean get() = answer == null
 }
