@@ -13,7 +13,7 @@ from typing import Protocol
 from zoneinfo import ZoneInfo
 
 from app import interests
-from app.course import classify, parking_rank, ranking
+from app.course import classify, jelly, parking_rank, ranking
 from app.schemas import (
     Alternative,
     Amenity,
@@ -281,6 +281,8 @@ class CoursePlanner:
             if visits:
                 c.score += ranking.visit_adjustment(c.key, c.theme, visits, today or self._today())
             c.place.theme = c.theme  # 방문 기록에서 경험 분야로 쓴다
+            if not c.festival:  # 행사는 만들 때 분류 코드(EV…)로 정했고, category가 "행사·축제"로 바뀌어 다시 정하지 않는다
+                c.place.jelly = jelly.judge(c.place.name, c.place.category, c.theme)
         candidates.sort(key=lambda c: c.score, reverse=True)
 
         # 상위 후보만 육아 편의 정보를 붙이고, 필요 조건이 있으면 그 결과로 다시 정렬한다.
@@ -663,7 +665,7 @@ def _tour_place(p: TourPlace) -> Place:
         latitude=p.latitude,
         longitude=p.longitude,
         address=p.address,
-        category=p.cat3,
+        category=p.cat3 or p.lcls3,  # 행사는 cat3가 비고 새 분류체계(EV…)만 온다
         source="tour",
         source_id=p.content_id,
         image_url=p.image_url,

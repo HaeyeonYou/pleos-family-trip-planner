@@ -67,6 +67,23 @@ class JellyModelTest {
     }
 
     @Test
+    fun 서버가_정한_분류를_먼저_쓰고_없거나_모르는_값이면_이름_규칙() {
+        // 이름 규칙으로는 '몰' → 서버 분야 play → 몸놀이지만, 서버는 복합쇼핑몰 분류로 여행이라고 정했다 (#186)
+        val mall = visit("○○몰", "2026-11-01", theme = "play").copy(jelly = "travel")
+        assertEquals(JellyKind.TRAVEL, classify(mall))
+        assertEquals(JellyKind.MOVE, classify(mall.copy(jelly = null)))
+        assertEquals(JellyKind.MOVE, classify(mall.copy(jelly = "unknown_kind")))
+        assertEquals(JellyKind.ART, classify(visit("어딘가", "2026-11-01").copy(jelly = "ART")))
+        // 서버 12분류 이름과 앱 분류 이름이 하나도 빠짐없이 맞는다 (app/schemas.py Jelly)
+        val server = listOf("art", "science", "nature", "animal", "water", "move", "music", "book", "food", "friend", "make", "travel")
+        assertEquals(JellyKind.entries.toList(), server.map { JellyKind.fromServer(it) })
+        // 경험 집계도 서버 값으로 묶인다
+        val states = jellyStates(experiences(listOf(mall, mall.copy(id = 99)), now), today)
+        assertEquals(2, states.first { it.kind == JellyKind.TRAVEL }.count)
+        assertEquals(0, states.first { it.kind == JellyKind.MOVE }.count)
+    }
+
+    @Test
     fun 성장_단계는_누적_경험_수로_방울_몽글_탄생() {
         assertEquals(JellyStage.NONE, JellyStage.of(0))
         assertEquals(JellyStage.DROP, JellyStage.of(1))

@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import service
 from app.auth.deps import current_user, get_db
-from app.models import Child, ClimatePreset, FeedingLog, OutingMember, User, VisitRecord
+from app.models import CarePlace, Child, ClimatePreset, FeedingLog, OutingMember, User, VisitRecord
 
 router = APIRouter(prefix="/me", tags=["sync"])
 
@@ -40,14 +40,16 @@ async def revisions(db: AsyncSession, user: User) -> SyncRevisions:
     presets = (await db.execute(select(ClimatePreset.slot, ClimatePreset.id, ClimatePreset.sent_at, ClimatePreset.applied_at).where(ClimatePreset.user_id == user.id).order_by(ClimatePreset.slot))).all()
     feedings = (await db.execute(select(FeedingLog.id, FeedingLog.fed_at).where(FeedingLog.user_id == user.id).order_by(FeedingLog.fed_at.desc()).limit(50))).all()
     visits = (await db.execute(select(VisitRecord.id, VisitRecord.status, VisitRecord.mood).where(VisitRecord.user_id == user.id).order_by(VisitRecord.id))).all()
-    children = (await db.execute(select(Child.id, Child.nickname, Child.birth_month, Child.feeding_type, Child.feed_interval_minutes, Child.nap_count).where(Child.user_id == user.id).order_by(Child.id))).all()
+    # 자주 가는 케어 장소는 방문 기록에서 나오므로 visits 영역에 함께 넣는다
+    care_places = (await db.execute(select(CarePlace.place_name, CarePlace.amenities, CarePlace.visit_count, CarePlace.last_visited_on).where(CarePlace.user_id == user.id).order_by(CarePlace.place_name))).all()
+    children = (await db.execute(select(Child.id, Child.nickname, Child.birth_month, Child.birth_date, Child.rear_facing_seat, Child.feeding_type, Child.feed_interval_minutes, Child.nap_count).where(Child.user_id == user.id).order_by(Child.id))).all()
     members = (await db.execute(select(OutingMember.id, OutingMember.label, OutingMember.is_driver, OutingMember.is_default).where(OutingMember.user_id == user.id).order_by(OutingMember.id))).all()
     cars = [row.id for row in await service.car_sessions(db, user)]
 
     parts = {
         "presets": _digest([list(r) for r in presets]),
         "feedings": _digest([list(r) for r in feedings]),
-        "visits": _digest([list(r) for r in visits]),
+        "visits": _digest([list(r) for r in visits] + [list(r) for r in care_places]),
         "family": _digest([list(r) for r in children] + [list(r) for r in members]),
         "cars": _digest(sorted(str(c) for c in cars)),
     }

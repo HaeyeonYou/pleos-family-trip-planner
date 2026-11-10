@@ -19,7 +19,7 @@ from app.course import classify
 from app.course.planner import KST, CoursePlanner
 from app.main import app, get_planner
 from app.parsing.claude import ClaudeParser
-from app.schemas import LatLng, Theme, TripConditions
+from app.schemas import Jelly, LatLng, Theme, TripConditions
 from app.sources.kakao import CATEGORY_CAFE, CATEGORY_RESTAURANT, KakaoClient
 from app.sources.tour import CONTENT_TYPE_ATTRACTION, PET, TourApiClient
 from tests.api_cache import caching_transport
@@ -126,6 +126,13 @@ def test_course_with_real_data(client, conditions, origin):
     course = res.json()
     roles = [s["role"] for s in course["stops"]]
     assert "outing" in roles and roles[-1] == "home"
+    # 그로우 젤리 12분류 (#186): 귀가를 뺀 모든 장소와 교체 후보에 실린다. 음식점 분류인 식사·카페는 맛 탐험
+    jellies = {j.value for j in Jelly}
+    assert all(s["place"]["jelly"] in jellies for s in course["stops"][:-1]) and course["stops"][-1]["place"]["jelly"] is None
+    eateries = [(s["place"]["name"], s["place"]["category"], s["place"]["jelly"]) for s in course["stops"] if s["role"] in ("meal", "cafe")]
+    # 카페 자리에 키즈카페(가정,생활 > 유아 > 놀이시설)가 오면 몸놀이다
+    assert all(j == "food" for _, c, j in eateries if c.startswith("음식점")), eateries
+    assert all(a["jelly"] in jellies for alts in course["alternatives"].values() for a in alts)
     assert course["route_source"] == "kakao", "카카오 길찾기 실패로 추정값 사용"
     # 지도에 그릴 실제 도로 좌표가 온다 (장소 수보다 훨씬 많은 점)
     assert len(course["path"]) > len(course["stops"]) * 3
@@ -232,4 +239,7 @@ def test_course_includes_festival_candidates(tour, kakao):
     outings = planner._rank_outings(LatLng(latitude=GANGNAM[0], longitude=GANGNAM[1]), TripConditions(), [], FIXED_NOW.date())
     festivals = [c for c in outings if c.festival]
     assert festivals and all(c.place.event_period for c in festivals)
+    # 관광공사 행사는 category가 "행사·축제"로 바뀌어도 분류 코드(EV…)로 정한 젤리 분류가 남는다 (#186)
+    tour_events = [c.place for c in festivals if c.place.source == "tour"]
+    assert tour_events and all(p.category == "행사·축제" and p.jelly is not None for p in tour_events)
     assert festivals[0].score > min(c.score for c in outings if not c.festival)  # 축제 가점

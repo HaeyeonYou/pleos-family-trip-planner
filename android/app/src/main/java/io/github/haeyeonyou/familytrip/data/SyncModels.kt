@@ -21,6 +21,8 @@ data class VisitIn(
     /** confirmed | pending | dismissed */
     val status: String,
     val mood: String?,
+    /** 장소 분류 원문 (코스 장소의 category). 서버가 젤리 12분류를 정하는 근거 (#186) */
+    val category: String,
 )
 
 @Serializable
@@ -33,6 +35,7 @@ data class VisitBulkItem(
     @SerialName("stayed_minutes") val stayedMinutes: Int?,
     val status: String,
     val mood: String?,
+    val category: String,
 )
 
 @Serializable
@@ -48,6 +51,9 @@ data class VisitOut(
     @SerialName("stayed_minutes") val stayedMinutes: Int? = null,
     val status: String = "confirmed",
     val mood: String? = null,
+    val category: String = "",
+    /** 서버가 정한 젤리 12분류 (art, science, … travel = [io.github.haeyeonyou.familytrip.grow.JellyKind] 이름). 예전 서버면 없음 (#186) */
+    val jelly: String? = null,
 )
 
 @Serializable

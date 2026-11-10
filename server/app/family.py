@@ -9,7 +9,7 @@ from datetime import date, datetime, timedelta, timezone
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -53,14 +53,27 @@ def today_kst() -> date:
     return datetime.now(KST).date()
 
 
-def age_months(birth_month: date, today: date | None = None) -> int:
+def age_months(birth_month: date, today: date | None = None, birth_date: date | None = None) -> int:
+    """개월 수. 생년월일(일까지)을 알면 생일 전날까지는 한 달 덜 센다 (2025-09-03생은 2026-11-02에 13개월, 11-03에 14개월)."""
     today = today or today_kst()
-    return max(0, (today.year - birth_month.year) * 12 + today.month - birth_month.month)
+    born = birth_date or birth_month
+    months = (today.year - born.year) * 12 + today.month - born.month
+    if birth_date is not None and today.day < birth_date.day:
+        months -= 1
+    return max(0, months)
+
+
+def _check_born(born: date, unit: str) -> None:
+    today = today_kst()
+    limit = today if unit == "date" else today.replace(day=1)
+    if born > limit or born.year < today.year - 18:
+        raise ValueError("생년월일을 다시 확인해 주세요" if unit == "date" else "태어난 달을 다시 확인해 주세요")
 
 
 class ChildIn(BaseModel):
     nickname: str = Field(..., min_length=1, max_length=30, description="애칭")
-    birth_month: str = Field(..., pattern=r"^\d{4}-(0[1-9]|1[0-2])$", description="태어난 달 YYYY-MM")
+    birth_month: str | None = Field(None, pattern=r"^\d{4}-(0[1-9]|1[0-2])$", description="태어난 달 YYYY-MM. birth_date를 보내면 그 달로 맞춘다 (예전 클라이언트 호환)")
+    birth_date: date | None = Field(None, description="생년월일 YYYY-MM-DD (일까지). 미래 날짜는 받지 않는다 (출산 예정일 모드 없음)")
     feeding_type: FeedingType | None = None
     feed_interval_minutes: int | None = Field(None, ge=60, le=360, description="수유 간격(분)")
     nap_count: int | None = Field(None, ge=0, le=4, description="하루 낮잠 횟수")
@@ -71,6 +84,7 @@ class ChildIn(BaseModel):
     motion_sickness: bool | None = Field(None, description="멀미 있음 → 코스 이동 시간을 짧게")
     noise_sensitivity: NoiseSensitivity | None = Field(None, description="소리 예민 → 낮잠 권장 음량")
     stroller_use: bool | None = Field(None, description="유모차 사용 → 코스 조건의 유모차 길")
+    rear_facing_seat: bool | None = Field(None, description="카시트 뒤보기 (차 온보딩 O04 '함께 챙길 것')")
 
     @field_validator("nickname")
     @classmethod
@@ -90,13 +104,16 @@ class ChildIn(BaseModel):
     def _unique(cls, v: list) -> list:
         return list(dict.fromkeys(v))
 
-    @field_validator("birth_month")
-    @classmethod
-    def _plausible(cls, v: str) -> str:
-        born = date(int(v[:4]), int(v[5:]), 1)
-        if born > today_kst().replace(day=1) or born.year < today_kst().year - 18:
-            raise ValueError("태어난 달을 다시 확인해 주세요")
-        return v
+    @model_validator(mode="after")
+    def _born(self) -> "ChildIn":
+        if self.birth_date is not None:
+            _check_born(self.birth_date, "date")
+            self.birth_month = self.birth_date.strftime("%Y-%m")  # 일까지 알면 달은 거기서 계산한다
+        elif self.birth_month is not None:
+            _check_born(date(int(self.birth_month[:4]), int(self.birth_month[5:]), 1), "month")
+        else:
+            raise ValueError("생년월일을 입력해 주세요")
+        return self
 
 
 class ChildOut(ChildIn):
@@ -124,6 +141,7 @@ def child_out(c: Child) -> ChildOut:
         id=c.id,
         nickname=c.nickname,
         birth_month=c.birth_month.strftime("%Y-%m"),
+        birth_date=c.birth_date,
         feeding_type=c.feeding_type,
         feed_interval_minutes=c.feed_interval_minutes,
         nap_count=c.nap_count,
@@ -134,7 +152,8 @@ def child_out(c: Child) -> ChildOut:
         motion_sickness=c.motion_sickness,
         noise_sensitivity=c.noise_sensitivity,
         stroller_use=c.stroller_use,
-        age_months=age_months(c.birth_month),
+        rear_facing_seat=c.rear_facing_seat,
+        age_months=age_months(c.birth_month, birth_date=c.birth_date),
     )
 
 
@@ -173,6 +192,9 @@ async def save_child(db: AsyncSession, user: User, child_id: uuid.UUID, body: Ch
         db.add(row)
     row.nickname = body.nickname
     row.birth_month = date(int(body.birth_month[:4]), int(body.birth_month[5:]), 1)
+    if body.birth_date is not None or row.birth_date is None or row.birth_date.replace(day=1) != row.birth_month:
+        # 달만 보낸 예전 클라이언트가 같은 달을 다시 보내면 이미 아는 일은 지우지 않는다
+        row.birth_date = body.birth_date
     row.feeding_type = body.feeding_type
     row.feed_interval_minutes = body.feed_interval_minutes
     row.nap_count = body.nap_count
@@ -183,6 +205,7 @@ async def save_child(db: AsyncSession, user: User, child_id: uuid.UUID, body: Ch
     row.motion_sickness = body.motion_sickness
     row.noise_sensitivity = body.noise_sensitivity
     row.stroller_use = body.stroller_use
+    row.rear_facing_seat = body.rear_facing_seat
     await db.commit()
     return row
 

@@ -16,9 +16,10 @@ from app import family, visits
 from app.auth.deps import get_db, optional_web_user
 from app.auth.web import _login_redirect, templates
 from app.config import get_settings
+from app.course import jelly as jelly_rules
 from app.course.planner import NoCourseError
 from app.models import User, VisitRecord
-from app.schemas import CourseRequest, LatLng, Theme, TripConditions
+from app.schemas import CourseRequest, Jelly, LatLng, Theme, TripConditions
 
 log = logging.getLogger("web")
 router = APIRouter(prefix="/m", include_in_schema=False)
@@ -66,7 +67,13 @@ def _pending_view(r: VisitRecord, today: date) -> dict:
     return {"id": r.id, "name": r.place_name, "date": r.visited_on.strftime("%m/%d"), "since": _since((today - r.visited_on).days, today)}
 
 
-# G01 경험맵
+# G01 경험 우주 (젤리 B안 12분류, #186)
+
+
+def _course_link(kind: Jelly) -> str:
+    """이 분류로 코스 받기: 5분야로 옮길 수 있으면 그 분야, 아니면 조건 없이."""
+    theme = jelly_rules.TO_THEME.get(kind)
+    return f"/m/course?theme={theme.value}" if theme else "/m/course"
 
 
 @router.get("/grow", response_class=HTMLResponse)
@@ -77,44 +84,63 @@ async def grow_page(request: Request, notice: str = "", user: User | None = Depe
     rows = await _all_visits(db, user)
     emap = visits.build_map(rows, today)
     children = await family.list_children(db, user)
-    themes = [
+    stars = [
         {
-            "key": t.theme.value,
-            "label": t.label,
-            "visits": t.visits,
-            "places": _place_views(t.places, today)[:4],
-            "more": max(0, len(t.places) - 4),
+            "key": j.jelly.value,
+            "label": j.label,
+            "stage_name": j.stage_name,
+            "experiences": j.experiences,
+            "places": _place_views(j.places, today)[:4],
+            "more": max(0, len(j.places) - 4),
         }
-        for t in emap.themes
+        for j in emap.jellies
+    ]
+    empty = [
+        {"key": k.value, "label": jelly_rules.LABELS[k][0], "character": jelly_rules.LABELS[k][1], "href": _course_link(k)}
+        for k in emap.empty_jellies
     ]
     context = {
         "title": "그로우",
         "tab": "grow",
         "notice": "방문을 기록했어요." if notice == "saved" else ("기록하지 않았어요." if notice == "dismissed" else ""),
-        "who": f"{children[0].nickname}의 경험맵" if children else "우리 가족의 경험맵",
+        "who": f"{children[0].nickname}의 경험 우주" if children else "우리 가족의 경험 우주",
         "map": emap,
-        "themes": themes,
-        "empty": [{"key": t.value, "label": visits.THEME_LABELS[t.value]} for t in emap.empty_themes if t != Theme.PET],
+        "stars": stars,
+        "experience_count": sum(j.experiences for j in emap.jellies),
+        "empty": empty,
         "pending": [_pending_view(r, today) for r in _pending(rows)],
-        "new_labels": [visits.THEME_LABELS[t.value] for t in emap.new_themes_this_month],
+        "new_labels": [j.label for j in emap.jellies if (j.first_on.year, j.first_on.month) == (today.year, today.month)],
         "has_visits": emap.visit_count > 0,
     }
     return templates.TemplateResponse(request, "grow.html", context)
 
 
-# G02 분야·장소
+# G02 분류·장소
 
 
-@router.get("/grow/theme/{theme}", response_class=HTMLResponse)
-async def grow_theme(request: Request, theme: str, user: User | None = Depends(optional_web_user), db: AsyncSession = Depends(get_db)):
+@router.get("/grow/jelly/{kind}", response_class=HTMLResponse)
+async def grow_jelly(request: Request, kind: str, user: User | None = Depends(optional_web_user), db: AsyncSession = Depends(get_db)):
     if user is None:
-        return _login_redirect(f"/m/grow/theme/{theme}")
+        return _login_redirect(f"/m/grow/jelly/{kind}")
     emap = visits.build_map(await _all_visits(db, user), family.today_kst())
-    found = next((t for t in emap.themes if t.theme.value == theme), None)
+    found = next((j for j in emap.jellies if j.jelly.value == kind), None)
     if found is None:
         return RedirectResponse("/m/grow", status_code=303)
-    context = {"title": found.label, "theme": theme, "label": found.label, "visits": found.visits, "places": _place_views(found.places, family.today_kst())}
+    context = {
+        "title": found.label,
+        "label": found.label,
+        "stage_name": found.stage_name,
+        "experiences": found.experiences,
+        "places": _place_views(found.places, family.today_kst()),
+        "course_href": _course_link(found.jelly),
+    }
     return templates.TemplateResponse(request, "grow_theme.html", context)
+
+
+@router.get("/grow/theme/{theme}")
+async def grow_theme(theme: str) -> RedirectResponse:
+    """예전 5분야 주소. 경험 우주로 보낸다."""
+    return RedirectResponse("/m/grow", status_code=303)
 
 
 # G03 방문 확인
