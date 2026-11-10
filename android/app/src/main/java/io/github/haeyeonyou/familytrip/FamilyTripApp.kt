@@ -44,6 +44,8 @@ class AppContainer(private val app: Application) {
     val visits = VisitStore(app)
     val feeding = FeedingStore(app)
     val settings = SettingsStore(app)
+    /** 그로우 캐릭터 탄생을 축하했는지 (#164) */
+    val births = io.github.haeyeonyou.familytrip.grow.BirthStore(app)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val notifier = GuideNotifier(app)
     val guide = GuideSession(app, navi, location, notifier, visits, scope)
