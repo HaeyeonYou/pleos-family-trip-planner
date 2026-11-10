@@ -27,11 +27,34 @@ class HomeFiltersTest {
     }
 
     @Test
-    fun `반경은 5 10 20으로 순환하고 이동 분으로 바뀐다`() {
-        assertEquals(10, nextRadiusKm(5))
-        assertEquals(20, nextRadiusKm(10))
-        assertEquals(5, nextRadiusKm(20))
+    fun `반경 단계는 5 10 20이고 이동 분으로 바뀐다`() {
+        assertEquals(listOf(5, 10, 20), HOME_RADIUS_STEPS_KM)
         assertEquals(40, driveMinutesForRadius(20))
+    }
+
+    @Test
+    fun `코스 카드 제목은 장소를 앞에 두고 '코스'를 뗀다`() {
+        assertEquals("능골공원 자연 산책", homeCourseTitle("자연 산책 코스 · 능골공원"))
+        assertEquals("판교박물관 박물관·전시", homeCourseTitle("박물관·전시 코스 · 판교박물관"))
+        assertEquals("아차산 숲길 반나절", homeCourseTitle("아차산 숲길 반나절"))
+        assertEquals("능골공원", homeCourseTitle("코스 · 능골공원"))
+    }
+
+    @Test
+    fun `코스 카드 편의 태그는 경유지 전체에서 모은다`() {
+        fun p(id: String, vararg a: Pair<String, String>) =
+            io.github.haeyeonyou.familytrip.data.CoursePlace(name = id, latitude = 0.0, longitude = 0.0, source = "kakao", sourceId = id, amenities = a.toMap())
+        fun s(role: String, place: io.github.haeyeonyou.familytrip.data.CoursePlace) =
+            io.github.haeyeonyou.familytrip.data.CourseStop(role = role, place = place, arriveAt = "10:00", stayMinutes = 30, driveMinutes = 5, driveDistanceMeters = 1000)
+        val course = CourseResponse(
+            stops = listOf(
+                s("meal", p("a", "nursing_room" to "available", "stroller" to "unknown")),
+                s("outing", p("b", "pet" to "available")),
+                s("home", p("h", "stroller" to "available")),
+            ),
+            totalDriveMinutes = 10, returnAt = "", routeSource = "",
+        )
+        assertEquals(listOf("수유실" to true, "유모차 확인" to false, "반려동물" to true), homeCourseTags(course))
     }
 
     @Test

@@ -254,7 +254,7 @@ fun SitterTag(label: String, modifier: Modifier = Modifier, available: Boolean? 
 
 /**
  * 칩 (필터·아이 선택·빠른 길 안내 줄, 높이 53, 알약). 선택되면 Soft 바탕 + Primary 테두리·글자.
- * [icon]은 글자 앞 아이콘 (선택 시 체크 등).
+ * [icon]은 글자 앞 아이콘 (선택 시 체크 등), [trailingIcon]은 글자 뒤 아이콘 (드롭다운 화살표 등).
  */
 @Composable
 fun SitterChip(
@@ -263,6 +263,7 @@ fun SitterChip(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     icon: ImageVector? = null,
+    trailingIcon: ImageVector? = null,
 ) {
     val s = SitterSurface.current
     val color = if (selected) s.primary else s.ink
@@ -279,6 +280,7 @@ fun SitterChip(
     ) {
         icon?.let { SitterIcon(it, color, size = SitterIconSize.Medium) }
         Text(label, style = SitterText.Body1, color = color, maxLines = 1)
+        trailingIcon?.let { SitterIcon(it, color, size = SitterIconSize.Small) }
     }
 }
 

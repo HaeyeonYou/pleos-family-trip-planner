@@ -50,6 +50,10 @@ import java.time.ZoneId
  * 앱 프레임 1256x886: 위에 뒤로·제목·날씨, 요약 태그 5종, 아래 왼쪽 1·2열(800)은 코스 타임라인, 3열(392)은
  * H02면 지도·도착·대안 안내·버튼 3개, ↻ 교체를 누르면(H02-1) 그 자리에 대체 후보 3곳과 취소·이걸로 바꾸기.
  * 바로가기 독은 없다(셸 규칙: 코스 상세 제외). 계산은 CourseDetailLogic.kt.
+ *
+ * 경유지 편집 (11/10 디자인에 따로 화면이 없어 사용자 결정 2026-11-10): `경유지 편집`을 누르면 H02-1로 바뀌어
+ * 첫 경유지의 대체 후보가 열리고, 타임라인에서 장소를 누르면 그 장소의 대체 후보로 바뀐다. ✕ 삭제·≡ 순서 변경은 행 안에서.
+ * 옛 편집 화면에 있던 머무름 ±30분과 장소 상세는 H02-1 패널 머리에, 장소 추가는 편집 중 타임라인 끝의 `+ 장소 추가` 줄에 둔다.
  */
 @Composable
 fun CourseOverview(
@@ -60,7 +64,6 @@ fun CourseOverview(
     feeding: FeedingRoutine,
     edit: CourseEditActions,
     onStartGuide: () -> Unit,
-    onEdit: () -> Unit,
     onSave: () -> Unit,
     onBack: () -> Unit,
     weather: WeatherInfo? = null,
@@ -72,10 +75,13 @@ fun CourseOverview(
     val now = rememberNow()
     val nextFeeding = feeding.nextAt?.let { Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalTime() }
     val point = feedingPoint(course, nextFeeding)
-    // H02-1: 교체 중인 경유지 번호와 고른 후보
-    var swapping by remember(course) { mutableStateOf<Int?>(null) }
-    var reordering by remember(course) { mutableStateOf<Int?>(null) }
     val visits = course.stops.count { it.role != "home" }
+    // 오른쪽 패널: null이면 H02 상세, 아니면 H02-1(대체 후보) 또는 장소 추가. 머무름을 바꿔 코스가 새로 와도 패널은 그대로 둔다.
+    var panelState by remember { mutableStateOf<CoursePanel?>(null) }
+    val panel = panelState?.takeIf { it !is CoursePanel.Replace || it.stopIndex < visits }
+    val swapping = (panel as? CoursePanel.Replace)?.stopIndex
+    var reordering by remember(course) { mutableStateOf<Int?>(null) }
+    val outingIndex = course.stops.indexOfFirst { it.role == "outing" }.takeIf { it >= 0 } ?: 0
 
     // 독 자리를 이 화면이 맡는다고 알려(셸의 옛 독 줄을 끄고) 아무것도 두지 않는다: H02·H02-1은 독 대신 뒤로 버튼
     SitterCanvas(ownsDock = true) {
@@ -119,11 +125,21 @@ fun CourseOverview(
                             title = if (home) "귀가" else stop.place.name,
                             hollow = home,
                             selected = swapping == index,
-                            onSwap = if (!home && !course.alternatives[stop.role].isNullOrEmpty()) ({ swapping = index; reordering = null }) else null,
-                            onRemove = if (!home && visits > 1 && !loading) ({ edit.remove(index) }) else null,
+                            // 장소를 누르면 그 장소의 대체 후보(H02-1). ↻도 같다.
+                            onClick = if (!home) ({ panelState = CoursePanel.Replace(index); reordering = null }) else null,
+                            onSwap = if (!home && !course.alternatives[stop.role].isNullOrEmpty()) ({ panelState = CoursePanel.Replace(index); reordering = null }) else null,
+                            onRemove = if (!home && visits > 1 && !loading) ({
+                                if (panel != null) panelState = CoursePanel.Replace(0)
+                                edit.remove(index)
+                            }) else null,
                             onReorder = if (!home && visits > 1 && !loading) ({ reordering = if (reordering == index) null else index }) else null,
                             reorderOpen = reordering == index,
-                            onMove = { delta -> reordering = null; edit.move(index, delta) },
+                            onMove = { delta ->
+                                reordering = null
+                                // 고르고 있던 장소가 옮겨지면 패널도 따라간다
+                                if (swapping == index) panelState = CoursePanel.Replace(index + delta)
+                                edit.move(index, delta)
+                            },
                             canMoveUp = index > 0,
                             canMoveDown = index < visits - 1,
                         ) {
@@ -140,17 +156,33 @@ fun CourseOverview(
                             }
                         }
                     }
+                    // 편집 중에만: 장소 추가 (옛 편집 화면의 '장소 추가'. 코스 끝(귀가 전)에 들어간다)
+                    if (panel != null && addCandidates(course).isNotEmpty()) {
+                        AddRow(selected = panel == CoursePanel.Add, enabled = !loading) { panelState = CoursePanel.Add; reordering = null }
+                    }
                 }
             }
             Column(Modifier.width(SitterGrid.COLUMN_W.dp).fillMaxHeight()) {
-                val target = swapping
-                if (target != null) {
-                    ReplacePanel(course, target, origin, loading, onCancel = { swapping = null }, onPick = { place ->
-                        swapping = null
-                        edit.swap(target, place)
-                    })
-                } else {
-                    DetailPanel(course, outing, feeding, now, loading, error, message, onStartGuide, onEdit, onSave)
+                when (panel) {
+                    is CoursePanel.Replace -> {
+                        val target = panel.stopIndex
+                        ReplacePanel(
+                            course, target, origin, loading, error, message,
+                            onStay = { delta -> edit.changeStay(target, delta) },
+                            onCancel = { panelState = null },
+                            onPick = { place ->
+                                panelState = null
+                                edit.swap(target, place)
+                            },
+                        )
+                    }
+                    CoursePanel.Add -> AddPanel(course, loading, error, message, onAdd = edit.add, onClose = { panelState = null })
+                    null -> DetailPanel(
+                        course, outing, feeding, now, loading, error, message, onStartGuide,
+                        onEdit = { panelState = CoursePanel.Replace(0) },
+                        onAlternative = { panelState = CoursePanel.Replace(outingIndex) },
+                        onSave = onSave,
+                    )
                 }
             }
         }
@@ -192,6 +224,7 @@ private fun TimelineRow(
     hollow: Boolean,
     highlight: Boolean = false,
     selected: Boolean = false,
+    onClick: (() -> Unit)? = null,
     onSwap: (() -> Unit)? = null,
     onRemove: (() -> Unit)? = null,
     onReorder: (() -> Unit)? = null,
@@ -209,6 +242,7 @@ private fun TimelineRow(
             .clip(SitterShapes.Row)
             .background(if (highlight || selected) s.primarySoft else Color.Transparent)
             .then(if (selected) Modifier.border(2.dp, s.primary, SitterShapes.Row) else Modifier)
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(horizontal = 12.dp, vertical = 12.dp),
     ) {
         Text(time, style = SitterText.Body1, color = if (highlight) s.primary else s.inkSoft, modifier = Modifier.width(64.dp))
@@ -286,6 +320,7 @@ private fun ColumnScope.DetailPanel(
     message: String?,
     onStartGuide: () -> Unit,
     onEdit: () -> Unit,
+    onAlternative: () -> Unit,
     onSave: () -> Unit,
 ) {
     val s = SitterSurface.current
@@ -311,9 +346,9 @@ private fun ColumnScope.DetailPanel(
         }
     }
     Spacer(Modifier.height(12.dp))
-    // 대안 안내 (경유지 편집 화면으로)
+    // 대안 안내: 나들이 장소의 대체 후보(H02-1)를 바로 연다
     Row(
-        Modifier.fillMaxWidth().clip(SitterShapes.Card).background(s.card).clickable(onClick = onEdit).padding(horizontal = 20.dp, vertical = 18.dp),
+        Modifier.fillMaxWidth().clip(SitterShapes.Card).background(s.card).clickable(onClick = onAlternative).padding(horizontal = 20.dp, vertical = 18.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
@@ -342,6 +377,9 @@ private fun ColumnScope.ReplacePanel(
     stopIndex: Int,
     origin: io.github.haeyeonyou.familytrip.data.LatLng?,
     loading: Boolean,
+    error: String?,
+    message: String?,
+    onStay: (Int) -> Unit,
     onCancel: () -> Unit,
     onPick: (io.github.haeyeonyou.familytrip.data.CoursePlace) -> Unit,
 ) {
@@ -349,23 +387,183 @@ private fun ColumnScope.ReplacePanel(
     val stop = course.stops[stopIndex]
     val candidates = remember(course, stopIndex) { replacements(course, stopIndex, origin) }
     var chosen by remember(course, stopIndex) { mutableStateOf(candidates.firstOrNull()?.place) }
+    // ⓘ: 대체 후보 대신 지금 장소의 상세(사진·주소·편의 정보 원문)
+    var showDetail by remember(stopIndex) { mutableStateOf(false) }
     SitterCard(Modifier.fillMaxWidth().weight(1f), contentPadding = PaddingValues(18.dp)) {
-        Text("${stop.place.name} 대체 장소", style = SitterText.Title3, color = s.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        Text("같은 시간대 · 경로에서 가까운 순 · 수유실·유모차 조건 유지", style = SitterText.Caption, color = s.inkMute, modifier = Modifier.padding(top = 4.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
-        Column(Modifier.padding(top = 14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            if (candidates.isEmpty()) {
-                Text("지금은 바꿀 후보가 없어요. 경유지 편집에서 다른 장소를 넣을 수 있어요.", style = SitterText.Body2, color = s.inkSoft)
-            }
-            candidates.forEach { r -> CandidateCard(r, selected = chosen == r.place) { chosen = r.place } }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                if (showDetail) stop.place.name else "${stop.place.name} 대체 장소",
+                style = SitterText.Title3, color = s.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
+            )
+            Box(
+                Modifier.size(44.dp).clip(CircleShape).background(if (showDetail) s.primarySoft else Color.Transparent).clickable { showDetail = !showDetail },
+                contentAlignment = Alignment.Center,
+            ) { SitterIcon(SitterIcons.Info, if (showDetail) s.primary else s.inkSoft, size = SitterIconSize.Small) }
         }
-        Spacer(Modifier.weight(1f))
+        StayStepper(stop.stayMinutes, enabled = !loading, onStay = onStay)
+        if (showDetail) {
+            Column(Modifier.padding(top = 12.dp).weight(1f).verticalScroll(rememberScrollState())) { PlaceDetail(stop, course.stops.getOrNull(stopIndex + 1)) }
+        } else {
+            Text("같은 시간대 · 경로에서 가까운 순 · 수유실·유모차 조건 유지", style = SitterText.Caption, color = s.inkMute, modifier = Modifier.padding(top = 10.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Column(Modifier.padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (candidates.isEmpty()) {
+                    Text("지금은 바꿀 후보가 없어요. 아래 '+ 장소 추가'로 다른 장소를 넣을 수 있어요.", style = SitterText.Body2, color = s.inkSoft)
+                }
+                candidates.forEach { r -> CandidateCard(r, selected = chosen == r.place) { chosen = r.place } }
+            }
+            Spacer(Modifier.weight(1f))
+        }
+        PanelStatus(loading, error, message)
         Text("바꾸면 뒤 일정과 수유 지점 시간이 다시 계산돼요", style = SitterText.Caption, color = s.inkMute)
     }
     Spacer(Modifier.height(12.dp))
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         SitterButton("취소", onCancel, Modifier.weight(1f), kind = SitterButtonKind.Line)
-        SitterButton("이걸로 바꾸기", { chosen?.let(onPick) }, Modifier.weight(1f), enabled = chosen != null && !loading)
+        SitterButton("이걸로 바꾸기", { chosen?.let(onPick) }, Modifier.weight(1f), enabled = chosen != null && !loading && !showDetail)
     }
+}
+
+/** 오른쪽 패널 종류. [Replace]는 H02-1 대체 후보(경유지 번호), [Add]는 장소 추가. */
+private sealed interface CoursePanel {
+    data class Replace(val stopIndex: Int) : CoursePanel
+    data object Add : CoursePanel
+}
+
+private const val STAY_STEP_MINUTES = 30
+
+/** 머무름 −30 · N분 · +30 (옛 편집 화면의 머무름 조절). 바꾸면 서버가 뒤 일정을 다시 계산한다. */
+@Composable
+private fun StayStepper(stayMinutes: Int, enabled: Boolean, onStay: (Int) -> Unit) {
+    val s = SitterSurface.current
+    Row(
+        Modifier.padding(top = 10.dp).fillMaxWidth().clip(SitterShapes.Row).background(s.tile).padding(horizontal = 8.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("머무름", style = SitterText.Body2, color = s.inkSoft, modifier = Modifier.padding(start = 8.dp).weight(1f))
+        RowAction(SitterIcons.Minus, enabled = enabled && stayMinutes > STAY_STEP_MINUTES) { onStay(-STAY_STEP_MINUTES) }
+        Text("${stayMinutes}분", style = SitterText.Title3, color = s.ink, modifier = Modifier.width(72.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+        RowAction(SitterIcons.Plus, enabled = enabled) { onStay(STAY_STEP_MINUTES) }
+    }
+}
+
+@Composable
+private fun PanelStatus(loading: Boolean, error: String?, message: String?) {
+    val s = SitterSurface.current
+    if (loading) CircularProgressIndicator(Modifier.padding(bottom = 8.dp).size(28.dp))
+    (error ?: message)?.let {
+        Text(it, style = SitterText.Caption, color = if (error != null) SitterPalette.Danger else s.primary, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(bottom = 6.dp))
+    }
+}
+
+/** 장소 상세: 사진, 주소, 분류, 코스 안에서의 위치, 편의 정보 원문 (혜연 P04, 옛 편집 화면에서 옮김). */
+@Composable
+private fun PlaceDetail(stop: CourseStop, next: CourseStop?) {
+    val s = SitterSurface.current
+    val place = stop.place
+    if (place.imageUrl.isNotBlank()) {
+        coil.compose.AsyncImage(
+            // TourAPI 이미지는 http로 오지만 같은 주소가 https도 지원한다 (평문 통신은 막혀 있음).
+            model = place.imageUrl.replaceFirst("http://", "https://"),
+            contentDescription = place.name,
+            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+            modifier = Modifier.fillMaxWidth().height(150.dp).clip(SitterShapes.Row),
+        )
+        Spacer(Modifier.height(12.dp))
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (place.address.isNotBlank()) DetailLine("주소", place.address)
+        place.shortCategory()?.let { DetailLine("분류", it) }
+        val position = listOfNotNull(
+            "${stop.arriveAt} 도착",
+            stop.stayMinutes.takeIf { it > 0 }?.let { "${it}분 머무름" },
+            next?.let { "다음까지 ${it.driveMinutes}분" },
+        )
+        DetailLine("코스에서", position.joinToString(" · "))
+        place.amenityNotes.forEach { (key, note) -> DetailLine(tagLabel(key).takeIf { key != "infant_etc" } ?: "유아 기타", note) }
+        if (place.amenities.values.any { it != "available" }) {
+            Text("'정보 없음'은 시설이 없다는 뜻이 아니에요. 방문 전에 확인해 주세요.", style = SitterText.Caption, color = s.inkMute)
+        }
+    }
+}
+
+@Composable
+private fun DetailLine(label: String, value: String) {
+    val s = SitterSurface.current
+    Row {
+        Text(label, style = SitterText.Caption, color = s.inkMute, modifier = Modifier.width(72.dp))
+        Text(value, style = SitterText.Body2, color = s.ink, modifier = Modifier.weight(1f))
+    }
+}
+
+/** 카카오 분류는 "음식점 > 한식"처럼 오므로 마지막 단계만 쓴다. TourAPI 분류코드는 보여 주지 않는다. */
+internal fun io.github.haeyeonyou.familytrip.data.CoursePlace.shortCategory(): String? =
+    category.substringAfterLast(" > ").takeIf { it.isNotBlank() && source == "kakao" }
+
+// ───────────── 장소 추가 ─────────────
+
+/** 타임라인 끝 `+ 장소 추가` 줄 (편집 중에만) */
+@Composable
+private fun AddRow(selected: Boolean, enabled: Boolean, onClick: () -> Unit) {
+    val s = SitterSurface.current
+    Row(
+        Modifier
+            .padding(top = 6.dp)
+            .fillMaxWidth()
+            .clip(SitterShapes.Row)
+            .background(if (selected) s.primarySoft else s.tile)
+            .then(if (selected) Modifier.border(2.dp, s.primary, SitterShapes.Row) else Modifier)
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        SitterIcon(SitterIcons.Plus, s.primary, size = SitterIconSize.Medium)
+        Text("장소 추가", style = SitterText.Title3, color = s.primary)
+        Text("식사·나들이·카페 후보를 귀가 전에 넣어요", style = SitterText.Caption, color = s.inkMute, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+@Composable
+private fun ColumnScope.AddPanel(
+    course: CourseResponse,
+    loading: Boolean,
+    error: String?,
+    message: String?,
+    onAdd: (String, io.github.haeyeonyou.familytrip.data.CoursePlace) -> Unit,
+    onClose: () -> Unit,
+) {
+    val s = SitterSurface.current
+    val groups = addCandidates(course)
+    SitterCard(Modifier.fillMaxWidth().weight(1f), contentPadding = PaddingValues(18.dp)) {
+        Text("장소 추가", style = SitterText.Title3, color = s.ink)
+        Text("귀가 전에 들어가요 · ≡로 순서를 옮길 수 있어요", style = SitterText.Caption, color = s.inkMute, modifier = Modifier.padding(top = 4.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Column(Modifier.padding(top = 12.dp).weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            if (groups.isEmpty()) Text("더 넣을 후보가 없어요", style = SitterText.Body2, color = s.inkSoft)
+            groups.forEach { (role, places) ->
+                Text(ROLE_LABELS[role] ?: role, style = SitterText.Label, color = s.primary, modifier = Modifier.padding(top = 4.dp))
+                places.forEach { place ->
+                    Row(
+                        Modifier.fillMaxWidth().clip(SitterShapes.Row).background(s.tile).padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(place.name, style = SitterText.Body1, color = s.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            val keys = listOf("nursing_room", "stroller", "kids_chair").filter { place.amenities[it] == "available" }
+                            val meta = listOfNotNull(place.shortCategory()) + keys.map(::tagLabel)
+                            if (meta.isNotEmpty()) Text(meta.joinToString(" · "), style = SitterText.Caption, color = s.inkMute, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        Box(
+                            Modifier.padding(start = 8.dp).clip(SitterShapes.Pill).background(s.card).clickable(enabled = !loading) { onAdd(role, place) }
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                        ) { Text("추가", style = SitterText.Label, color = if (loading) s.inkMute else s.ink) }
+                    }
+                }
+            }
+        }
+        PanelStatus(loading, error, message)
+    }
+    Spacer(Modifier.height(12.dp))
+    SitterButton("닫기", onClose, Modifier.fillMaxWidth(), kind = SitterButtonKind.Line)
 }
 
 @Composable
