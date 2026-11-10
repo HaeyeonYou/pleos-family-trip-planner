@@ -53,6 +53,7 @@ internal fun JellyUniverseCanvas(
     val s = SitterSurface.current
     val tm = rememberTextMeasurer()
     val month = YearMonth.from(today)
+    val images = rememberJellyImages(geometry.kinds.filter { it.state.count > 0 }.map { it.state.kind to it.state.stage }.toSet())
     Canvas(
         modifier.pointerInput(geometry) {
             detectTapGestures { pos ->
@@ -66,7 +67,7 @@ internal fun JellyUniverseCanvas(
         val fit = fitDesign(size.width, size.height)
         translate(fit.left, fit.top) {
             scale(fit.unit, fit.unit, pivot = Offset.Zero) {
-                drawUniverse(geometry, centerLabel, filter, selectedPlace, month, tm, s)
+                drawUniverse(geometry, images, centerLabel, filter, selectedPlace, month, tm, s)
             }
         }
     }
@@ -86,6 +87,7 @@ private fun placeVisible(filter: GrowFilter, p: GrowPlace, month: YearMonth): Bo
 
 private fun DrawScope.drawUniverse(
     g: JellyGeometry,
+    images: Map<Pair<JellyKind, io.github.haeyeonyou.familytrip.grow.JellyStage>, androidx.compose.ui.graphics.ImageBitmap>,
     centerLabel: String,
     filter: GrowFilter,
     selectedPlace: String?,
@@ -141,9 +143,9 @@ private fun DrawScope.drawUniverse(
                 if (alpha < 1f) {
                     drawCircle(color.copy(alpha = 0.35f), k.r * 0.8f, at)
                 } else {
-                    drawJelly(kind, k.state.stage, at, k.r)
+                    images[kind to k.state.stage]?.let { drawJelly(it, at) }
                 }
-                label(tm, "${kind.chip} · ${k.state.count}", Offset(k.x, k.y + k.r + 6f), 13f, lerp(color, Color.Black, 0.25f).copy(alpha = alpha), bold = true)
+                label(tm, "${kind.chip} · ${k.state.count}", Offset(k.x, k.y + maxOf(k.r, 27f) + 6f), 13f, lerp(color, Color.Black, 0.25f).copy(alpha = alpha), bold = true)
             }
             k.suggested -> {
                 drawCircle(s.primarySoft, k.r, at)

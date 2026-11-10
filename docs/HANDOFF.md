@@ -173,7 +173,7 @@
 | 홈 H01 · 코스 상세 H02 · 대체 장소 H02-1 | ✅ 완료(2026-11-10): H01·H02·H02-1·경유지 편집(H02-1 안에서)·서버 #160 값 반영 | #149 · PR #153, #158, #161, #173 | [home-h01-h02.md](docs/agent-tasks/home-h01-h02.md) |
 | 케어 C01~C12 | ✅ 12화면 모두 에뮬레이터 확인·병합 (2026-11-10). 1차 PR #156, 2차 C09~C12 #166 · C08 #169 · C03 #171 · C04 #172 · C07 #174. 남은 일: 적용 시점 서버 필드 #168, 주행 중 전환·실차 확인 | #150 | [care-c01.md](docs/agent-tasks/care-c01.md) |
 | 주행 중 음성 1곳 제안 D01 | ✅ 에뮬레이터 모양 확인·보정 병합(2026-11-10), 실차 확인 남음 | #151 · PR #152, #158 | [drive-voice-d01.md](docs/agent-tasks/drive-voice-d01.md) |
-| 그로우 G01 경험 우주 + 젤리 12종 성장 | ✅ 에뮬레이터 확인·병합 (2026-11-10), B안 원본 그림 교체·서버 12분류 남음 | #164 · `feature/164-grow-g01` | [164-grow-g01.md](docs/agent-tasks/164-grow-g01.md) |
+| 그로우 G01 경험 우주 + 젤리 12종 성장 | ✅ 에뮬레이터 확인·병합, 원본 젤리 그림 반영(#181, 2026-11-11). 서버 12분류·그로우 음성 명령은 다른 세션 | #164 · PR #170, #181 | [164-grow-g01.md](docs/agent-tasks/164-grow-g01.md) |
 | Figma 11/10 디자인 변경 감시 (주기 확인·기록·세션 전달) | 🔶 3시간 주기 감시 중, 기준선 저장(2026-11-11). 온보딩 O01~O06 정리 → [1110-onboarding-o01.md](docs/agent-tasks/1110-onboarding-o01.md) | #157 · `feature/157-figma-watch` | [157-figma-watch.md](docs/agent-tasks/157-figma-watch.md) |
 | 서버: 대체 후보 우회 시간·거리, 재계산 뒤 나들이 후보 | ✅ 완료 (2026-11-10), 앱 반영은 home-finish 몫 | #160 · `feature/160-server-detour` | [160-server-detour.md](docs/agent-tasks/160-server-detour.md) |
 
