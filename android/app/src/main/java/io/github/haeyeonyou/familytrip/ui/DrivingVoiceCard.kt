@@ -70,11 +70,11 @@ fun DrivingVoiceCard(
                     SitterIcon(SitterIcons.Sprout, s.primary, size = SitterIconSize.Medium)
                     Text(state.message, style = SitterText.Title2, color = s.ink, modifier = Modifier.weight(1f), maxLines = 3, overflow = TextOverflow.Ellipsis)
                 }
-                Box(Modifier.padding(top = 24.dp)) { PlaceRow(proposal.kind, proposal.place, s) }
+                Box(Modifier.padding(top = 24.dp)) { PlaceRow(proposal, s) }
                 Spacer(Modifier.weight(1f))
                 if (proposal.waiting) {
                     Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                        SitterButton("좋아 · 추가", onAccept, Modifier.weight(1.6f), size = SitterButtonSize.Drive, icon = SitterIcons.Turn)
+                        SitterButton(if (proposal.destination) "좋아 · 안내" else "좋아 · 추가", onAccept, Modifier.weight(1.6f), size = SitterButtonSize.Drive, icon = SitterIcons.Turn)
                         SitterButton("아니요", onDecline, Modifier.weight(1f), kind = SitterButtonKind.Soft, size = SitterButtonSize.Drive)
                     }
                     Text("주행 중에는 목록 대신 1곳만 음성으로 제안해요 · 8초 안에 답이 없으면 닫혀요", style = SitterText.Caption, color = s.inkMute, modifier = Modifier.padding(top = 24.dp))
@@ -96,22 +96,29 @@ private fun VoiceWave(color: Color, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun PlaceRow(kind: CareKind, place: CarePlace, s: SitterSurface) {
+private fun PlaceRow(proposal: DriveProposal, s: SitterSurface) {
+    val place = proposal.place
     SitterRow(modifier = Modifier.fillMaxWidth(), contentPadding = androidx.compose.foundation.layout.PaddingValues(20.dp)) {
         Box(Modifier.size(56.dp).clip(CircleShape).background(s.card), contentAlignment = Alignment.Center) {
-            SitterIcon(
-                when (kind) {
-                    CareKind.NURSING -> SitterIcons.Milk
-                    CareKind.DIAPER -> SitterIcons.Baby
-                    else -> SitterIcons.Parking
-                },
-                s.primary,
-                size = SitterIconSize.Medium,
-            )
+            val jelly = proposal.jelly
+            if (jelly != null) {
+                JellyIcon(jelly, io.github.haeyeonyou.familytrip.grow.JellyStage.DROP, 48.dp)
+            } else {
+                SitterIcon(
+                    when (proposal.kind) {
+                        CareKind.NURSING -> SitterIcons.Milk
+                        CareKind.DIAPER -> SitterIcons.Baby
+                        else -> SitterIcons.Parking
+                    },
+                    s.primary,
+                    size = SitterIconSize.Medium,
+                )
+            }
         }
         Column(Modifier.padding(start = 20.dp)) {
             Text(place.name, style = SitterText.Title2, color = s.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(proposalDetail(place), style = SitterText.Body2, color = s.primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            // 그로우 다시 가볼 곳은 거리 대신 "3주 전 · 자연·숲 · 4번 방문"
+            Text(if (proposal.destination) place.note else proposalDetail(place), style = SitterText.Body2, color = s.primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }

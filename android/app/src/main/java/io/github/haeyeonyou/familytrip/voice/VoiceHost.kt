@@ -1,6 +1,8 @@
 package io.github.haeyeonyou.familytrip.voice
 
 import io.github.haeyeonyou.familytrip.data.VoiceScreen
+import io.github.haeyeonyou.familytrip.grow.Experience
+import io.github.haeyeonyou.familytrip.grow.GrowView
 
 /**
  * 음성 명령이 화면 쪽 기능(탭 이동, 코스 추천 조건 등)을 부르는 통로.
@@ -32,4 +34,13 @@ interface VoiceHost {
     fun etaAnswer(): String
 
     fun weatherAnswer(): String
+
+    /** 그로우: 방문 기록에서 센 경험 (10분 이상 머문 방문, 분류는 grow/JellyModel). */
+    fun growExperiences(): List<Experience> = emptyList()
+
+    /** 그로우 탭으로 가서 [view](거르기·장소 팝업)를 보인다. */
+    fun showGrow(view: GrowView) {}
+
+    /** [placeName]이 들어간 저장 코스를 연다. 없으면 false. */
+    fun openCourseWith(placeName: String): Boolean = false
 }

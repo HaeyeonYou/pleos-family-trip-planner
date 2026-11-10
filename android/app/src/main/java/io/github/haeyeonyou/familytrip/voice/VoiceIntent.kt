@@ -29,7 +29,9 @@ sealed interface Utterance {
     data object Unknown : Utterance
 }
 
-private val CHOOSE = Regex("(1|2|3|일|이|삼|하나|둘|셋|첫|두)\\s?(번째|번)")
+// "이번 달", "지난번에"처럼 번호가 아닌 "번"은 고르기로 보지 않는다 (#185).
+private val CHOOSE = Regex("(?<![가-힣])(1|2|3|일|이|삼|하나|둘|셋|첫|두)\\s?(번째|번)(?!\\s?(달|주))")
+private val THIS_TIME = Regex("(?<![가-힣])이\\s?번\\s?(에|엔|만|처럼|더)")
 private val CANCEL = listOf("아니야", "아니에요", "아니요", "아뇨", "아냐", "취소", "그만", "됐어", "틀렸어")
 private val YES = setOf("응", "네", "예", "그래", "그래요", "좋아", "좋아요", "맞아", "맞아요", "해줘", "해주세요", "응응", "어")
 private val KEEP_GOING = listOf("그대로", "그냥가", "그냥 가", "괜찮아", "닫아")
@@ -52,7 +54,7 @@ fun parseUtterance(text: String): Utterance {
     val compact = raw.replace(" ", "")
     if (compact in YES) return Utterance.Confirm
     if (CANCEL.any { compact.contains(it.replace(" ", "")) }) return Utterance.Cancel
-    CHOOSE.find(raw.replace("  ", " "))?.let { m ->
+    CHOOSE.find(raw.replace("  ", " "))?.takeUnless { THIS_TIME.containsMatchIn(raw) && it.groupValues[1] == "이" }?.let { m ->
         val n = when (m.groupValues[1]) {
             "1", "일", "하나", "첫" -> 1
             "2", "이", "둘", "두" -> 2
@@ -71,4 +73,5 @@ fun parseUtterance(text: String): Utterance {
 val VOICE_SAMPLES = listOf(
     "애 잔다", "애 쌌다", "애 배고프다", "애 운다",
     "너무 더워", "기저귀 갈 데 어디 있어?", "방금 수유했어", "언제 도착해?", "반려견 빼고 다시 추천해줘", "홈으로 가줘",
+    "지난달 간 곳 보여줘", "다시 가볼 곳 알려줘",
 )
