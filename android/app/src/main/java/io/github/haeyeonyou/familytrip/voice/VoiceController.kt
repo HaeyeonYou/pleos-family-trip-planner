@@ -12,6 +12,16 @@ import io.github.haeyeonyou.familytrip.data.TripApi
 import io.github.haeyeonyou.familytrip.data.VoiceInterpretRequest
 import io.github.haeyeonyou.familytrip.data.VoiceScreen
 import io.github.haeyeonyou.familytrip.data.clockLabel
+import io.github.haeyeonyou.familytrip.grow.GrowView
+import io.github.haeyeonyou.familytrip.grow.Revisit
+import io.github.haeyeonyou.familytrip.grow.growShowAnswer
+import io.github.haeyeonyou.familytrip.grow.revisitAnswer
+import io.github.haeyeonyou.familytrip.grow.revisitOf
+import io.github.haeyeonyou.familytrip.grow.revisitProposalMessage
+import io.github.haeyeonyou.familytrip.grow.revisitVoiceNote
+import io.github.haeyeonyou.familytrip.grow.voiceRevisits
+import io.github.haeyeonyou.familytrip.navi.Place
+import java.time.LocalDate
 import io.github.haeyeonyou.familytrip.data.durationLabel
 import io.github.haeyeonyou.familytrip.vehicle.VehicleRepository
 import io.github.haeyeonyou.familytrip.navi.NaviRepository
@@ -35,6 +45,8 @@ data class VoiceUiState(
     val message: String = "",
     /** 번호로 고를 수 있는 후보 (최대 2곳) */
     val options: List<CarePlace> = emptyList(),
+    /** 후보가 그로우 "다시 가볼 곳"이라 고르면 목적지로 안내한다 (아니면 경유지로 넣는다). */
+    val optionsAreDestinations: Boolean = false,
     /** 고른 번호 (1부터) */
     val chosen: Int? = null,
     /** 찾는 중·해석 중 */
@@ -252,7 +264,68 @@ class VoiceController(
             Step.KeepGoing -> close()
             is Step.Query -> finish(answerQuery(step.topic))
             Step.Unsupported -> finish("이건 아직 할 수 없어요.")
+            is Step.GrowShow -> {
+                val view = GrowView(step.kind, step.period)
+                host?.showGrow(view)
+                finish(growShowAnswer(host?.growExperiences().orEmpty(), view, LocalDate.now()), closeMs = CLOSE_AFTER_ACTION_MS)
+            }
+            Step.GrowRevisit -> runRevisit()
+            is Step.GrowGo -> runGrowGo(step.place)
         }
+    }
+
+    // 그로우 (#185)
+
+    /** "다시 가볼 곳": 정차 중은 2곳을 번호 후보로, 주행 중은 1위 1곳을 D01 카드로. */
+    private fun runRevisit() {
+        val today = LocalDate.now()
+        val driving = host?.driving == true
+        host?.showGrow(GrowView())
+        val rows = voiceRevisits(host?.growExperiences().orEmpty(), today, limit = if (driving) 1 else 2)
+        if (driving && rows.isNotEmpty()) {
+            showProposal(DriveProposal(null, rows[0].toCarePlace(today), jelly = rows[0].kind, destination = true), revisitProposalMessage(rows[0], today))
+            return
+        }
+        answer(revisitAnswer(rows, today), rows.map { it.toCarePlace(today) }, destinations = true)
+    }
+
+    /** "○○ 다시 가자": 장소 팝업을 띄우고, 정차 중은 바로 안내, 주행 중은 D01 카드로 되묻는다. 좌표가 없으면 그 장소가 든 코스를 연다. */
+    private fun runGrowGo(placeName: String) {
+        val today = LocalDate.now()
+        val r = revisitOf(host?.growExperiences().orEmpty(), placeName)
+        if (r == null) {
+            finish("$placeName 방문 기록을 찾지 못했어요.")
+            return
+        }
+        host?.showGrow(GrowView(place = r.placeName))
+        when {
+            r.latitude == null || r.longitude == null -> finish(
+                if (host?.openCourseWith(r.placeName) == true) "${r.placeName}은 위치 기록이 없어 그곳이 든 코스를 열었어요."
+                else "${r.placeName}은 위치 기록이 없어 안내할 수 없어요.",
+                closeMs = CLOSE_AFTER_ACTION_MS,
+            )
+            host?.driving == true -> showProposal(
+                DriveProposal(null, r.toCarePlace(today), jelly = r.kind, destination = true),
+                revisitProposalMessage(r, today),
+            )
+            else -> finish(routeTo(r.toCarePlace(today)), closeMs = CLOSE_AFTER_ACTION_MS)
+        }
+    }
+
+    private fun Revisit.toCarePlace(today: LocalDate) = CarePlace(
+        name = placeName,
+        latitude = latitude!!,
+        longitude = longitude!!,
+        distanceM = 0,
+        driveMinutes = 0,
+        note = revisitVoiceNote(this, today),
+    )
+
+    /** 목적지로 안내를 시작한다 (그로우 '다시 안내' 버튼과 같다). */
+    private fun routeTo(place: CarePlace): String {
+        navi.requestRoute(Place(place.name, place.latitude, place.longitude))
+        navi.showNavigation()
+        return "${place.name}(으)로 안내를 시작해요."
     }
 
     private suspend fun runClimate(step: Step.Climate) {
@@ -378,11 +451,14 @@ class VoiceController(
             answer(noProposalMessage(kind, failed = places == null), emptyList())
             return
         }
-        val message = proposalMessage(best)
+        showProposal(DriveProposal(kind, best), proposalMessage(best))
+    }
+
+    private fun showProposal(proposal: DriveProposal, message: String) {
         answeredAt = System.currentTimeMillis()
         pending = { acceptProposal() }
         _state.update {
-            it.copy(busy = false, message = message, options = emptyList(), notice = null, confirm = null, proposal = DriveProposal(kind, best))
+            it.copy(busy = false, message = message, options = emptyList(), notice = null, confirm = null, proposal = proposal)
         }
         // 말이 끝난 때부터 8초를 센다. 말이 안 끝나는 경우를 위해 안전 타이머도 건다.
         scheduleClose(PROPOSAL_SAFETY_CLOSE_MS)
@@ -412,7 +488,7 @@ class VoiceController(
     private fun acceptProposal() {
         val p = _state.value.proposal ?: return
         pending = null
-        val result = care.addWaypoint(p.place)
+        val result = if (p.destination) routeTo(p.place) else care.addWaypoint(p.place)
         answeredAt = System.currentTimeMillis()
         _state.update { it.copy(proposal = p.copy(answer = ProposalAnswer.ACCEPTED), message = result, chosen = 1) }
         io.speak(result, care.voiceVolume)
@@ -453,9 +529,9 @@ class VoiceController(
         return "1번은 ${first.name}, $where."
     }
 
-    private fun answer(message: String, options: List<CarePlace>) {
+    private fun answer(message: String, options: List<CarePlace>, destinations: Boolean = false) {
         answeredAt = System.currentTimeMillis()
-        _state.update { it.copy(busy = false, message = message, options = options, notice = null) }
+        _state.update { it.copy(busy = false, message = message, options = options, optionsAreDestinations = destinations && options.isNotEmpty(), notice = null) }
         io.speak(message, care.voiceVolume)
         scheduleClose(IDLE_CLOSE_MS)
     }
@@ -464,7 +540,7 @@ class VoiceController(
     private fun finish(message: String, tone: CareTone? = null, closeMs: Long = CLOSE_AFTER_CHOICE_MS) {
         tone?.let { ToneState.voice = it.takeIf { t -> t != CareTone.SLEEP } }
         answeredAt = System.currentTimeMillis()
-        _state.update { it.copy(busy = false, message = message, options = emptyList(), notice = null, confirm = null) }
+        _state.update { it.copy(busy = false, message = message, options = emptyList(), optionsAreDestinations = false, notice = null, confirm = null) }
         io.speak(message, care.voiceVolume)
         scheduleClose(closeMs)
     }
@@ -481,7 +557,7 @@ class VoiceController(
             scheduleClose(IDLE_CLOSE_MS)
             return
         }
-        val result = care.addWaypoint(place)
+        val result = if (s.optionsAreDestinations) routeTo(place) else care.addWaypoint(place)
         _state.update { it.copy(chosen = number, message = result) }
         io.speak(result, care.voiceVolume)
         scheduleClose(CLOSE_AFTER_CHOICE_MS)

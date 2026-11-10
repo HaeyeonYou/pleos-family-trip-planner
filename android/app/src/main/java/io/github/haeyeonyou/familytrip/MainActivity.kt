@@ -234,7 +234,23 @@ class MainActivity : ComponentActivity() {
                                 sleepMode = container.care.state.value.sleepMode,
                                 childMonths = latestState.profile?.ageMonths()?.minOrNull(),
                                 hasHomeOptions = latestState.options.isNotEmpty(),
+                                places = io.github.haeyeonyou.familytrip.grow.voicePlaceNames(growExperiences()),
                             )
+
+                            // 그로우 음성 명령 (#185)
+                            override fun growExperiences() = io.github.haeyeonyou.familytrip.grow.experiences(container.visits.all())
+
+                            override fun showGrow(view: io.github.haeyeonyou.familytrip.grow.GrowView) {
+                                io.github.haeyeonyou.familytrip.grow.GrowVoiceBus.show(view)
+                                openTab(MainTab.GROW)
+                            }
+
+                            override fun openCourseWith(placeName: String): Boolean {
+                                val saved = container.courses.all().firstOrNull { c -> c.course.stops.any { it.place.name == placeName } } ?: return false
+                                vm.openSavedCourse(saved)
+                                nav.navigate(Routes.COURSE)
+                                return true
+                            }
 
                             override fun goTab(tab: VoiceTab) = openTab(
                                 when (tab) {
