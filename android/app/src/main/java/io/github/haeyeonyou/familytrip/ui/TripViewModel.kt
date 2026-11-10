@@ -99,6 +99,10 @@ data class HomeFilters(
     val kidsMenu: Boolean = false,
     val playroom: Boolean = false,
     val parking: Boolean = false,
+    /** 코스 길이: 반나절/하루는 서로 배타 (둘 다 꺼질 수 있다). 기본은 11/10 디자인대로 반나절 */
+    val duration: HomeDuration? = HomeDuration.Half,
+    /** 반경(km). 칩을 누를 때마다 5 → 10 → 20 순환 */
+    val radiusKm: Int = HOME_RADIUS_DEFAULT_KM,
 ) {
     fun needs(): List<String> = buildList {
         if (nursingRoom) add("nursing_room")
