@@ -377,6 +377,14 @@ interface TripApi {
     @DELETE("me/children/{id}")
     suspend fun deleteChild(@Path("id") id: String): Response<Unit>
 
+    // 자주 가는 케어 장소 (서버 app/care_places.py, #184)
+
+    @GET("me/care-places")
+    suspend fun carePlaces(): CarePlaceList
+
+    @PUT("me/care-places")
+    suspend fun putCarePlaces(@Body body: CarePlaceList): CarePlaceList
+
     /** 수유실(nursing)·기저귀 교환대(diaper)·잠깐 세울 곳(rest)을 현재 위치 근처에서 찾는다. 가는 곳을 주면 경로 위 우선. */
     @GET("care/nearby")
     suspend fun careNearby(

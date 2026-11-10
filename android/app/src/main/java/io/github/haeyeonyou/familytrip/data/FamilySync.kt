@@ -43,6 +43,27 @@ private const val MAX_INTERVAL = 360
 
 fun Child.birthMonthKey(): String = "%04d-%02d".format(birthYear, birthMonth)
 
+/** 서버 `birth_date` (YYYY-MM-DD). 일을 모르거나 없는 날이면 null. */
+fun Child.birthDateKey(): String? = birthDate()?.toString()
+
+/** 서버 아이를 그대로 다시 올릴 몸통. 차가 모르는 항목(성향·멀미 등)도 지운다고 보내지 않게 모두 옮긴다. */
+fun ServerChild.toChildIn() = ChildIn(
+    nickname = nickname,
+    birthMonth = birthMonth,
+    feedingType = feedingType,
+    feedIntervalMinutes = feedIntervalMinutes,
+    napCount = napCount,
+    birthDate = birthDate,
+    rearFacingSeat = rearFacingSeat,
+    strollerUse = strollerUse,
+    napTimes = napTimes,
+    temperament = temperament,
+    napInCar = napInCar,
+    heatSensitivity = heatSensitivity,
+    motionSickness = motionSickness,
+    noiseSensitivity = noiseSensitivity,
+)
+
 /**
  * 차의 가족 정보 [local]을 서버 아이 목록 [server]과 맞출 계획 (순수 함수).
  *
@@ -83,15 +104,24 @@ fun planFamily(
         when {
             srv != null && snap != null -> {
                 val nameEdited = child.name.isNotBlank() && child.name != snap.nickname
-                val birthEdited = child.birthMonthKey() != snap.birthMonth
+                val monthEdited = child.birthMonthKey() != snap.birthMonth
+                val dayEdited = child.birthDay != null && child.birthDateKey() != snap.birthDate
                 val intervalEdited = first && localInterval != (snap.feedIntervalMinutes ?: FeedingRoutine.DEFAULT_INTERVAL_MINUTES)
-                if (nameEdited || birthEdited || intervalEdited) {
-                    puts += id to ChildIn(
+                // 온보딩 항목: 차 값이 null이면 '모름'이라 고친 것으로 보지 않는다
+                val strollerEdited = child.stroller != null && child.stroller != snap.strollerUse
+                val seatEdited = child.rearFacingSeat != null && child.rearFacingSeat != snap.rearFacingSeat
+                val napEdited = child.napTimes != null && child.napTimes != snap.napTimes
+                if (nameEdited || monthEdited || dayEdited || intervalEdited || strollerEdited || seatEdited || napEdited) {
+                    val birthEdited = monthEdited || dayEdited
+                    puts += id to srv.toChildIn().copy(
                         nickname = if (nameEdited) child.name.take(NICKNAME_MAX) else srv.nickname,
                         birthMonth = if (birthEdited) child.birthMonthKey() else srv.birthMonth,
-                        feedingType = srv.feedingType,
+                        // 달만 고치면 서버가 그 달과 안 맞는 일을 버린다. 일을 알면 일까지 보낸다.
+                        birthDate = if (birthEdited) child.birthDateKey() else srv.birthDate,
                         feedIntervalMinutes = if (intervalEdited) localInterval.coerceIn(MIN_INTERVAL, MAX_INTERVAL) else srv.feedIntervalMinutes,
-                        napCount = srv.napCount,
+                        strollerUse = if (strollerEdited) child.stroller else srv.strollerUse,
+                        rearFacingSeat = if (seatEdited) child.rearFacingSeat else srv.rearFacingSeat,
+                        napTimes = if (napEdited) child.napTimes else srv.napTimes,
                     )
                 }
             }
@@ -105,6 +135,10 @@ fun planFamily(
                     feedingType = null,
                     feedIntervalMinutes = interval?.coerceIn(MIN_INTERVAL, MAX_INTERVAL),
                     napCount = null,
+                    birthDate = child.birthDateKey(),
+                    rearFacingSeat = child.rearFacingSeat,
+                    strollerUse = child.stroller,
+                    napTimes = child.napTimes,
                 )
             }
             // 서버에는 있는데 처음 보는 아이(이어 붙인 아이): 서버 값을 받는다.
@@ -122,7 +156,17 @@ fun planFamily(
 /** 서버 아이 목록을 차 프로필의 아이로 바꾼다. 서버 순서를 그대로 따른다 (첫째가 먼저). */
 fun serverChildrenToLocal(server: List<ServerChild>): List<Child> = server.map {
     val (year, month) = it.birthMonth.split("-").let { p -> p[0].toInt() to p[1].toInt() }
-    Child(birthYear = year, birthMonth = month, name = it.nickname, serverId = it.id)
+    val day = it.birthDate?.takeIf { d -> d.startsWith(it.birthMonth) }?.substringAfterLast('-')?.toIntOrNull()
+    Child(
+        birthYear = year,
+        birthMonth = month,
+        name = it.nickname,
+        serverId = it.id,
+        birthDay = day,
+        stroller = it.strollerUse,
+        rearFacingSeat = it.rearFacingSeat,
+        napTimes = it.napTimes,
+    )
 }
 
 /**

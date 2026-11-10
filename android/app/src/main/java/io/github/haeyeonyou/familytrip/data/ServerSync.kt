@@ -49,6 +49,13 @@ class ServerSync(
         },
     )
     val visits = VisitSync(visitStore, TripApiVisitRemote(api), visitState)
+    /** 자주 가는 케어 장소 (방문 기록에서 나온다, #184). 온보딩 O02가 [CarePlaceSync.cached]를 보여 준다. */
+    val carePlaces = CarePlaceSync(
+        visitStore,
+        TripApiCarePlaceRemote(api),
+        JsonFile(File(dir, "care_places_uploaded.json"), carePlaceListSerializer) { emptyList() },
+        JsonFile(File(dir, "care_places.json"), carePlaceListSerializer) { emptyList() },
+    )
     val feedings = FeedingSync(
         remote = TripApiFeedingRemote(api),
         queue = JsonFile(File(dir, "feeding_queue.json"), FeedingQueueData.serializer()) { FeedingQueueData() },
@@ -96,6 +103,7 @@ class ServerSync(
     fun forgetForWipe() {
         visits.forget()
         family.forget()
+        carePlaces.forget()
         feedings.clearPending()
     }
 
@@ -170,6 +178,8 @@ class ServerSync(
             feedings.pull()
         }
         val visitsDone = area("visits", change.visits || visits.hasPendingUpload()) { visits.reconcile() }
+        // 케어 장소는 방문 기록을 따라간다. 실패해도(예: 아직 이 API가 없는 서버) 방문 영역의 '반영 끝'은 막지 않는다.
+        area("care places", visitsDone && (change.visits || carePlaces.hasPendingUpload())) { carePlaces.reconcile() }
         val presetsDone = area("presets", change.presets || presetSync.hasPending()) { _presets.value = presetSync.fetch() }
         return RefreshResult(
             done = SyncChange(
@@ -195,6 +205,7 @@ class ServerSync(
             Log.i(TAG, "계정이 바뀌어 서버와 맞춘 기록을 비웁니다")
             visits.forget()
             family.forget()
+            carePlaces.forget()
             presetSync.forget()
             _presets.value = emptyList()
             profileStore.load()?.let { p -> profileStore.save(p.copy(children = p.children.map { it.copy(serverId = null) })) }

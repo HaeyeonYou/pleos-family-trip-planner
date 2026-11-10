@@ -226,6 +226,7 @@ fun GradientCircleButton(
 /** 음성 버튼 (Figma Voice Button 368:5723): 44 그라데이션 원 + 마이크 24. */
 @Composable
 fun VoiceButton(modifier: Modifier = Modifier, onClick: () -> Unit = LocalShell.current?.onMic ?: {}) {
+    if (!io.github.haeyeonyou.familytrip.onboarding.LocalVoiceEnabled.current) return // 온보딩 O03에서 음성을 끄면 마이크만 숨김 (QO6)
     GradientCircleButton(size = 44.dp, modifier = modifier, onClick = onClick) {
         SitterIcon(SitterIcons.Mic, Color.White, size = SitterIconSize.Medium)
     }

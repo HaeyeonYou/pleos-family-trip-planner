@@ -166,7 +166,11 @@ private fun LegacyDockStrip(onMic: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        GradientCircleButton(size = 72.dp, onClick = onMic) { SitterIcon(SitterIcons.Mic, Color.White, size = 32.dp) }
+        if (io.github.haeyeonyou.familytrip.onboarding.LocalVoiceEnabled.current) {
+            GradientCircleButton(size = 72.dp, onClick = onMic) { SitterIcon(SitterIcons.Mic, Color.White, size = 32.dp) }
+        } else {
+            Box(Modifier.size(72.dp)) // 음성을 끄면 마이크만 숨김 (QO6)
+        }
         ShortcutDock()
     }
 }
