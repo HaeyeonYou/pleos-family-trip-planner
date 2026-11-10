@@ -184,8 +184,9 @@ class MainActivity : ComponentActivity() {
                     val visitRevision by container.visits.revision.collectAsStateWithLifecycle()
                     // 그로우 캐릭터 탄생 (#164): 주행 중에는 화면 없이 음성 1회(B안), 정차 중 축하 시트는 그로우 화면이 띄운다.
                     var celebrated by remember { mutableStateOf(container.births.celebrated()) }
-                    LaunchedEffect(visitRevision, vehicle.isParked) {
-                        if (vehicle.isParked) return@LaunchedEffect
+                    LaunchedEffect(visitRevision, vehicle.gear) {
+                        // 기어를 아직 모르면(앱 시작 직후) 주행으로 보지 않는다. 정차면 그로우 화면의 시트가 알린다.
+                        if (vehicle.isParked || vehicle.gear == io.github.haeyeonyou.familytrip.vehicle.GearState.UNKNOWN) return@LaunchedEffect
                         val born = io.github.haeyeonyou.familytrip.grow.birthsIn(container.visits.all(), celebrated)
                         if (born.isEmpty()) return@LaunchedEffect
                         container.births.markCelebrated(born)

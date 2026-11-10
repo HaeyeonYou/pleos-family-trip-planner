@@ -80,6 +80,8 @@ private val SCIENCE_WORDS = listOf("과학", "박물관", "천문대", "기념�
 private val FRIEND_WORDS = listOf("육아종합지원센터", "육아지원센터", "공동육아", "육아나눔", "문화센터", "어린이집", "키즈클럽")
 private val MAKE_WORDS = listOf("클래스", "공방", "만들기", "쿠킹", "체험관", "체험장", "도예", "목공")
 private val MOVE_WORDS = listOf("놀이터", "키즈카페", "트램폴린", "놀이공원", "테마파크", "랜드", "방방", "볼풀", "실내놀이", "놀이")
+// 서버에서 받은 방문은 역할이 모두 나들이라 이름으로도 맛 탐험을 본다 (키즈카페·북카페는 앞에서 걸러짐)
+private val FOOD_WORDS = listOf("카페", "식당", "베이커리", "레스토랑", "맛집", "브런치")
 private val NATURE_WORDS = listOf("공원", "숲", "수목원", "생태", "휴양림", "정원", "식물원", "둘레길", "산림", "캠핑")
 private val TRAVEL_WORDS = listOf("전망대", "마을", "레일바이크", "케이블카", "유적", "한옥", "관광", "항구", "기차", "섬")
 
@@ -109,6 +111,7 @@ fun classify(placeName: String, role: String, theme: String?): JellyKind {
         has(FRIEND_WORDS) -> JellyKind.FRIEND
         has(MAKE_WORDS) -> JellyKind.MAKE
         has(MOVE_WORDS) -> JellyKind.MOVE
+        has(FOOD_WORDS) -> JellyKind.FOOD
         has(NATURE_WORDS) -> JellyKind.NATURE
         has(TRAVEL_WORDS) -> JellyKind.TRAVEL
         else -> THEME_FALLBACK[theme] ?: JellyKind.TRAVEL
