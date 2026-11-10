@@ -44,6 +44,8 @@ class AppContainer(private val app: Application) {
     val visits = VisitStore(app)
     val feeding = FeedingStore(app)
     val settings = SettingsStore(app)
+    /** 온보딩 완료 여부·O03 선택 항목 (#184) */
+    val onboarding = io.github.haeyeonyou.familytrip.onboarding.OnboardingStore(app)
     /** 그로우 캐릭터 탄생을 축하했는지 (#164) */
     val births = io.github.haeyeonyou.familytrip.grow.BirthStore(app)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
