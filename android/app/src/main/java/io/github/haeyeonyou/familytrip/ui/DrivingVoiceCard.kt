@@ -8,11 +8,14 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -37,49 +40,63 @@ fun DrivingVoiceCard(
     onDecline: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val s = SitterSurface.current
+    // Figma D01은 상황 톤 없이 기본 밝은 색 (카드 흰색, 문장 연보라, 후보 행 회색)
+    val s = SitterSurface.Light
     Box(modifier = modifier.fillMaxSize().clickable(enabled = false) {}) {
         SitterScrim(alpha = 0.5f)
-        Column(
-            modifier = Modifier
-                .align(Alignment.Center)
-                .widthIn(max = 1000.dp)
-                .fillMaxWidth(0.8f)
-                .clip(SitterShapes.Sheet)
-                .background(s.card)
-                .padding(40.dp),
-            verticalArrangement = Arrangement.spacedBy(24.dp),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-                GradientCircleButton(size = 80.dp) { SitterIcon(SitterIcons.Mic, androidx.compose.ui.graphics.Color.White, size = SitterIconSize.Large) }
-                Column {
-                    Text("방금 말씀하신 것", style = SitterText.Caption, color = s.inkMute)
-                    Text(if (state.heard.isBlank()) "—" else "“${state.heard}”", style = SitterText.Title1, color = s.ink)
-                }
-            }
-            // 제안 문장 (답한 뒤에는 결과 문구)
-            Row(
-                modifier = Modifier.fillMaxWidth().heightIn(min = 150.dp).clip(SitterShapes.Row).background(s.primarySoft).padding(24.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
+        // 앱 프레임(1256x886) 기준 크기로 그린다: 카드 1000x660 가운데
+        SitterCanvas(ownsDock = false) {
+            Column(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .size(width = 1000.dp, height = 660.dp)
+                    .clip(SitterShapes.Sheet)
+                    .background(s.card)
+                    .padding(horizontal = 40.dp, vertical = 38.dp),
             ) {
-                SitterIcon(SitterIcons.Sprout, s.primary, size = SitterIconSize.Medium)
-                Text(state.message, style = SitterText.Title2, color = s.ink, modifier = Modifier.weight(1f))
-            }
-            PlaceRow(proposal.kind, proposal.place)
-            if (proposal.waiting) {
-                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    SitterButton("좋아 · 추가", onAccept, Modifier.weight(1.6f), size = SitterButtonSize.Drive, icon = SitterIcons.Turn)
-                    SitterButton("아니요", onDecline, Modifier.weight(1f), kind = SitterButtonKind.Soft, size = SitterButtonSize.Drive)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    GradientCircleButton(size = 80.dp) { SitterIcon(SitterIcons.Mic, Color.White, size = SitterIconSize.Large) }
+                    VoiceWave(s.primary, Modifier.padding(start = 20.dp, end = 24.dp))
+                    Column {
+                        Text("방금 말씀하신 것", style = SitterText.Caption, color = s.inkMute)
+                        Text(if (state.heard.isBlank()) "—" else "“${state.heard}”", style = SitterText.Title1, color = s.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
                 }
-                Text("주행 중에는 목록 대신 1곳만 음성으로 제안해요 · 8초 안에 답이 없으면 닫혀요", style = SitterText.Caption, color = s.inkMute)
+                // 제안 문장 (답한 뒤에는 결과 문구)
+                Row(
+                    modifier = Modifier.padding(top = 28.dp).fillMaxWidth().height(150.dp).clip(SitterShapes.Row).background(s.primarySoft).padding(horizontal = 36.dp, vertical = 32.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    SitterIcon(SitterIcons.Sprout, s.primary, size = SitterIconSize.Medium)
+                    Text(state.message, style = SitterText.Title2, color = s.ink, modifier = Modifier.weight(1f), maxLines = 3, overflow = TextOverflow.Ellipsis)
+                }
+                Box(Modifier.padding(top = 24.dp)) { PlaceRow(proposal.kind, proposal.place, s) }
+                Spacer(Modifier.weight(1f))
+                if (proposal.waiting) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        SitterButton("좋아 · 추가", onAccept, Modifier.weight(1.6f), size = SitterButtonSize.Drive, icon = SitterIcons.Turn)
+                        SitterButton("아니요", onDecline, Modifier.weight(1f), kind = SitterButtonKind.Soft, size = SitterButtonSize.Drive)
+                    }
+                    Text("주행 중에는 목록 대신 1곳만 음성으로 제안해요 · 8초 안에 답이 없으면 닫혀요", style = SitterText.Caption, color = s.inkMute, modifier = Modifier.padding(top = 24.dp))
+                }
             }
         }
     }
 }
 
+/** 마이크 옆 음성 파형 (Figma D01: 높이가 다른 세로 막대 9개, Primary 그라데이션 느낌을 알파로) */
 @Composable
-private fun PlaceRow(kind: CareKind, place: CarePlace) {
-    val s = SitterSurface.current
+private fun VoiceWave(color: Color, modifier: Modifier = Modifier) {
+    val heights = listOf(14, 26, 38, 22, 44, 30, 40, 24, 16)
+    Row(modifier.height(48.dp), horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
+        heights.forEachIndexed { i, h ->
+            Box(Modifier.width(4.dp).height(h.dp).clip(CircleShape).background(color.copy(alpha = 0.45f + 0.55f * (i + 1) / heights.size)))
+        }
+    }
+}
+
+@Composable
+private fun PlaceRow(kind: CareKind, place: CarePlace, s: SitterSurface) {
     SitterRow(modifier = Modifier.fillMaxWidth(), contentPadding = androidx.compose.foundation.layout.PaddingValues(20.dp)) {
         Box(Modifier.size(56.dp).clip(CircleShape).background(s.card), contentAlignment = Alignment.Center) {
             SitterIcon(
@@ -93,8 +110,8 @@ private fun PlaceRow(kind: CareKind, place: CarePlace) {
             )
         }
         Column(Modifier.padding(start = 20.dp)) {
-            Text(place.name, style = SitterText.Title2, color = s.ink)
-            Text(proposalDetail(place), style = SitterText.Body2, color = s.primary)
+            Text(place.name, style = SitterText.Title2, color = s.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(proposalDetail(place), style = SitterText.Body2, color = s.primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }

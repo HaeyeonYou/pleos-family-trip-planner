@@ -10,7 +10,7 @@ Figma 파일 `xeLwkzhH8tnsazQdOriGU2` → 페이지 `종합 정리` → 섹션 `
 - [x] 다른 PC에 영향 없는 확인 방법 안내 (`docs/design/pleos-1110/watch/README.md`에도 정리)
 - [x] `tools/figma_watch.py` + `tools/tests/test_figma_watch.py`(15개)
 - [x] 변경 기록 형식(`watch/CHANGELOG.md`), `.env.example`에 `FIGMA_TOKEN` 키 이름
-- [ ] PR 병합
+- [x] PR 병합 (PR #159)
 - [ ] 사용자 토큰 발급 → `baseline` 실행 → 기준선 스냅샷 커밋
 - [ ] 주기 실행(간격은 사용자에게 확인)
 - [ ] `docs/HANDOFF.md` 자기 행 갱신
