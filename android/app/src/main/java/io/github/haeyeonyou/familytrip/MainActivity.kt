@@ -375,6 +375,7 @@ class MainActivity : ComponentActivity() {
                                     onStartFeedingStop = { care.startFeedingStop() },
                                     onFinishFeedingStop = { care.finishFeedingStop() },
                                     onDismissFeedingStopAsk = care::dismissFeedingStopAsk,
+                                    onSleepMode = care::setSleepMode,
                                     onDelayAddWaypoint = container.delayAlert::addWaypoint,
                                     onDelayKeepGoing = container.delayAlert::keepGoing,
                                     onApplyPreset = vm::applyPreset,
