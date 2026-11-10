@@ -133,6 +133,16 @@ fun BoxScope.UrgentCareSheet(
                         )
                     }
                 }
+                if (sheet.mode == UrgentSheetMode.Fallback) {
+                    // C10: 정차 공간에 도착해 P단이면 수유 정차 모드를 묻는다 (CareController)
+                    Row(
+                        Modifier.padding(top = 16.dp).fillMaxWidth().clip(SitterShapes.Row).background(s.primarySoft).padding(horizontal = 24.dp, vertical = 18.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        SitterIcon(SitterIcons.Info, s.primary, size = SitterIconSize.Medium)
+                        Text("경유지에 정차하면 수유 정차 모드를 켤지 물어봐요", style = SitterText.Body1, color = s.primary, modifier = Modifier.padding(start = 12.dp))
+                    }
+                }
             }
         }
         Row(Modifier.padding(top = 18.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -251,6 +261,12 @@ fun WaypointSlot(
         Text(added.place.name, style = SitterText.Title2, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
         Text(waypointSlotLine(added, feeding), style = SitterText.Body2, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp))
         Spacer(Modifier.weight(1f))
+        Column(
+            Modifier.padding(bottom = 16.dp).fillMaxWidth().clip(SitterShapes.Row).background(Color.White.copy(alpha = 0.16f)).padding(horizontal = 16.dp, vertical = 14.dp),
+        ) {
+            Text("도착해서 정차하면", style = SitterText.Caption, color = Color.White.copy(alpha = 0.8f))
+            Text("수유 정차 모드를 켤지 물어봐요", style = SitterText.Body1, color = Color.White, modifier = Modifier.padding(top = 4.dp))
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Box(
                 Modifier.weight(1f).height(64.dp).clip(SitterShapes.Pill).background(Color.White).clickable(role = Role.Button, onClick = onRemove),

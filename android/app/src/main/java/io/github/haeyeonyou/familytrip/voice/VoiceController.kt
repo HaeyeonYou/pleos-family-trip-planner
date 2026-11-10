@@ -334,6 +334,11 @@ class VoiceController(
                     )
                 }
                 CareSituation.FEED -> {
+                    // C03: 정차(P단) 중 "수유할게"는 수유 정차 모드를 켠다 (주행 중은 위의 1곳 제안).
+                    if (care.startFeedingStop()) {
+                        finish("수유 정차 모드를 켰어요. 수유 시간을 셀게요. 끝나면 “다 먹었어”라고 말해 주세요.", tone = CareTone.FEED)
+                        return@launch
+                    }
                     val places = care.findNearby(CareKind.NURSING, 2)
                     val feeding = care.state.value.feeding
                     val since = feeding.lastFedAt?.let { "마지막 수유는 ${durationLabel((System.currentTimeMillis() - it) / 60_000)} 전이에요. " }

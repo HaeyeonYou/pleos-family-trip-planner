@@ -55,8 +55,10 @@ fun pickCareSlot(
     delayActive: Boolean,
     dismissed: Set<CareSlot> = emptySet(),
     waypointActive: Boolean = false,
+    feedingNow: Boolean = false,
 ): CareSlot {
     val candidates = buildList {
+        if (feedingNow) add(CareSlot.FeedingNow)
         if (phase == FeedingPhase.Overdue) add(CareSlot.FeedingOverdue)
         if (phase == FeedingPhase.Soon) add(CareSlot.FeedingSoon)
         if (delayActive) add(CareSlot.Delay)

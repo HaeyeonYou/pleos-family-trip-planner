@@ -30,6 +30,7 @@
 ## 6. 진행 로그
 | 날짜 | 한 일 | 다음 단계 |
 |---|---|---|
+| 2026-11-10 | C03: `care/FeedingStop.kt`(세션·N분째·기록 규칙·도착 판정)+`FeedingStopTest`, `CareController.startFeedingStop/finishFeedingStop`(P단에서만, 서버 `feeding_stop` 프리셋 또는 24°C·송풍 적용, 앱 재시작에도 이어감, 끝나면 시작 시각 기록, 출발하면 자동 종료(3분 미만은 기록 안 함), 공조는 베이비케어 값 또는 이전 설정으로), `ui/CareFeedingStop.kt`(수유 중 타이머·적용 중 슬롯·도착 질문 8초·안내 토스트). 음성 "수유할게"는 정차 중이면 세션 시작(VoiceController 최소 추가), "다 먹었어"(feed_log)는 세션 끝. C10 안내 띠·C12 "도착해서 정차하면" 상자 추가. 에뮬레이터: 시작→앱 재시작 후 1분째 유지→끝났어요로 23:42 기록 확인. 비교 `150-care-c03-vs-figma.png` | C04 수면 다크 |
 | 2026-11-10 | C08: `ui/CareModeEditSheet.kt`(800폭 시트, 탭 3·온도 ±0.5·풍량 미풍/약/중/강·음량 10/30/50/직접+슬라이더·적용 시점 표시), `care/ModeEdit.kt`+`ModeEditTest`. 저장은 바뀐 모드만 서버에(`TripViewModel.savePresetEdits`, 차 공조 즉시 적용 안 함), 실패면 시트에 오류. 정차(P단) 아닐 때 모드 편집 버튼 비활성·열린 시트 닫힘(`CareScreen(isParked)`). 에뮬레이터에서 낮잠 23→23.5°C 저장 → 카드 반영 확인 후 되돌림. 비교 `150-care-c08-vs-figma.png`. 적용 시점 서버 필드는 #168 | C03 수유 정차 모드 |
 | 2026-11-10 | (2차 세션) C09~C12: `care/UrgentCare.kt`(시트 상태 Found/Fallback/Offline/Empty, 문구·조사, 경유지 슬롯 문구)+`UrgentCareTest`, `ui/CareUrgentSheet.kt`(1000폭 시트·토스트 800x76·"다음 경유지" 슬롯), `CareController.openUrgent`(3곳, 수유실·기저귀 교환대 없으면 정차 공간 2곳, 서버 실패면 자주 가는 곳)·`undoWaypoint`·`continueGuidance`, 슬롯 우선순위에 경유지. 칩 4종(수유실·기저귀·정차·화장실)이 시트를 연다. 에뮬레이터 실데이터로 C09·C10(인제 오색 좌표로 옮겨 확인)·C11·C12 비교 `docs/screenshots/150-care-c09~c12-vs-figma.png`. 단위 테스트 228개 통과 | C08 모드 편집 시트 |
 | 2026-11-10 | 이슈 #150, 브랜치 `feature/150-care-c01-grid`. #139 로직 흡수(FrequentCarePlaces·VisitStore 좌표·delayBannerView·feedingTimerView, 옛 컴포저블은 제거). `care/CareSlot.kt`(수유 단계 NoRecord/Normal/Soon/Overdue, 슬롯 우선순위 `pickCareSlot`, 빠른 칩 시각, 우회 문구)+테스트. `ui/CareScreen.kt`를 새 셸 3열로 재작성(베이비케어 카드·수유 타이머 4단계·자주 가는 케어 장소·급한 케어 타일 2·슬롯 392x370·독). MainActivity 케어 경로 연결. 컴파일·단위 테스트 통과. 5시간 한도 92%라 중단 | 에뮬레이터에서 C01·C02·C05·C06 캡처를 Figma와 비교하고 어긋남 보정 → docs/screenshots 비교 이미지 → PR 병합. 이후 2차(C09~C12, C08, C03, C04, C07) |
@@ -37,6 +38,7 @@
 | 2026-11-10 | 지시 파일 작성 | 세션 시작 → 이슈 생성, 브랜치, P1-1(3열 그리드·슬롯 컨트롤러)부터 |
 
 ## 7. 확인하지 못한 것
+- (C03) 출발(P단 해제) 자동 종료와 경유지 도착 질문은 에뮬레이터가 사용자 빌드라 기어 신호를 넣을 수 없어 화면으로 확인하지 못했다(`FeedingStopTest`의 규칙 테스트와 코드로만). 에뮬레이터 공조는 설정 온도를 돌려주지 않아 "차 공조 설정"이 "—"로 보인다. 서버 기록은 기존 `serverSync.onFed` 경로를 그대로 쓴다.
 - (C08) 적용 시점은 서버 필드가 없어(#168) 지금 정해진 시점("탑승 시" 등) 하나만 보인다. 풍량은 Figma 3칸(미풍·약·중)에 기존 값(4단 이상)을 잃지 않게 "강"을 더했다. 옛 `PresetEditDialog`(PresetCards.kt)는 케어에서 더 쓰지 않지만 공유 파일이라 지우지 않았다. 주행 중 비활성은 코드로만 확인(에뮬레이터는 P단 고정).
 - (C09~C12) 내장 내비는 경유지를 받으면 스스로 앞으로 나온다(경로 미리보기 → 안내 시작). 그래서 C12 토스트는 케어 화면으로 돌아왔을 때부터 6초 보이게 했다(넣은 지 2분 안). 경유지 카드는 내비가 "종료→시작"을 잠깐 보내는 일이 있어 안내 종료가 15초 이어질 때 내린다.
 - (C09~C12) 앱을 막 켠 직후에는 내비 상태를 아직 못 받아 안내 중이어도 "목적지로 안내 시작"으로 처리된다(기존 `PleosNaviRepository` 동작, 고치지 않음).
