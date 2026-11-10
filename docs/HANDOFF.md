@@ -170,6 +170,8 @@
 
 | 작업 | 상태 | 브랜치·PR | 지시·기록 파일 |
 |---|---|---|---|
-| 홈 H01 · 코스 상세 H02 · 대체 장소 H02-1 | ⏳ 대기 (2026-11-10) | — | [home-h01-h02.md](docs/agent-tasks/home-h01-h02.md) |
-| 케어 C01~C12 (1차: C01·C02·C05·C06) | ⏳ 대기 (2026-11-10) | — | [care-c01.md](docs/agent-tasks/care-c01.md) |
-| 주행 중 음성 1곳 제안 D01 | ⏳ 대기 (2026-11-10) | — | [drive-voice-d01.md](docs/agent-tasks/drive-voice-d01.md) |
+| 홈 H01 · 코스 상세 H02 · 대체 장소 H02-1 | 🔶 H01 병합, 화면 확인·H02·H02-1 남음 (한도로 중단, 2026-11-10) | #149 · PR #153 | [home-h01-h02.md](docs/agent-tasks/home-h01-h02.md) |
+| 케어 C01~C12 (1차: C01·C02·C05·C06) | 🔶 구현 완료·**미병합 WIP**, 화면 확인 후 PR (한도로 중단) | #150 · 브랜치 `feature/150-care-c01-grid` (커밋 a73443d) | [care-c01.md](docs/agent-tasks/care-c01.md) |
+| 주행 중 음성 1곳 제안 D01 | 🔶 코드 병합, 화면 확인 남음 (한도로 중단) | #151 · PR #152 | [drive-voice-d01.md](docs/agent-tasks/drive-voice-d01.md) |
+
+- **이어받는 법:** [docs/agent-tasks/next-agent-prompt.md](docs/agent-tasks/next-agent-prompt.md)의 프롬프트를 새 에이전트에 그대로 붙여 넣는다.
