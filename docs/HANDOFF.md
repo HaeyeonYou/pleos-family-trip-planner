@@ -174,7 +174,7 @@
 | 케어 C01~C12 | ✅ 12화면 모두 에뮬레이터 확인·병합 (2026-11-10). 1차 PR #156, 2차 C09~C12 #166 · C08 #169 · C03 #171 · C04 #172 · C07 #174. 남은 일: 적용 시점 서버 필드 #168, 주행 중 전환·실차 확인 | #150 | [care-c01.md](docs/agent-tasks/care-c01.md) |
 | 주행 중 음성 1곳 제안 D01 | ✅ 에뮬레이터 모양 확인·보정 병합(2026-11-10), 실차 확인 남음 | #151 · PR #152, #158 | [drive-voice-d01.md](docs/agent-tasks/drive-voice-d01.md) |
 | 그로우 G01 경험 우주 + 젤리 12종 성장 | ✅ 에뮬레이터 확인·병합 (2026-11-10), B안 원본 그림 교체·서버 12분류 남음 | #164 · `feature/164-grow-g01` | [164-grow-g01.md](docs/agent-tasks/164-grow-g01.md) |
-| Figma 11/10 디자인 변경 감시 (주기 확인·기록·세션 전달) | 🔶 스크립트·테스트 PR #159 병합, 3시간 주기 실행 중, 사용자 `FIGMA_TOKEN` 발급 대기 (2026-11-10) | #157 · `feature/157-figma-watch` | [157-figma-watch.md](docs/agent-tasks/157-figma-watch.md) |
+| Figma 11/10 디자인 변경 감시 (주기 확인·기록·세션 전달) | 🔶 3시간 주기 감시 중, 기준선 저장(2026-11-11). 온보딩 O01~O06 정리 → [1110-onboarding-o01.md](docs/agent-tasks/1110-onboarding-o01.md) | #157 · `feature/157-figma-watch` | [157-figma-watch.md](docs/agent-tasks/157-figma-watch.md) |
 | 서버: 대체 후보 우회 시간·거리, 재계산 뒤 나들이 후보 | ✅ 완료 (2026-11-10), 앱 반영은 home-finish 몫 | #160 · `feature/160-server-detour` | [160-server-detour.md](docs/agent-tasks/160-server-detour.md) |
 
 - **이어받는 법:** [docs/agent-tasks/next-agent-prompt.md](docs/agent-tasks/next-agent-prompt.md)의 프롬프트를 새 에이전트에 그대로 붙여 넣는다.

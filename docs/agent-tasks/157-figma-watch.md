@@ -11,7 +11,7 @@ Figma 파일 `xeLwkzhH8tnsazQdOriGU2` → 페이지 `종합 정리` → 섹션 `
 - [x] `tools/figma_watch.py` + `tools/tests/test_figma_watch.py`(15개)
 - [x] 변경 기록 형식(`watch/CHANGELOG.md`), `.env.example`에 `FIGMA_TOKEN` 키 이름
 - [x] PR 병합 (PR #159)
-- [ ] 사용자 토큰 발급 → `baseline` 실행 → 기준선 스냅샷 커밋
+- [x] 사용자 토큰 발급 → `baseline` 실행 → 기준선 스냅샷 커밋 (2026-11-11)
 - [x] 주기 실행: 3시간마다(매 3시간 :17, 세션 예약 작업 `0ab06494`, 이 세션 안에서만 돌고 7일 뒤 자동 종료)
 - [x] `docs/HANDOFF.md` 자기 행 갱신
 
@@ -36,6 +36,8 @@ Figma 파일 `xeLwkzhH8tnsazQdOriGU2` → 페이지 `종합 정리` → 섹션 `
 
 - 2026-11-10: PR #159 병합. 사용자가 간격을 따로 정하지 않아 추천 범위(2~3시간) 중 3시간으로 예약(Tier 1 월 15회 상한과 맞춤). 첫 실행 결과 `no_token` → 토큰이 들어오면 다음 주기에 자동으로 `baseline`을 만들고 PR로 병합한다.
 - 주의: 예약은 figma-watch 세션이 꺼지면 사라진다. 세션을 다시 열면 `/loop` 또는 예약 작업으로 다시 건다.
+
+- 2026-11-11: 첫 토큰은 `file_content:read` 대신 `file_comments:read`가 켜져 403 → 사용자가 다시 발급. 403 때 이유를 출력하도록 고침. 기준선 저장(노드 8293개). 섹션 안 새 화면 G03, 섹션 밖 온보딩 O01~O06·S02·새 섹션 `369:11525` 발견. 통제 세션 요청으로 O01~O06을 정리(PNG 7장, `02`·`04`·`05`, `docs/agent-tasks/1110-onboarding-o01.md`). 이번 달 Tier 1 호출 4회(기준선 1, 페이지 목록 1, O 노드 1, PNG 1).
 
 ## 확인하지 못한 것
 - 실제 Figma 응답으로 돌려 보지 못했다(토큰 없음). 응답 모양은 공식 문서 기준으로 짰고 테스트는 가짜 응답이다. 첫 `baseline` 때 노드 수·화면 코드 매칭을 확인해야 한다.
