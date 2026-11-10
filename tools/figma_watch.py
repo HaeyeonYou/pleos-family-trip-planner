@@ -453,7 +453,8 @@ def cmd_check(args: argparse.Namespace, baseline_only: bool = False) -> int:
     try:
         ver = fetch_version(token)
     except ApiError as e:
-        emit(status="rate_limited" if e.code == 429 else "api_error", code=e.code, headers=e.headers, step="version")
+        emit(status="rate_limited" if e.code == 429 else "api_error", code=e.code, headers=e.headers, step="version",
+             message=str(e)[:200])
         return 3 if e.code == 429 else 4
     if not args.force and not baseline_only and SNAPSHOT.exists() and ver["version"] == state.get("version"):
         emit(status="unchanged", version=ver["version"], lastModified=ver["lastModified"], via=ver["via"])
@@ -464,7 +465,8 @@ def cmd_check(args: argparse.Namespace, baseline_only: bool = False) -> int:
     try:
         doc, meta = fetch_section(token)
     except ApiError as e:
-        emit(status="rate_limited" if e.code == 429 else "api_error", code=e.code, headers=e.headers, step="nodes")
+        emit(status="rate_limited" if e.code == 429 else "api_error", code=e.code, headers=e.headers, step="nodes",
+             message=str(e)[:200])
         return 3 if e.code == 429 else 4
     note_tier1(state, now)
     new = normalize(doc)
