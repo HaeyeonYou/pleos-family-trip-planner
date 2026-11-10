@@ -33,6 +33,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.haeyeonyou.familytrip.care.CareKind
 import io.github.haeyeonyou.familytrip.care.CareSlot
@@ -100,16 +101,24 @@ fun CareScreen(
         SitterVoiceBar(
             hint = "“애 잔다” · “수유할게” · “수유실 찾아줘”라고 말해 보세요",
             avatarLabel = child?.name?.firstOrNull()?.toString(),
+            weather = state.weather?.let { w ->
+                {
+                    SitterWeather(
+                        w.temperature?.let { "${Math.round(it)}°" } ?: "--",
+                        listOf(w.condition, w.region).filter { it.isNotBlank() }.joinToString(" · "),
+                    )
+                }
+            },
         )
         SitterChipRow {
             SitterChip(chipLabel, selected = true, onClick = {}, icon = SitterIcons.Baby)
-            CareKindChip(CareKind.NURSING, actions)
-            CareKindChip(CareKind.DIAPER, actions, enabled = false)
-            CareKindChip(CareKind.REST, actions)
-            CareKindChip(CareKind.RESTROOM, actions, enabled = false)
+            CareKindChip(CareKind.NURSING, SitterIcons.Milk, actions)
+            CareKindChip(CareKind.DIAPER, SitterIcons.Diaper, actions, enabled = false)
+            CareKindChip(CareKind.REST, SitterIcons.Parking, actions)
+            CareKindChip(CareKind.RESTROOM, SitterIcons.Restroom, actions, enabled = false)
             // 소아과·약국은 서버 종류가 생기기 전까지 준비 중 (D4)
-            SitterChip("소아과", selected = false, onClick = {}, modifier = Modifier.alpha(0.4f))
-            SitterChip("약국", selected = false, onClick = {}, modifier = Modifier.alpha(0.4f))
+            SitterChip("소아과", selected = false, onClick = {}, modifier = Modifier.alpha(0.4f), icon = SitterIcons.Clinic)
+            SitterChip("약국", selected = false, onClick = {}, modifier = Modifier.alpha(0.4f), icon = SitterIcons.Pill)
         }
         SitterThreeColumns(
             first = { BabyCareColumn(state, care, actions, onEdit = { editingSlot = it }) },
@@ -133,12 +142,13 @@ fun CareScreen(
 }
 
 @Composable
-private fun CareKindChip(kind: CareKind, actions: CareActions, enabled: Boolean = true) {
+private fun CareKindChip(kind: CareKind, icon: ImageVector, actions: CareActions, enabled: Boolean = true) {
     SitterChip(
         kind.label,
         selected = false,
         onClick = { if (enabled) actions.onFind(kind) },
         modifier = if (enabled) Modifier else Modifier.alpha(0.4f),
+        icon = icon,
     )
 }
 
@@ -313,17 +323,19 @@ private fun FeedingTimerCard(routine: FeedingRoutine, now: Long, actions: CareAc
                 .drawBehind { drawRoundRect(accent, size = Size(size.width * progress, size.height), cornerRadius = CornerRadius(size.height / 2)) },
         )
         Spacer(Modifier.weight(1f))
-        SitterButton("지금 수유했어요", onClick = { actions.onFedAt(System.currentTimeMillis()) }, modifier = Modifier.fillMaxWidth(), kind = SitterButtonKind.Soft, size = SitterButtonSize.Large)
+        // Figma: 높이 76, 글자는 버튼 기본 크기 (Large의 Title2는 커서 Regular 글자에 높이만 맞춘다)
+        SitterButton("지금 수유했어요", onClick = { actions.onFedAt(System.currentTimeMillis()) }, modifier = Modifier.fillMaxWidth().height(76.dp), kind = SitterButtonKind.Soft)
     }
 }
 
 @Composable
 private fun StateTag(text: String, color: Color) {
+    // Figma C05·C06: 진한 채움 + 흰 글자
     Text(
         text,
         style = SitterText.Label,
-        color = color,
-        modifier = Modifier.clip(SitterShapes.Tag).background(color.copy(alpha = 0.14f)).padding(horizontal = 10.dp, vertical = 4.dp),
+        color = Color.White,
+        modifier = Modifier.clip(SitterShapes.Tag).background(color).padding(horizontal = 12.dp, vertical = 5.dp),
     )
 }
 
@@ -336,7 +348,7 @@ private fun VoiceHint(text: String) {
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         SitterIcon(SitterIcons.Mic, s.inkMute, size = SitterIconSize.Small)
-        Text(text, style = SitterText.Caption, color = s.inkMute, maxLines = 1)
+        Text(text, style = SitterText.Caption, color = s.inkMute, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -379,8 +391,8 @@ private fun FrequentPlacesCard(places: List<FrequentCarePlace>, onGo: (CarePlace
         Row(Modifier.fillMaxWidth().padding(top = 14.dp), verticalAlignment = Alignment.CenterVertically) {
             IconCircle(SitterIcons.Star, s.primary, s.tile)
             Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-                Text(first.name, style = SitterText.Title3, color = s.ink, maxLines = 1)
-                Text(placeMeta(first), style = SitterText.Caption, color = s.primary, maxLines = 1)
+                Text(first.name, style = SitterText.Title3, color = s.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(placeMeta(first), style = SitterText.Caption, color = s.primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             GradientCircleButton(size = 52.dp, onClick = { onGo(first.toCarePlace()) }) { SitterIcon(SitterIcons.Turn, Color.White) }
         }
@@ -393,7 +405,7 @@ private fun FrequentPlacesCard(places: List<FrequentCarePlace>, onGo: (CarePlace
             Box(Modifier.padding(top = 14.dp).fillMaxWidth().height(1.dp).background(s.line))
             Row(Modifier.fillMaxWidth().padding(top = 12.dp).clickable { onGo(second.toCarePlace()) }, verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text(second.name, style = SitterText.Body1, color = s.ink, maxLines = 1)
+                    Text(second.name, style = SitterText.Body1, color = s.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text("${distanceLabel(second.distanceM)} · ${second.driveMinutes}분", style = SitterText.Caption, color = s.inkMute)
                 }
                 Text("길 안내", style = SitterText.Label, color = s.primary)
@@ -445,6 +457,7 @@ private fun UrgentTile(kind: CareKind, icon: ImageVector, result: Nearby?, actio
             style = SitterText.Caption,
             color = s.inkMute,
             maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
         Spacer(Modifier.weight(1f))
         place?.let {
@@ -453,6 +466,7 @@ private fun UrgentTile(kind: CareKind, icon: ImageVector, result: Nearby?, actio
                 style = SitterText.Caption,
                 color = s.primary,
                 maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
         }
     }
@@ -513,9 +527,9 @@ private fun AlertSlot(
     SitterCard(modifier.fillMaxWidth(), tone = tone, contentPadding = androidx.compose.foundation.layout.PaddingValues(18.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             SitterIcon(SitterIcons.Alert, accent, size = SitterIconSize.Medium)
-            Text(title, style = SitterText.Title3, color = s.ink, maxLines = 2)
+            Text(title, style = SitterText.Title3, color = s.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
-        Text(body, style = SitterText.Caption, color = s.inkSoft, modifier = Modifier.padding(start = 32.dp, top = 10.dp), maxLines = 2)
+        Text(body, style = SitterText.Caption, color = s.inkSoft, modifier = Modifier.padding(start = 32.dp, top = 10.dp), maxLines = 2, overflow = TextOverflow.Ellipsis)
         Spacer(Modifier.weight(1f))
         rows.forEach { r ->
             Row(
@@ -523,22 +537,24 @@ private fun AlertSlot(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 SitterIcon(SitterIcons.Milk, accent, size = SitterIconSize.Small)
-                Text(r.name, style = SitterText.Body1, color = s.ink, modifier = Modifier.weight(1f).padding(horizontal = 10.dp), maxLines = 1)
-                Text(r.detail, style = SitterText.Caption, color = accent, maxLines = 1)
+                Text(r.name, style = SitterText.Body1, color = s.ink, modifier = Modifier.weight(1f).padding(horizontal = 10.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(r.detail, style = SitterText.Caption, color = accent, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
         Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
             Row(
-                Modifier.weight(1.3f).height(60.dp).clip(SitterShapes.Pill).background(accent).alpha(if (primaryEnabled) 1f else 0.4f)
+                Modifier.weight(1.3f).height(60.dp)
+                    .background(if (primaryEnabled) accent else accent.copy(alpha = 0.4f), SitterShapes.Pill)
+                    .clip(SitterShapes.Pill)
                     .clickable(enabled = primaryEnabled, onClick = onPrimary),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center,
             ) {
                 SitterIcon(SitterIcons.Turn, Color.White, size = SitterIconSize.Small)
-                Text(primaryLabel, style = SitterText.Button, color = Color.White, modifier = Modifier.padding(start = 6.dp), maxLines = 1)
+                Text(primaryLabel, style = SitterText.Button, color = Color.White, modifier = Modifier.padding(start = 6.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             Box(Modifier.weight(1f).height(60.dp).clip(SitterShapes.Pill).background(s.card).clickable(onClick = onSecondary), contentAlignment = Alignment.Center) {
-                Text(secondaryLabel, style = SitterText.Button, color = s.ink, maxLines = 1)
+                Text(secondaryLabel, style = SitterText.Button, color = s.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }
