@@ -70,7 +70,7 @@ def test_onboarding_steps_save_a_child_in_two_parts_then_connect_the_car():
             assert "아이 정보 1/2" in step1 and "동물 좋아함" in step1 and "건너뛰기" in step1 and f'name="code" value="{code}"' in step1
 
             bad = await mom.post("/m/start/child", data={"sections": "basic", "code": code, "nickname": "서아", "birth_month": "2099-01"})
-            assert bad.status_code == 400 and "태어난 달을 다시 확인" in bad.text and 'value="서아"' in bad.text
+            assert bad.status_code == 400 and "생년월일을 다시 확인" in bad.text and 'value="서아"' in bad.text
 
             res = await mom.post("/m/start/child", data={"sections": "basic", "code": code, "nickname": "서아", "birth_month": "2025-09", "temperament": ["animal", "active", "bogus"]})
             assert res.status_code == 303 and res.headers["location"] == f"/m/start/care?code={code}"
