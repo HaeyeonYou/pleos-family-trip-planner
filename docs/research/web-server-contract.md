@@ -67,9 +67,14 @@ GET    /me/experience-map     → 경험맵 (웹 그로우 화면이 쓴다)
 ```
 ```json
 // VisitIn
-{"place_key":"tour:126508","place_name":"서울숲","theme":"nature","visited_on":"2026-11-05",
+{"place_key":"tour:126508","place_name":"서울숲","theme":"nature","category":"A02020700","visited_on":"2026-11-05",
  "stayed_minutes":180,"status":"confirmed","mood":null}
 // theme: nature|experience|exhibition|play|pet (app/schemas.py Theme)
+// category: 코스 장소의 category 원문 (관광공사 cat3·카카오 category_name 등, 120자). 젤리 12분류 판정 근거 (#186). 없으면 빈 값
+// VisitOut = VisitIn + id + jelly
+// jelly: art|science|nature|animal|water|move|music|book|food|friend|make|travel (app/schemas.py Jelly, 앱 JellyKind와 같은 이름)
+//        서버가 category → 이름 → theme 순으로 정한다 (app/course/jelly.py). 저장하지 않고 조회할 때마다 정해 예전 기록에도 붙는다
+// 코스 응답의 Place에도 jelly가 실린다 (귀가는 null). experience-map에는 jellies(12분류별 경험·단계)·empty_jellies가 더해진다
 // status: confirmed(확정, 기본) | pending(다녀왔는지 확인 대기) | dismissed(안 갔어요)
 // mood: excited(신났어요)|normal(평범)|sleepy(졸려요)|bad(별로)
 ```

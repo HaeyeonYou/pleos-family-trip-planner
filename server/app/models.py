@@ -149,6 +149,8 @@ class VisitRecord(Base):
     place_name: Mapped[str] = mapped_column(String(60))
     # nature / experience / exhibition / play / pet (app/schemas.py Theme)
     theme: Mapped[str | None] = mapped_column(String(12), default=None)
+    # 장소 분류 원문 (관광공사 cat3·카카오 category_name 등). 젤리 12분류 판정 근거 (#186). 예전 기록은 빈 값
+    category: Mapped[str] = mapped_column(String(120), default="", server_default="")
     visited_on: Mapped[date] = mapped_column(Date)
     stayed_minutes: Mapped[int | None] = mapped_column(Integer, default=None)
     # confirmed(방문 확정) / pending(다녀왔는지 확인 대기) / dismissed(안 갔어요)

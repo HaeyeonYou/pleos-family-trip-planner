@@ -11,15 +11,15 @@
 
 {% if has_visits %}
 <section class="card tint" style="margin-top:16px" aria-label="요약">
-  <p class="name" style="font-size:17px">이번 달 +{{ map.this_month_visits }}{% if new_labels %} · 새 가지 "{{ new_labels | join('", "') }}"{% endif %}</p>
-  <p class="meta" style="margin-top:4px">가지 {{ themes | length }} · 잎 {{ map.place_count }} · 방문 {{ map.visit_count }}번</p>
+  <p class="name" style="font-size:17px">이번 달 +{{ map.this_month_visits }}{% if new_labels %} · 새로 해본 분야 "{{ new_labels | join('", "') }}"{% endif %}</p>
+  <p class="meta" style="margin-top:4px">별 {{ stars | length }}개 · {{ experience_count }}개의 경험 · {{ map.place_count }}개 장소</p>
 </section>
 
-<section class="section" aria-labelledby="branch-title">
-  <div class="section-head"><h2 id="branch-title">가지</h2></div>
-  {% for t in themes %}
-  <a class="card" href="/m/grow/theme/{{ t.key }}">
-    <div class="row" style="padding:0;min-height:0"><span class="grow"><span class="name" style="font-size:17px">{{ t.label }}</span><br><span class="meta">방문 {{ t.visits }}번 · 장소 {{ t.places | length }}곳</span></span><span class="chev" aria-hidden="true">&gt;</span></div>
+<section class="section" aria-labelledby="star-title">
+  <div class="section-head"><h2 id="star-title">자라는 별</h2></div>
+  {% for t in stars %}
+  <a class="card" href="/m/grow/jelly/{{ t.key }}">
+    <div class="row" style="padding:0;min-height:0"><span class="grow"><span class="name" style="font-size:17px">{{ t.label }} · {{ t.stage_name }}</span><br><span class="meta">경험 {{ t.experiences }}개 · 장소 {{ t.places | length + t.more }}곳</span></span><span class="chev" aria-hidden="true">&gt;</span></div>
     <p style="margin-top:10px">{% for p in t.places %}<span class="chip">{{ p.name }}{% if p.visits > 1 %} · {{ p.visits }}회{% endif %}</span> {% endfor %}{% if t.more %}<span class="chip gray">+{{ t.more }}</span>{% endif %}</p>
   </a>
   {% endfor %}
@@ -27,10 +27,10 @@
 
 {% if empty %}
 <section class="section" aria-labelledby="empty-title">
-  <div class="section-head"><h2 id="empty-title">아직 없는 가지</h2></div>
+  <div class="section-head"><h2 id="empty-title">비어 있는 별</h2></div>
   {% for e in empty %}
-  <a class="card dashed" href="/m/course?theme={{ e.key }}">
-    <div class="row" style="padding:0;min-height:0"><span class="grow"><span class="name">{{ e.label }}</span><br><span class="meta">이 분야 코스 받아 보기</span></span><span class="chev" aria-hidden="true">&gt;</span></div>
+  <a class="card dashed" href="{{ e.href }}">
+    <div class="row" style="padding:0;min-height:0"><span class="grow"><span class="name">{{ e.label }}</span><br><span class="meta">{{ e.character }} 별 키우러 코스 받아 보기</span></span><span class="chev" aria-hidden="true">&gt;</span></div>
   </a>
   {% endfor %}
 </section>
@@ -38,7 +38,7 @@
 {% else %}
 <section class="card tint" style="margin-top:16px">
   <h2 style="font-size:16px">아직 방문 기록이 없어요</h2>
-  <p class="sub" style="font-size:14px;margin-top:8px">차에서 나들이를 다녀오면 방문 기록이 쌓여 여기에 경험맵으로 보여요. 기록에는 장소 이름·분야·날짜·머문 시간·아이 기분만 저장하고, 위치 좌표와 음성은 저장하지 않아요.</p>
+  <p class="sub" style="font-size:14px;margin-top:8px">차에서 나들이를 다녀오면 방문 기록이 쌓여 여기에 경험 우주로 보여요. 기록에는 장소 이름·분야·장소 분류·날짜·머문 시간·아이 기분만 저장하고, 위치 좌표와 음성은 저장하지 않아요.</p>
   <a class="btn small" style="margin-top:12px" href="/m/course">추천 코스 받기</a>
 </section>
 {% endif %}
