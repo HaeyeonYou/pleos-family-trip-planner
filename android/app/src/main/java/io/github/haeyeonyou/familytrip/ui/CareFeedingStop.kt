@@ -129,9 +129,13 @@ private const val ASK_CLOSE_MS = 8_000L
 fun BoxScope.FeedingStopAsk(place: String?, summary: String, onYes: () -> Unit, onNo: () -> Unit) {
     val s = SitterSurface.current
     val latestNo by rememberUpdatedState(onNo)
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    // 도착할 때는 내장 내비가 앞에 있다. 케어 화면이 보일 때부터 8초를 센다 (안 보일 때 혼자 닫히지 않게).
     LaunchedEffect(Unit) {
-        delay(ASK_CLOSE_MS)
-        latestNo()
+        lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            delay(ASK_CLOSE_MS)
+            latestNo()
+        }
     }
     SitterScrim(onClick = onNo)
     Column(
