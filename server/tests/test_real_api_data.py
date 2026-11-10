@@ -140,6 +140,15 @@ def test_course_with_real_data(client, conditions, origin):
         assert outing["place"]["source"] == "kakao" or outing["place"]["category"].startswith("A0206")
     for place in course["alternatives"].get("outing", []):
         assert place["name"] != outing["place"]["name"]
+    # 교체 후보마다 교체 대상에서의 직선거리와 우회 분이 온다 (#160)
+    for role, places in course["alternatives"].items():
+        in_course = role in roles
+        for place in places:
+            if in_course:
+                assert isinstance(place["distance_m"], int) and place["distance_m"] >= 0
+                assert isinstance(place["detour_minutes"], int) and abs(place["detour_minutes"]) < 120
+            else:
+                assert place["distance_m"] is None and place["detour_minutes"] is None
 
 
 def test_schedule_after_swapping_outing_with_real_route(client):
@@ -166,6 +175,11 @@ def test_schedule_after_swapping_outing_with_real_route(client):
     in_course = {s["place"]["source_id"] for s in stops}
     assert new["alternatives"].get("meal"), "새 나들이 장소 근처 식당 후보가 없음"
     assert all(p["source_id"] not in in_course for p in new["alternatives"]["meal"])
+    # 재계산 뒤에도 나들이 교체 후보를 다시 준다 (#160). 코스에 있는 곳은 빼고, 우회 분이 붙는다
+    outings = new["alternatives"].get("outing", [])
+    assert outings, "재계산 뒤 나들이 교체 후보가 없음"
+    assert all(p["source_id"] not in in_course for p in outings)
+    assert all(isinstance(p["detour_minutes"], int) and isinstance(p["distance_m"], int) for p in outings)
 
 
 def test_parse_endpoint_rule(client, monkeypatch):

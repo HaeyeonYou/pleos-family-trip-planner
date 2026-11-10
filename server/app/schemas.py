@@ -95,6 +95,19 @@ class Place(BaseModel):
     )
 
 
+class Alternative(Place):
+    """장소 교체 후보. Place에 '바꾸면 어떻게 되는지' 두 값을 더한다 (응답 전용, 요청에 그대로 보내도 무시된다)."""
+
+    distance_m: int | None = Field(
+        None, description="교체 대상(지금 코스의 같은 역할 장소)에서 후보까지 직선거리(m). 코스에 그 역할이 없으면 없음"
+    )
+    detour_minutes: int | None = Field(
+        None,
+        description="지금 장소 대신 이 후보로 바꾸면 앞 지점→후보→뒤 지점 이동이 몇 분 늘어나는지(음수면 줄어듦). "
+        "직선거리 추정을 지금 코스의 실제 길찾기 시간 비율로 보정한 값. 코스에 그 역할이 없으면 없음",
+    )
+
+
 class StopParking(BaseModel):
     """장소 근처 주차장 한 곳. 정렬 규칙은 app/course/parking_rank.py."""
 
@@ -156,7 +169,7 @@ class ScheduleRequest(BaseModel):
     home: LatLng | None = Field(None, description="귀가 지점. 없으면 출발지")
     departure_time: str | None = Field(None, pattern=r"^\d{2}:\d{2}$", description="출발 시각 HH:MM. 없으면 지금")
     stops: list[ScheduleStop] = Field(..., min_length=1, description="귀가를 뺀 방문 순서")
-    suggest_nearby: bool = Field(False, description="나들이 장소 근처 식사·카페 후보를 새로 찾아 alternatives로 준다")
+    suggest_nearby: bool = Field(False, description="나들이 장소 근처 식사·카페 후보를 새로 찾고, 나들이 후보도 다시 골라 alternatives로 준다")
 
 
 class CourseResponse(BaseModel):
@@ -166,7 +179,9 @@ class CourseResponse(BaseModel):
     return_at: str
     route_source: str = Field(..., description="kakao: 실제 길찾기 / estimate: 직선거리 추정")
     path: list[LatLng] = Field(default_factory=list, description="출발부터 귀가까지 지도에 그릴 경로 좌표")
-    alternatives: dict[StopRole, list[Place]] = Field(default_factory=dict, description="장소 교체 후보")
+    alternatives: dict[StopRole, list[Alternative]] = Field(
+        default_factory=dict, description="장소 교체 후보 (역할별 최대 3곳, 우회 시간·거리 포함)"
+    )
     warnings: list[str] = Field(default_factory=list)
 
 
