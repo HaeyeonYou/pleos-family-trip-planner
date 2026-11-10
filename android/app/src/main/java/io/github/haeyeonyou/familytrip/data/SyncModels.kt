@@ -56,6 +56,8 @@ data class FeedingIn(
     val kind: String,
     @SerialName("amount_ml") val amountMl: Int?,
     val source: String,
+    /** 어느 아이의 수유인지. null이면 서버가 첫째 아이로 본다 (C07). */
+    @SerialName("child_id") val childId: String? = null,
 )
 
 @Serializable
