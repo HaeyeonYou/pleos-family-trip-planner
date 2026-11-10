@@ -1,52 +1,38 @@
 package io.github.haeyeonyou.familytrip.ui
 
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.material3.Icon
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.IntrinsicSize
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
 import io.github.haeyeonyou.familytrip.data.CourseOption
 import io.github.haeyeonyou.familytrip.data.SavedCourse
 import io.github.haeyeonyou.familytrip.data.Visit
+import io.github.haeyeonyou.familytrip.data.WeatherInfo
 import io.github.haeyeonyou.familytrip.data.ageLabel
-import io.github.haeyeonyou.familytrip.data.clockLabel
-import io.github.haeyeonyou.familytrip.data.durationLabel
-import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.TextStyle
 import java.util.Locale
@@ -56,351 +42,376 @@ data class HomeActions(
     val load: () -> Unit,
     val toggleFilter: (change: (HomeFilters) -> HomeFilters) -> Unit,
     val retry: () -> Unit,
-    /** 지금 보여 준 코스를 빼고 다른 코스를 받는다 */
+    /** 지금 보여 준 코스를 빼고 다른 코스를 받는다 (칩 `코스 다시 추천`) */
     val another: () -> Unit,
+    /** 코스 상세(H02)를 연다 */
     val openOption: (CourseOption) -> Unit,
+    /** 상세를 거치지 않고 바로 안내를 시작한다 (코스 행의 파란 화살표, 탑승 카드의 화살표) */
+    val startOption: (CourseOption) -> Unit,
     val changeConditions: () -> Unit,
     val openCare: () -> Unit,
     val openGrow: () -> Unit,
     val reopenCourse: (SavedCourse) -> Unit,
     val fed: () -> Unit,
     val feedingInterval: (Int) -> Unit,
+    /** 상단 음성 입력줄 */
+    val onMic: () -> Unit = {},
 )
 
 /**
- * 홈 (피그마 HF01). 위: 시각·제목·음성 안내 칩, 정보 칩, 필터 칩.
- * 아래 왼쪽: 추천 코스 카드 3개, 오른쪽: 다음 수유·경험 나무 카드. 좁은 창에서는 한 줄씩 쌓는다.
+ * 홈 H01 (Figma 352:2601). 3열 그리드:
+ * 1열 지도 카드 + 탑승 감지 추천 카드 / 2열 오늘의 추천 코스 3개 / 3열 정차 공간·경험 나무 타일 + 최근 방문 코스 + 바로가기 독.
+ * 코스 행을 누르면 지도가 그 코스 경로로 바뀐다 (`05` Q27 [제안]: 추천 1 = 목록 첫 코스, 선택은 행 탭).
  */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun HomeScreen(
     state: TripUiState,
-    isParked: Boolean,
-    rangeMeters: Float?,
+    @Suppress("UNUSED_PARAMETER") isParked: Boolean,
+    @Suppress("UNUSED_PARAMETER") rangeMeters: Float?,
     visits: List<Visit>,
     saved: List<SavedCourse>,
     actions: HomeActions,
-) = DrivingAware(isParked) {
+) {
     LaunchedEffect(Unit) { actions.load() }
-    val wide = !isNarrowWindow()
     val now = rememberNow()
     val filters = state.homeFilters
+    // 선택한 코스. 추천이 바뀌어 사라지면 첫 코스로 돌아간다.
+    var selectedKey by remember { mutableStateOf<String?>(null) }
+    val shown = state.options.take(HOME_COURSE_COUNT)
+    val selected = shown.firstOrNull { it.placeKey == selectedKey } ?: shown.firstOrNull()
 
-    val cards: @Composable (Modifier) -> Unit = { m ->
-        Column(modifier = m, verticalArrangement = Arrangement.spacedBy(24.dp)) {
-            when {
-                state.optionsLoading && state.options.isEmpty() -> LoadingCards(wide)
-                state.optionsError != null && state.options.isEmpty() -> ErrorCard(state.optionsError, actions.retry)
-                else -> CourseCards(state, wide, actions.openOption)
-            }
-            if (state.options.isNotEmpty()) {
-                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    if (state.optionsLoading) Text("다른 코스를 찾는 중…", fontSize = 22.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    else PillButton("다른 코스 보기", actions.another)
-                }
+    SitterCanvas {
+        SitterVoiceBar(
+            hint = "어디로 갈까요?  “근처 실내 놀거리 찾아줘”",
+            avatarLabel = state.profile?.children?.firstOrNull()?.name?.take(1),
+            onMic = actions.onMic,
+            onGo = { selected?.let(actions.startOption) },
+            weather = { state.weather?.let { SitterWeather(temperatureLabel(it), weatherCaption(it)) } },
+        )
+        HomeChips(state, filters, actions)
+        SitterThreeColumns(
+            first = { MapColumn(selected, state.weather, now, state.going[selected?.placeKey] ?: 0, actions) },
+            second = { CourseListColumn(state, shown, selected, filters, actions) { selectedKey = it.placeKey } },
+            third = { RightColumn(visits, saved, actions) },
+        )
+    }
+}
+
+private const val HOME_COURSE_COUNT = 3
+
+// 상단 칩 줄
+
+@Composable
+private fun HomeChips(state: TripUiState, filters: HomeFilters, actions: HomeActions) {
+    val child = state.profile?.children?.firstOrNull()
+    SitterChipRow {
+        HomeDuration.entries.forEach { d ->
+            SitterChip(d.label, selected = filters.duration == d, icon = if (filters.duration == d) SitterIcons.Check else null, onClick = {
+                actions.toggleFilter { it.copy(duration = if (it.duration == d) null else d) }
+            })
+        }
+        SitterChip("반경 ${filters.radiusKm}km", selected = false, onClick = {
+            actions.toggleFilter { it.copy(radiusKm = nextRadiusKm(it.radiusKm)) }
+        })
+        SitterChip("반려견 동반", filters.pet, { actions.toggleFilter { it.copy(pet = !it.pet) } })
+        SitterChip("수유실 필수", filters.nursingRoom, { actions.toggleFilter { it.copy(nursingRoom = !it.nursingRoom) } })
+        SitterChip("유모차", filters.stroller, { actions.toggleFilter { it.copy(stroller = !it.stroller) } })
+        // 읽기 전용: 가족 정보의 첫째 아이 나이. 누르면 조건 화면에서 고친다.
+        child?.let {
+            val months = it.ageMonths()
+            SitterChip(if (months < 36) "생후 ${ageLabel(months)}" else "아이 ${ageLabel(months)}", false, actions.changeConditions, icon = SitterIcons.Baby)
+        }
+        SitterChip("코스 다시 추천", false, actions.another, icon = SitterIcons.Turn)
+    }
+}
+
+// 1열: 지도 + 탑승 감지 카드
+
+@Composable
+private fun MapColumn(selected: CourseOption?, weather: WeatherInfo?, nowMs: Long, going: Int, actions: HomeActions) {
+    val s = SitterSurface.current
+    Box(Modifier.fillMaxSize().clip(SitterShapes.Card).background(s.tile)) {
+        if (selected != null) {
+            // 코스가 바뀌면 지도를 새로 만든다 (CourseMap은 처음 받은 경로만 그린다)
+            androidx.compose.runtime.key(selected.placeKey) {
+                CourseMap(stops = selected.course.stops, path = selected.course.path, modifier = Modifier.fillMaxSize())
             }
         }
-    }
-    val side: @Composable (Modifier) -> Unit = { m ->
-        Column(modifier = m, verticalArrangement = Arrangement.spacedBy(20.dp)) {
-            FeedingCard(state.feeding, onFed = actions.fed, onInterval = actions.feedingInterval)
-            ExperienceSummaryCard(visits, actions.openGrow)
-            ShortcutsCard(saved.firstOrNull(), actions.reopenCourse, actions.openCare)
+        if (selected != null) {
+            Row(
+                Modifier.padding(16.dp).clip(SitterShapes.Pill).background(s.card).padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                SitterIcon(SitterIcons.Nav, s.primary, size = 16.dp)
+                Text("추천 코스 미리보기", style = SitterText.Caption, color = s.ink)
+            }
         }
+        ProactiveCard(selected, weather, nowMs, going, actions, Modifier.align(Alignment.BottomCenter).padding(8.dp))
     }
+}
 
+/** 탑승 감지 추천 카드: 그라데이션 바탕. 감지 신호는 임시로 "앱이 켜진 시각"(D8, `05` Q27). */
+@Composable
+private fun ProactiveCard(option: CourseOption?, weather: WeatherInfo?, nowMs: Long, going: Int, actions: HomeActions, modifier: Modifier) {
     Column(
-        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(start = 56.dp, end = 56.dp, top = 48.dp, bottom = 40.dp),
-        verticalArrangement = Arrangement.spacedBy(24.dp),
+        modifier = modifier.fillMaxWidth().clip(SitterShapes.Card).background(SitterPalette.Gradient).padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        // 맨 위: 시각, 제목, 음성 안내 칩
-        FlowRow(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+        if (option == null) {
+            Text("오늘 어디로 갈까요?", style = SitterText.Title3, color = androidx.compose.ui.graphics.Color.White)
+            Text("조건에 맞는 코스를 찾으면 여기에서 추천해 드려요", style = SitterText.Caption, color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.85f))
+            return@Column
+        }
+        Text("${nowLabel(nowMs)} · 탑승을 감지했어요", style = SitterText.Caption, color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.85f))
+        Text(proactiveSentence(weather, option), style = SitterText.Title3, color = androidx.compose.ui.graphics.Color.White, maxLines = 3, overflow = TextOverflow.Ellipsis)
+        Row(
+            modifier = Modifier.fillMaxWidth().clip(SitterShapes.Row).background(androidx.compose.ui.graphics.Color.White.copy(alpha = 0.16f)).padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(modifier = Modifier.padding(end = 16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("${nowLabel(now)} · 탑승을 감지했어요", fontSize = 20.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text("오늘 아이와 갈 수 있는 코스", fontSize = 44.sp, fontWeight = FontWeight.Bold)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(option.summary, style = SitterText.Label, color = androidx.compose.ui.graphics.Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(courseMeta(option, going), style = SitterText.Caption, color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.85f), maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                // 음성 요청(#19)은 아직이라, 예시 문구를 누르면 실내 필터를 켜서 같은 결과를 보여 준다.
-                PillButton("\u201c근처 실내 놀거리 찾아줘\u201d", icon = FigmaIcons.Mic, onClick = { if (!filters.indoor) actions.toggleFilter { it.copy(indoor = true) } })
-                PillButton("조건 바꾸기", onClick = actions.changeConditions)
-            }
-        }
-        InfoChips(state, rangeMeters)
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            FilterChip("수유실", filters.nursingRoom) { actions.toggleFilter { it.copy(nursingRoom = !it.nursingRoom) } }
-            FilterChip("유모차", filters.stroller) { actions.toggleFilter { it.copy(stroller = !it.stroller) } }
-            FilterChip("반려동물", filters.pet) { actions.toggleFilter { it.copy(pet = !it.pet) } }
-            FilterChip("실내", filters.indoor) { actions.toggleFilter { it.copy(indoor = !it.indoor) } }
-            FilterChip("키즈메뉴", filters.kidsMenu) { actions.toggleFilter { it.copy(kidsMenu = !it.kidsMenu) } }
-            FilterChip("놀이방", filters.playroom) { actions.toggleFilter { it.copy(playroom = !it.playroom) } }
-            FilterChip("주차", filters.parking) { actions.toggleFilter { it.copy(parking = !it.parking) } }
-        }
-        if (wide) {
-            Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-                cards(Modifier.weight(3f))
-                side(Modifier.weight(1f))
-            }
-        } else {
-            cards(Modifier.fillMaxWidth())
-            side(Modifier.fillMaxWidth())
+            Box(
+                Modifier.padding(start = 12.dp).size(56.dp).clip(CircleShape).background(androidx.compose.ui.graphics.Color.White)
+                    .clickable { actions.startOption(option) },
+                contentAlignment = Alignment.Center,
+            ) { SitterIcon(SitterIcons.Turn, SitterSurface.current.primary) }
         }
     }
 }
+
+// 2열: 오늘의 추천 코스
+
+@Composable
+private fun CourseListColumn(
+    state: TripUiState,
+    shown: List<CourseOption>,
+    selected: CourseOption?,
+    filters: HomeFilters,
+    actions: HomeActions,
+    onSelect: (CourseOption) -> Unit,
+) {
+    val s = SitterSurface.current
+    SitterCard(Modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(20.dp)) {
+        Row(Modifier.fillMaxWidth().padding(bottom = 16.dp), verticalAlignment = Alignment.Bottom) {
+            Text("오늘의 추천 코스", style = SitterText.Title3, color = s.ink, modifier = Modifier.weight(1f))
+            Text("반경 ${filters.radiusKm}km · ${shown.size}개", style = SitterText.Caption, color = s.inkMute)
+        }
+        when {
+            state.optionsLoading && shown.isEmpty() -> CenterMessage { CircularProgressIndicator(); Text("추천 코스를 찾는 중…", style = SitterText.Body2, color = s.inkSoft) }
+            state.optionsError != null && shown.isEmpty() -> CenterMessage {
+                Text(state.optionsError, style = SitterText.Body2, color = s.inkSoft)
+                SitterButton("다시 시도", actions.retry, kind = SitterButtonKind.Soft)
+            }
+            shown.isEmpty() -> CenterMessage {
+                Text("조건에 맞는 코스가 없어요", style = SitterText.Body1, color = s.ink)
+                SitterButton("조건 줄이기", actions.changeConditions, kind = SitterButtonKind.Soft)
+            }
+            else -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                shown.forEachIndexed { index, option ->
+                    CourseItem(
+                        title = "[테마${index + 1}] ${option.name}",
+                        option = option,
+                        going = state.going[option.placeKey] ?: 0,
+                        selected = option.placeKey == selected?.placeKey,
+                        onSelect = { onSelect(option) },
+                        onStart = { actions.startOption(option) },
+                    )
+                }
+                if (state.optionsLoading) Text("추천을 다시 계산하는 중…", style = SitterText.Caption, color = s.primary)
+            }
+        }
+    }
+}
+
+@Composable
+private fun CenterMessage(content: @Composable () -> Unit) {
+    Column(
+        Modifier.fillMaxWidth().height(320.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) { content() }
+}
+
+/**
+ * 코스 항목 (Figma Course Item 361:5170): 제목·경로·메타·편의 태그 + 오른쪽 길 안내 원 버튼(52).
+ * 행을 누르면 지도 미리보기에 선택, 원 버튼은 바로 안내. 상세(H02)는 선택된 행을 다시 누르면 연다.
+ */
+@Composable
+private fun CourseItem(title: String, option: CourseOption, going: Int, selected: Boolean, onSelect: () -> Unit, onStart: () -> Unit) {
+    val s = SitterSurface.current
+    val outing = option.course.stops.firstOrNull { it.role == "outing" }?.place
+    val available = outing?.amenities?.filterValues { it == "available" }?.keys.orEmpty().filter { it in AMENITY_LABELS }
+    SitterRow(selected = selected, onClick = onSelect, contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp)) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(title, style = SitterText.Title3, color = s.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(option.summary, style = SitterText.Caption, color = s.inkSoft, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    "총 ${io.github.haeyeonyou.familytrip.data.durationLabel(option.totalMinutes.toLong())} · 첫 이동 ${option.firstDriveMinutes}분",
+                    style = SitterText.Caption, color = s.inkMute, maxLines = 1,
+                )
+                if (going > 0) Text("● 지금 ${going}대", style = SitterText.Caption, color = s.primary, maxLines = 1)
+            }
+            if (available.isNotEmpty()) {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    available.take(3).forEach { SitterTag(AMENITY_LABELS.getValue(it).removeSuffix(" 동반")) }
+                }
+            }
+        }
+        GradientCircleButton(size = 52.dp, modifier = Modifier.padding(start = 12.dp), onClick = onStart) {
+            SitterIcon(SitterIcons.Turn, androidx.compose.ui.graphics.Color.White)
+        }
+    }
+}
+
+// 3열
+
+@Composable
+private fun RightColumn(visits: List<Visit>, saved: List<SavedCourse>, actions: HomeActions) {
+    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(SitterGrid.GAP.dp)) {
+        Row(Modifier.fillMaxWidth().height(200.dp), horizontalArrangement = Arrangement.spacedBy(SitterGrid.GAP.dp)) {
+            StopSpaceTile(actions.openCare, Modifier.weight(1f).fillMaxHeight())
+            ExperienceTile(visits, actions.openGrow, Modifier.weight(1f).fillMaxHeight())
+        }
+        RecentCourses(saved, actions.reopenCourse, Modifier.weight(1f))
+        ShortcutDock()
+    }
+}
+
+/** 정차 공간 찾기 타일. 휴게소·졸음쉼터 데이터는 아직 없어(D9) 케어의 주차 후보 찾기로 연결한다. */
+@Composable
+private fun StopSpaceTile(onClick: () -> Unit, modifier: Modifier) {
+    val s = SitterSurface.current
+    SitterCard(
+        modifier.clickable(onClick = onClick),
+        tone = SitterCardTone.Active,
+    ) {
+        SitterIcon(SitterIcons.Parking, s.primary)
+        Spacer(Modifier.weight(1f))
+        Text("정차 공간 찾기", style = SitterText.Title3, color = s.ink)
+        Text("근처 주차장·쉼터", style = SitterText.Caption, color = s.inkMute, modifier = Modifier.padding(top = 4.dp))
+        Text("케어에서 찾기", style = SitterText.Label, color = s.primary, modifier = Modifier.padding(top = 12.dp))
+    }
+}
+
+/** 경험 나무 요약: 이번 달 방문 장소 수(링)와 분야 수. 기록은 기기 VisitStore에서 읽기만 한다. */
+@Composable
+private fun ExperienceTile(visits: List<Visit>, onOpen: () -> Unit, modifier: Modifier) {
+    val s = SitterSurface.current
+    val month = LocalDateTime.now().let { it.year to it.monthValue }
+    val thisMonth = visits.filter { it.role == "outing" && (it.date.year to it.date.monthValue) == month }
+    val places = thisMonth.map { it.placeName }.distinct().size
+    val fields = thisMonth.mapNotNull { it.theme }.distinct().size
+    SitterCard(modifier.clickable(onClick = onOpen), contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp)) {
+        Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.SpaceBetween) {
+            Box(Modifier.size(80.dp), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(
+                    progress = { (places / 5f).coerceIn(0f, 1f) },
+                    modifier = Modifier.fillMaxSize(),
+                    color = s.primary,
+                    trackColor = s.tile,
+                    strokeWidth = 6.dp,
+                )
+                Text("$places", style = SitterText.Number, color = s.ink)
+            }
+            Text(if (places == 0) "첫 나들이를 기록해 보세요" else "이번 달 ${places}곳 · ${fields}분야", style = SitterText.Caption, color = s.inkSoft, maxLines = 2)
+            Text(
+                "경험 나무 보기",
+                style = SitterText.Label,
+                color = s.ink,
+                modifier = Modifier.clip(SitterShapes.Pill).background(s.tile).padding(horizontal = 14.dp, vertical = 8.dp),
+            )
+        }
+    }
+}
+
+/** 최근 방문 코스: 저장한 코스 최근 3개. 눌러서 같은 순서로 다시 안내한다. */
+@Composable
+private fun RecentCourses(saved: List<SavedCourse>, onReopen: (SavedCourse) -> Unit, modifier: Modifier) {
+    val s = SitterSurface.current
+    val recent = saved.sortedByDescending { it.savedAt }.take(3)
+    SitterCard(modifier.fillMaxWidth(), contentPadding = androidx.compose.foundation.layout.PaddingValues(20.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text("최근 방문 코스", style = SitterText.Title3, color = s.ink, modifier = Modifier.weight(1f))
+            if (recent.isNotEmpty()) {
+                Text("다시 가기", style = SitterText.Label, color = s.primary, modifier = Modifier.clickable { onReopen(recent.first()) })
+            }
+        }
+        if (recent.isEmpty()) {
+            Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+                Text("코스를 저장하면 여기에서 다시 갈 수 있어요", style = SitterText.Body2, color = s.inkMute)
+            }
+            return@SitterCard
+        }
+        Row(Modifier.fillMaxWidth().padding(top = 14.dp).weight(1f), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            val tints = listOf(0xFFF3E8FF, 0xFFDBEAFE, 0xFFD5ECD9)
+            recent.forEachIndexed { i, course ->
+                Column(Modifier.weight(1f).clickable { onReopen(course) }, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Box(
+                        Modifier.fillMaxWidth().height(100.dp).clip(SitterShapes.Row).background(androidx.compose.ui.graphics.Color(tints[i % tints.size])),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        SitterIcon(recentIcon(course), s.inkSoft)
+                        Box(
+                            Modifier.align(Alignment.TopStart).padding(8.dp).size(28.dp).clip(CircleShape).background(androidx.compose.ui.graphics.Color(0xFF4E5968)),
+                            contentAlignment = Alignment.Center,
+                        ) { Text("${i + 1}", style = SitterText.Caption, color = androidx.compose.ui.graphics.Color.White) }
+                    }
+                    Text(course.title, style = SitterText.Label, color = s.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(recentMeta(course), style = SitterText.Caption, color = s.inkMute, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+        }
+        Text(
+            "코스 선택하면 같은 순서로 다시 안내해요",
+            style = SitterText.Caption,
+            color = s.inkSoft,
+            modifier = Modifier.fillMaxWidth().padding(top = 12.dp).clip(SitterShapes.Pill).background(s.tile).padding(vertical = 12.dp),
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+        )
+    }
+}
+
+private fun recentIcon(course: SavedCourse) = when (course.course.stops.firstOrNull { it.role == "outing" }?.place?.theme) {
+    "nature" -> SitterIcons.Trees
+    "play", "experience" -> SitterIcons.Waves
+    else -> SitterIcons.Store
+}
+
+private fun recentMeta(course: SavedCourse): String {
+    val stay = course.course.stops.sumOf { it.stayMinutes }
+    val drive = course.course.totalDriveMinutes
+    return "${io.github.haeyeonyou.familytrip.data.durationLabel((stay + drive).toLong())}"
+}
+
+// 글
+
+private fun courseMeta(option: CourseOption, going: Int): String {
+    val base = "총 ${io.github.haeyeonyou.familytrip.data.durationLabel(option.totalMinutes.toLong())} · 첫 이동 ${option.firstDriveMinutes}분"
+    return if (going > 0) "$base · 지금 ${going}대" else base
+}
+
+/** "맑고 14°예요. 아차산 숲길 반나절 어때요?" 형태. 날씨를 못 받으면 코스 문장만. */
+internal fun proactiveSentence(weather: WeatherInfo?, option: CourseOption): String {
+    val wx = weather?.let { w ->
+        val cond = w.condition.takeIf { it.isNotBlank() }?.let { c -> if (c.endsWith("음") || c.endsWith("름")) "${c.dropLast(1)}고" else "$c," }
+        val temp = w.temperature?.let { "${Math.round(it)}°예요." }
+        listOfNotNull(cond, temp).joinToString(" ").takeIf { cond != null || temp != null }
+    }
+    return listOfNotNull(wx, "${option.name} 어때요?").joinToString("\n")
+}
+
+private fun temperatureLabel(w: WeatherInfo) = w.temperature?.let { "${Math.round(it)}°" } ?: "--"
+
+private fun weatherCaption(w: WeatherInfo): String =
+    listOf(w.condition, w.region).filter { it.isNotBlank() }.joinToString(" · ")
 
 private fun nowLabel(nowMs: Long): String {
     val t = LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(nowMs), java.time.ZoneId.systemDefault())
     val day = t.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.KOREAN)
     val hour12 = if (t.hour % 12 == 0) 12 else t.hour % 12
     return "$day ${if (t.hour < 12) "오전" else "오후"} $hour12:${"%02d".format(t.minute)}"
-}
-
-@Composable
-private fun PillButton(text: String, onClick: () -> Unit, icon: ImageVector? = null) {
-    Row(
-        modifier = Modifier
-            .clip(RoundedCornerShape(999.dp))
-            .background(Color.White)
-            .border(1.dp, TripColors.Line, RoundedCornerShape(999.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 26.dp, vertical = 16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        icon?.let { Icon(it, contentDescription = null, tint = TripColors.Green, modifier = Modifier.size(26.dp)) }
-        Text(text, fontSize = 20.sp, fontWeight = FontWeight.Medium)
-    }
-}
-
-/** 정보 칩 한 줄: 위치·반경, 날씨, 생후 개월, 반려견, 다음 수유, (읽을 수 있으면) 주행 가능 거리 */
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun InfoChips(state: TripUiState, rangeMeters: Float?) {
-    val child = state.profile?.children?.firstOrNull()
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        InfoChip("${state.weather?.region?.takeIf { it.isNotBlank() } ?: "현재 위치"} · 반경 10km", FigmaIcons.Pin)
-        state.weather?.let { w ->
-            val temp = w.temperature?.let { " · ${Math.round(it)}°C" }.orEmpty()
-            // 피그마에는 맑음(해) 아이콘만 있어, 비·눈일 때는 기호로 구분한다.
-            if (w.rainy) InfoChip("🌧  ${w.condition}$temp") else InfoChip("${w.condition}$temp", FigmaIcons.Sun)
-        }
-        child?.let {
-            val months = it.ageMonths()
-            InfoChip(if (months < 36) "생후 ${ageLabel(months)}" else "아이 ${ageLabel(months)}", FigmaIcons.Baby)
-        }
-        if (state.homeFilters.pet) InfoChip("반려견 동반", FigmaIcons.Paw)
-        state.feeding.nextAt?.let { InfoChip("다음 수유 ${clockLabel(it)}", FigmaIcons.Clock) }
-        rangeMeters?.takeIf { it > 0 }?.let { InfoChip("🔋  주행 가능 ${Math.round(it / 1000)}km") }
-    }
-}
-
-/** 피그마 Context pill: 흰 바탕, 반지름 14, 선 아이콘 24 + 글자 22 */
-@Composable
-private fun InfoChip(text: String, icon: ImageVector? = null) {
-    Row(
-        modifier = Modifier.clip(RoundedCornerShape(14.dp)).background(Color.White).padding(horizontal = 20.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        icon?.let { Icon(it, contentDescription = null, tint = TripColors.InkSoft, modifier = Modifier.size(24.dp)) }
-        Text(text, fontSize = 22.sp, fontWeight = FontWeight.Medium)
-    }
-}
-
-@Composable
-private fun FilterChip(label: String, on: Boolean, onClick: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .heightIn(min = 56.dp)
-            .clip(RoundedCornerShape(999.dp))
-            .background(if (on) TripColors.GreenSoft else TripColors.Tile)
-            .border(2.dp, if (on) TripColors.Green else Color.Transparent, RoundedCornerShape(999.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 24.dp, vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        if (on) Icon(FigmaIcons.Check, contentDescription = null, tint = TripColors.Green, modifier = Modifier.size(20.dp))
-        Text(label, fontSize = 22.sp, fontWeight = FontWeight.Medium, color = if (on) TripColors.Green else TripColors.Ink)
-    }
-}
-
-// 추천 코스 카드
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun CourseCards(state: TripUiState, wide: Boolean, onOpen: (CourseOption) -> Unit) {
-    if (state.optionsLoading) Text("추천을 다시 계산하는 중…", fontSize = 20.sp, color = TripColors.Green)
-    val cards: @Composable (CourseOption, Modifier) -> Unit = { option, m ->
-        CourseCard(option, state.going[option.placeKey] ?: 0, m) { onOpen(option) }
-    }
-    if (wide) {
-        Row(modifier = Modifier.height(IntrinsicSize.Max), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-            state.options.forEach { cards(it, Modifier.weight(1f).fillMaxHeight()) }
-            // 후보가 3개보다 적어도 카드 폭을 맞춘다
-            repeat((3 - state.options.size).coerceAtLeast(0)) { Spacer(Modifier.weight(1f)) }
-        }
-    } else {
-        state.options.forEach { cards(it, Modifier.fillMaxWidth()) }
-    }
-}
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun CourseCard(option: CourseOption, going: Int, modifier: Modifier, onStart: () -> Unit) {
-    val outing = option.course.stops.firstOrNull { it.role == "outing" }?.place
-    Column(
-        modifier = modifier
-            .clip(RoundedCornerShape(24.dp))
-            .background(Color.White)
-            .border(1.dp, TripColors.Line, RoundedCornerShape(24.dp))
-            .padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Box(
-            modifier = Modifier.fillMaxWidth().height(120.dp).clip(RoundedCornerShape(16.dp)).background(TripColors.Tile),
-            contentAlignment = Alignment.Center,
-        ) {
-            // 사진이 없거나 못 받으면 분야 아이콘(없으면 피그마의 가방 아이콘)이 보인다
-            val themeIcon = THEME_ICONS[outing?.theme]
-            if (themeIcon != null) Text(themeIcon, fontSize = 40.sp)
-            else Icon(FigmaIcons.Bag, contentDescription = null, tint = TripColors.InkSoft, modifier = Modifier.size(40.dp))
-            if (outing != null && outing.imageUrl.isNotBlank()) {
-                AsyncImage(model = outing.imageUrl, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-            }
-        }
-        Text(option.name, fontSize = 26.sp, lineHeight = 36.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-        Text(option.summary, fontSize = 19.sp, lineHeight = 28.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Icon(FigmaIcons.Clock, contentDescription = null, tint = TripColors.InkSoft, modifier = Modifier.size(20.dp))
-            Text("총 ${durationLabel(option.totalMinutes.toLong())} · 첫 이동 ${option.firstDriveMinutes}분", fontSize = 19.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        // 편의 칩: 나들이 장소에서 '있음'이 확인된 것만
-        val available = outing?.amenities?.filterValues { it == "available" }?.keys.orEmpty().filter { it in AMENITY_LABELS }
-        if (available.isNotEmpty()) {
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                available.forEach {
-                    Row(
-                        modifier = Modifier.clip(RoundedCornerShape(10.dp)).background(TripColors.Tile).padding(horizontal = 14.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
-                        Icon(FigmaIcons.Check, contentDescription = null, tint = TripColors.Green, modifier = Modifier.size(18.dp))
-                        Text(AMENITY_LABELS.getValue(it), fontSize = 19.sp, fontWeight = FontWeight.Medium)
-                    }
-                }
-            }
-        }
-        // 숫자만 보여 주고, 0이면 줄을 숨긴다 (개인 식별 정보 없음)
-        if (going > 0) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Box(Modifier.size(10.dp).clip(CircleShape).background(TripColors.Green))
-                Text("지금 ${going}대 가는 중", fontSize = 19.sp, fontWeight = FontWeight.Medium)
-            }
-        }
-        Spacer(Modifier.weight(1f))
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = 80.dp)
-                .clip(RoundedCornerShape(20.dp))
-                .background(TripColors.Green)
-                .clickable(onClick = onStart),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
-        ) {
-            Icon(FigmaIcons.Nav, contentDescription = null, tint = Color.White, modifier = Modifier.size(26.dp))
-            Text("코스 시작", fontSize = 26.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
-        }
-    }
-}
-
-private val THEME_ICONS = mapOf("nature" to "🌳", "exhibition" to "🏛", "play" to "🧸", "experience" to "🎨", "pet" to "🐕")
-
-@Composable
-private fun LoadingCards(wide: Boolean) {
-    Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-        repeat(if (wide) 3 else 1) {
-            Column(
-                modifier = Modifier.weight(1f).height(480.dp).clip(RoundedCornerShape(24.dp)).background(Color.White)
-                    .border(1.dp, TripColors.Line, RoundedCornerShape(24.dp)).padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                CircularProgressIndicator()
-                Text("추천 코스를 찾는 중…", fontSize = 22.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
-    }
-}
-
-@Composable
-private fun ErrorCard(message: String, onRetry: () -> Unit) {
-    Column(
-        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(Color.White)
-            .border(1.dp, TripColors.Line, RoundedCornerShape(28.dp)).padding(32.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        Text(message, fontSize = 24.sp, color = MaterialTheme.colorScheme.error)
-        PillButton("다시 시도", onRetry)
-    }
-}
-
-// 오른쪽 열
-
-private fun sideCard(modifier: Modifier = Modifier) = modifier
-    .fillMaxWidth()
-    .clip(RoundedCornerShape(24.dp))
-    .background(Color.White)
-    .border(1.dp, TripColors.Line, RoundedCornerShape(24.dp))
-
-/** 우리 아이 경험 나무: 이번 달 방문 수와 분야 수 (기록은 기기 VisitStore) */
-@Composable
-private fun ExperienceSummaryCard(visits: List<Visit>, onOpen: () -> Unit) {
-    val month = LocalDate.now().let { it.year to it.monthValue }
-    val thisMonth = visits.filter { it.role == "outing" && (it.date.year to it.date.monthValue) == month }
-    val places = thisMonth.map { it.placeName }.distinct().size
-    val fields = thisMonth.mapNotNull { it.theme }.distinct().size
-    val insight = remember(visits) { experienceInsight(visits) }
-    Column(sideCard().padding(horizontal = 28.dp, vertical = 26.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Icon(FigmaIcons.Sprout, contentDescription = null, tint = TripColors.Green, modifier = Modifier.size(24.dp))
-            Text("우리 아이 경험 나무", fontSize = 20.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        Text("이번 달 ${places}곳 · ${fields}개 분야", fontSize = 24.sp, fontWeight = FontWeight.SemiBold)
-        Text("${insight.title}. ${insight.body}", fontSize = 18.sp, lineHeight = 28.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Row(
-            modifier = Modifier.clip(RoundedCornerShape(12.dp)).clickable(onClick = onOpen).padding(vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            Text("경험 나무 보기", fontSize = 19.sp, fontWeight = FontWeight.Medium, color = TripColors.Green)
-            Icon(FigmaIcons.Chev, contentDescription = null, tint = TripColors.Green, modifier = Modifier.size(20.dp))
-        }
-    }
-}
-
-/** 혜연 home 프레임에서 가져온 바로가기: 지난 코스 다시 가기, 베이비 케어 */
-@Composable
-private fun ShortcutsCard(last: SavedCourse?, onReopen: (SavedCourse) -> Unit, onCare: () -> Unit) {
-    Column(sideCard().padding(8.dp)) {
-        if (last != null) {
-            ShortcutRow("🔁  지난 코스 다시 가기", last.title) { onReopen(last) }
-        }
-        ShortcutRow("🍼  베이비 케어", "수유·공조 프리셋·급한 케어 찾기", onCare)
-    }
-}
-
-@Composable
-private fun ShortcutRow(title: String, sub: String, onClick: () -> Unit) {
-    Column(
-        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 14.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        Text(title, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-        Text(sub, fontSize = 18.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-    }
 }

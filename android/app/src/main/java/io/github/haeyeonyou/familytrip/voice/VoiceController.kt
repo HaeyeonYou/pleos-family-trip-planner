@@ -43,6 +43,8 @@ data class VoiceUiState(
     val notice: String? = null,
     /** 되묻는 중인 동작 설명. 있으면 "응/아니야" 버튼을 보인다. */
     val confirm: String? = null,
+    /** 주행 중 1곳 제안 (D01). 있으면 패널 대신 큰 버튼 2개짜리 카드를 보인다. */
+    val proposal: DriveProposal? = null,
 )
 
 private const val CANCEL_WINDOW_MS = 3_000L
@@ -68,6 +70,13 @@ class VoiceController(
     private val scope: CoroutineScope,
 ) {
     private val main = Handler(Looper.getMainLooper())
+    private val closeTimer = AutoCloseTimer(object : TimerClock {
+        override fun postDelayed(task: Runnable, delayMs: Long) {
+            main.postDelayed(task, delayMs)
+        }
+
+        override fun cancel(task: Runnable) = main.removeCallbacks(task)
+    })
     private val _state = MutableStateFlow(VoiceUiState())
     val state: StateFlow<VoiceUiState> = _state.asStateFlow()
 
@@ -76,7 +85,6 @@ class VoiceController(
     var host: VoiceHost? = null
 
     private var answeredAt = 0L
-    private var closeTask: Runnable? = null
 
     /** 되물은 동작. "응"이 오면 실행한다. */
     private var pending: (suspend () -> Unit)? = null
@@ -102,6 +110,25 @@ class VoiceController(
 
     /** 인식한 문장, 문장 버튼, 시연 입력창이 모두 여기로 들어온다. */
     fun submit(text: String) {
+        // 주행 중 1곳 제안에 대한 답은 여기서 먼저 받는다. 관계없는 말은 무시해 8초 타이머를 그대로 둔다.
+        val proposal = _state.value.proposal
+        if (proposal != null && proposal.waiting) {
+            when (classifyProposalReply(text)) {
+                ProposalReply.ACCEPT -> {
+                    cancelClose()
+                    io.cancelListen()
+                    acceptProposal()
+                    return
+                }
+                ProposalReply.DECLINE -> {
+                    cancelClose()
+                    io.cancelListen()
+                    declineProposal()
+                    return
+                }
+                ProposalReply.OTHER -> if (parseUtterance(text) !is Utterance.Situation) return
+            }
+        }
         cancelClose()
         io.cancelListen()
         _state.update { it.copy(open = true, listening = false, notice = null, heard = text) }
@@ -182,7 +209,9 @@ class VoiceController(
                 care.setFeedingInterval(step.minutes)
                 finish("수유 간격을 ${durationLabel(step.minutes.toLong())}으로 바꿨어요.")
             }
-            is Step.Find -> {
+            is Step.Find -> if (host?.driving == true) {
+                propose(step.kind, toneFor(step.kind))
+            } else {
                 val places = care.findNearby(step.kind, 2)
                 answerPlaces(step.kind, places, toneFor(step.kind))
             }
@@ -276,6 +305,17 @@ class VoiceController(
         ToneState.voice = situation.tone
         _state.update { VoiceUiState(open = true, heard = heard, situation = situation, busy = situation != CareSituation.SLEEP) }
         scope.launch {
+            if (situation != CareSituation.SLEEP && host?.driving == true) {
+                propose(
+                    when (situation) {
+                        CareSituation.DIAPER -> CareKind.DIAPER
+                        CareSituation.FEED -> CareKind.NURSING
+                        else -> CareKind.REST
+                    },
+                    situation.tone,
+                )
+                return@launch
+            }
             when (situation) {
                 CareSituation.SLEEP -> {
                     care.setSleepMode(true)
@@ -319,6 +359,67 @@ class VoiceController(
                 }
             }
         }
+    }
+
+    // 주행 중 1곳 제안 (D01)
+
+    /** [kind]의 후보 중 1곳만 골라 말하고 "좋아"/"아니요"를 기다린다. 8초 안에 답이 없으면 닫힌다. */
+    private suspend fun propose(kind: CareKind, tone: CareTone?) {
+        tone?.let { ToneState.voice = it }
+        val places = care.findNearby(kind, PROPOSAL_CANDIDATES)
+        val best = places?.let(::pickBestPlace)
+        if (best == null) {
+            answer(noProposalMessage(kind, failed = places == null), emptyList())
+            return
+        }
+        val message = proposalMessage(best)
+        answeredAt = System.currentTimeMillis()
+        pending = { acceptProposal() }
+        _state.update {
+            it.copy(busy = false, message = message, options = emptyList(), notice = null, confirm = null, proposal = DriveProposal(kind, best))
+        }
+        // 말이 끝난 때부터 8초를 센다. 말이 안 끝나는 경우를 위해 안전 타이머도 건다.
+        scheduleClose(PROPOSAL_SAFETY_CLOSE_MS)
+        io.speak(message, care.voiceVolume) { onProposalSpoken() }
+    }
+
+    private fun onProposalSpoken() {
+        if (_state.value.proposal?.waiting != true) return
+        scheduleClose(PROPOSAL_IDLE_CLOSE_MS)
+        listenForProposalReply(retries = 2)
+    }
+
+    /** 제안 뒤 "좋아"를 말로 받는다. 못 알아들으면 몇 번 더 듣고, 그동안에도 버튼은 눌린다. */
+    private fun listenForProposalReply(retries: Int) {
+        io.listen { result ->
+            if (_state.value.proposal?.waiting != true) return@listen
+            when (result) {
+                is ListenResult.Heard -> {
+                    submit(result.text)
+                    if (_state.value.proposal?.waiting == true && retries > 0) listenForProposalReply(retries - 1)
+                }
+                is ListenResult.Failed -> if (retries > 0) listenForProposalReply(retries - 1)
+            }
+        }
+    }
+
+    private fun acceptProposal() {
+        val p = _state.value.proposal ?: return
+        pending = null
+        val result = care.addWaypoint(p.place)
+        answeredAt = System.currentTimeMillis()
+        _state.update { it.copy(proposal = p.copy(answer = ProposalAnswer.ACCEPTED), message = result, chosen = 1) }
+        io.speak(result, care.voiceVolume)
+        scheduleClose(CLOSE_AFTER_CHOICE_MS)
+    }
+
+    private fun declineProposal() {
+        val p = _state.value.proposal ?: return
+        pending = null
+        val msg = "알겠어요, 추가하지 않을게요."
+        _state.update { it.copy(proposal = p.copy(answer = ProposalAnswer.DECLINED), message = msg) }
+        io.speak(msg, care.voiceVolume)
+        scheduleClose(1_500L)
     }
 
     private fun toneFor(kind: CareKind): CareTone? = when (kind) {
@@ -393,6 +494,10 @@ class VoiceController(
 
     /** 되묻는 중이면 그 동작을 취소한다. 아니면 답변 뒤 3초 안의 "아니야"만 취소로 받는다 (수면 모드를 켰다면 다시 끈다). */
     private fun handleCancel() {
+        if (_state.value.proposal?.waiting == true) {
+            declineProposal()
+            return
+        }
         if (pending != null) {
             pending = null
             val msg = "알겠어요, 하지 않을게요."
@@ -427,11 +532,10 @@ class VoiceController(
 
     private fun scheduleClose(delayMs: Long) {
         cancelClose()
-        closeTask = Runnable { close() }.also { main.postDelayed(it, delayMs) }
+        closeTimer.start(delayMs) { close() }
     }
 
     private fun cancelClose() {
-        closeTask?.let(main::removeCallbacks)
-        closeTask = null
+        closeTimer.cancel()
     }
 }
