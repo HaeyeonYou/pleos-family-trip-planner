@@ -164,3 +164,12 @@
   Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
   ```
 - PR 제목: `PR #번호 병합: <제목>`
+
+### [작업 단위 5~7] 11/10 화면 세션 3개 (홈·케어·주행 음성)
+작업 방식·파일 소유·토큰 한도 점검 규칙은 [docs/agent-tasks/1110-screen-sessions-plan.md](docs/agent-tasks/1110-screen-sessions-plan.md). 세션은 자기 행과 자기 지시 파일만 고친다.
+
+| 작업 | 상태 | 브랜치·PR | 지시·기록 파일 |
+|---|---|---|---|
+| 홈 H01 · 코스 상세 H02 · 대체 장소 H02-1 | ⏳ 대기 (2026-11-10) | — | [home-h01-h02.md](docs/agent-tasks/home-h01-h02.md) |
+| 케어 C01~C12 (1차: C01·C02·C05·C06) | ⏳ 대기 (2026-11-10) | — | [care-c01.md](docs/agent-tasks/care-c01.md) |
+| 주행 중 음성 1곳 제안 D01 | ⏳ 대기 (2026-11-10) | — | [drive-voice-d01.md](docs/agent-tasks/drive-voice-d01.md) |
