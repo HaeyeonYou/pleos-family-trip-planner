@@ -35,6 +35,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import io.github.haeyeonyou.familytrip.location.FUSED_LOCATION_PERMISSION
 import io.github.haeyeonyou.familytrip.ui.AppShell
+import io.github.haeyeonyou.familytrip.ui.DriveMode
 import io.github.haeyeonyou.familytrip.ui.DelayAlertPanel
 import io.github.haeyeonyou.familytrip.care.CareKind
 import io.github.haeyeonyou.familytrip.ui.CareActions
@@ -273,7 +274,7 @@ class MainActivity : ComponentActivity() {
                         onDispose { container.voice.host = null }
                     }
 
-                    AppShell(tab = tabOf(route ?: start), onTab = ::openTab, onMic = ::onMicClick) {
+                    AppShell(tab = tabOf(route ?: start), onTab = ::openTab, onMic = ::onMicClick, drive = DriveMode.from(vehicle)) {
                     Box(modifier = Modifier.fillMaxSize()) {
                     NavHost(navController = nav, startDestination = start) {
                         composable(Routes.LOGIN) {
