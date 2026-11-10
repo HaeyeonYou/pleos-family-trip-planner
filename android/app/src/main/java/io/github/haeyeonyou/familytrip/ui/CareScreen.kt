@@ -61,7 +61,15 @@ data class CareActions(
     /** 마지막 수유 시각(epoch ms)을 기록한다. 지금이면 현재 시각. */
     val onFedAt: (Long) -> Unit,
     val onFind: (CareKind) -> Unit,
+    /** 급한 케어 시트를 연다 (C09~C11). */
+    val onOpenUrgent: (CareKind) -> Unit,
+    val onCloseUrgent: () -> Unit,
+    /** 케어 화면에 머문 채 경유지를 넣는다 (C12 토스트·슬롯). */
     val onAddWaypoint: (CarePlace) -> Unit,
+    /** C12 "되돌리기"·"경유지 빼기" */
+    val onUndoWaypoint: () -> Unit,
+    /** C12 "안내 계속" */
+    val onContinueGuidance: () -> Unit,
     val onDelayAddWaypoint: (DelayCandidate) -> Unit,
     val onDelayKeepGoing: () -> Unit,
     val onApplyPreset: (slot: String) -> Unit,
@@ -112,10 +120,10 @@ fun CareScreen(
         )
         SitterChipRow {
             SitterChip(chipLabel, selected = true, onClick = {}, icon = SitterIcons.Baby)
-            CareKindChip(CareKind.NURSING, SitterIcons.Milk, actions)
-            CareKindChip(CareKind.DIAPER, SitterIcons.Diaper, actions, enabled = false)
-            CareKindChip(CareKind.REST, SitterIcons.Parking, actions)
-            CareKindChip(CareKind.RESTROOM, SitterIcons.Restroom, actions, enabled = false)
+            CareKindChip(CareKind.NURSING, actions)
+            CareKindChip(CareKind.DIAPER, actions)
+            CareKindChip(CareKind.REST, actions)
+            CareKindChip(CareKind.RESTROOM, actions)
             // 소아과·약국은 서버 종류가 생기기 전까지 준비 중 (D4)
             SitterChip("소아과", selected = false, onClick = {}, modifier = Modifier.alpha(0.4f), icon = SitterIcons.Clinic)
             SitterChip("약국", selected = false, onClick = {}, modifier = Modifier.alpha(0.4f), icon = SitterIcons.Pill)
@@ -138,18 +146,14 @@ fun CareScreen(
                 ShortcutDock()
             },
         )
+        care.urgent?.let { UrgentCareSheet(it, care.frequent, onAdd = actions.onAddWaypoint, onClose = actions.onCloseUrgent) }
+        WaypointToast(care.addedWaypoint, onUndo = actions.onUndoWaypoint)
     }
 }
 
 @Composable
-private fun CareKindChip(kind: CareKind, icon: ImageVector, actions: CareActions, enabled: Boolean = true) {
-    SitterChip(
-        kind.label,
-        selected = false,
-        onClick = { if (enabled) actions.onFind(kind) },
-        modifier = if (enabled) Modifier else Modifier.alpha(0.4f),
-        icon = icon,
-    )
+private fun CareKindChip(kind: CareKind, actions: CareActions) {
+    SitterChip(kind.label, selected = false, onClick = { actions.onOpenUrgent(kind) }, icon = kind.icon())
 }
 
 // ───────────── 1열: 베이비케어 모드 ─────────────
@@ -437,7 +441,7 @@ private fun UrgentTile(kind: CareKind, icon: ImageVector, result: Nearby?, actio
     val s = SitterSurface.current
     val place = (result as? Nearby.Found)?.places?.firstOrNull()
     SitterCard(
-        Modifier.width(188.dp).height(200.dp).clickable { if (place == null) actions.onFind(kind) },
+        Modifier.width(188.dp).height(200.dp).clip(SitterShapes.Card).clickable { actions.onOpenUrgent(kind) },
         contentPadding = androidx.compose.foundation.layout.PaddingValues(18.dp),
     ) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -477,7 +481,7 @@ private fun UrgentTile(kind: CareKind, icon: ImageVector, result: Nearby?, actio
 private fun CareSlotCard(care: CareState, delay: DelayAlertUi?, now: Long, actions: CareActions, modifier: Modifier) {
     val phase = feedingPhase(care.feeding, now)
     var dismissed by remember(care.feeding.lastFedAt) { mutableStateOf(setOf<CareSlot>()) }
-    val slot = pickCareSlot(phase, delay != null, dismissed)
+    val slot = pickCareSlot(phase, delay != null, dismissed, waypointActive = care.addedWaypoint != null)
     fun dismiss(s: CareSlot) { dismissed = dismissed + s }
     val nursing = (care.nearby[CareKind.NURSING] as? Nearby.Found)?.places.orEmpty()
     val nursingRows = nursing.take(2).map { SlotRow(it.name, detourLabel(it.onRoute, it.detourMinutes, it.driveMinutes)) { actions.onAddWaypoint(it) } }
@@ -503,6 +507,7 @@ private fun CareSlotCard(care: CareState, delay: DelayAlertUi?, now: Long, actio
             if (nursing.isEmpty()) "근처 수유실을 찾고 있어요" else "경로 위 가장 가까운 수유실부터 보여 드려요",
             nursingRows, "수유실 경유지 추가", nursing.isNotEmpty(), { nursing.firstOrNull()?.let(actions.onAddWaypoint) }, "나중에",
         ) { dismiss(CareSlot.FeedingOverdue) }
+        CareSlot.Waypoint -> WaypointSlot(care.addedWaypoint!!, care.feeding, actions.onUndoWaypoint, actions.onContinueGuidance, modifier)
         else -> TodaySlot(care.feeding, modifier)
     }
 }
