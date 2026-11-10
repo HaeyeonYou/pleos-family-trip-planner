@@ -1,7 +1,7 @@
 {% extends "base.html" %}
-{% block header %}<div class="topbar"><a class="back" href="/m/grow" aria-label="경험맵으로 돌아가기">←</a></div><h1 class="title">{{ label }}</h1>{% endblock %}
+{% block header %}<div class="topbar"><a class="back" href="/m/grow" aria-label="경험 우주로 돌아가기">←</a></div><h1 class="title">{{ label }}</h1>{% endblock %}
 {% block body %}
-<p class="lead">방문 {{ visits }}번 · 장소 {{ places | length }}곳</p>
+<p class="lead">{{ stage_name }} · 경험 {{ experiences }}개 · 장소 {{ places | length }}곳</p>
 <div class="card" style="padding:4px 16px">
   <ul class="list">
     {% for p in places %}
@@ -9,5 +9,5 @@
     {% endfor %}
   </ul>
 </div>
-<a class="btn" href="/m/course?theme={{ theme }}">이 분야로 코스 받기</a>
+<a class="btn" href="{{ course_href }}">이 분야로 코스 받기</a>
 {% endblock %}

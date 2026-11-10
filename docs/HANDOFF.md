@@ -176,5 +176,6 @@
 | 그로우 G01 경험 우주 + 젤리 12종 성장 | ✅ 에뮬레이터 확인·병합, 원본 젤리 그림 반영(#181, 2026-11-11). 서버 12분류·그로우 음성 명령은 다른 세션 | #164 · PR #170, #181 | [164-grow-g01.md](docs/agent-tasks/164-grow-g01.md) |
 | Figma 11/10 디자인 변경 감시 (주기 확인·기록·세션 전달) | 🔶 3시간 주기 감시 중, 기준선 저장(2026-11-11). 온보딩 O01~O06 정리 → [1110-onboarding-o01.md](docs/agent-tasks/1110-onboarding-o01.md) | #157 · `feature/157-figma-watch` | [157-figma-watch.md](docs/agent-tasks/157-figma-watch.md) |
 | 서버: 대체 후보 우회 시간·거리, 재계산 뒤 나들이 후보 | ✅ 완료 (2026-11-10), 앱 반영은 home-finish 몫 | #160 · `feature/160-server-detour` | [160-server-detour.md](docs/agent-tasks/160-server-detour.md) |
+| 서버: 그로우 젤리 12분류 판정·앱/웹 반영 | ✅ 완료 (2026-11-11). 코스 장소·방문 기록에 `jelly`, 앱 `classify` 서버 값 우선, 웹 그로우 12분류. 서버 반영 시 `alembic upgrade head` 필요 | #186 · `feature/186-server-jelly12` | [186-server-jelly12.md](docs/agent-tasks/186-server-jelly12.md) |
 
 - **이어받는 법:** [docs/agent-tasks/next-agent-prompt.md](docs/agent-tasks/next-agent-prompt.md)의 프롬프트를 새 에이전트에 그대로 붙여 넣는다.

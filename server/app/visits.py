@@ -1,6 +1,6 @@
 """방문 기록과 경험맵. 사용자가 '차 안 기기에만 저장' 정책을 바꿔 서버에 저장한다.
 
-개인정보 최소화: 장소 키·장소 이름·분야·날짜·머문 시간·아이 기분만 받는다.
+개인정보 최소화: 장소 키·장소 이름·분야·장소 분류·날짜·머문 시간·아이 기분만 받는다.
 위치 좌표, 도착·출발 시각, 아이 음성, 사진은 받지 않는다.
 """
 
@@ -16,8 +16,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.deps import current_user, get_db
 from app.family import _owned, today_kst
+from app.course import jelly as jelly_rules
+from app.course.jelly import judge
 from app.models import CarePlace, User, VisitRecord
-from app.schemas import Theme, VisitSummary
+from app.schemas import Jelly, Theme, VisitSummary
 
 router = APIRouter(prefix="/me", tags=["visits"])
 
@@ -32,6 +34,7 @@ class VisitIn(BaseModel):
     place_key: str = Field("", max_length=80, description="source:source_id. 모르면 비움")
     place_name: str = Field(..., min_length=1, max_length=60)
     theme: Theme | None = None
+    category: str = Field("", max_length=120, description="장소 분류 원문 (코스 장소의 category). 젤리 12분류 판정 근거")
     visited_on: date
     stayed_minutes: int | None = Field(None, ge=0, le=1440)
     status: Status = "confirmed"
@@ -40,6 +43,7 @@ class VisitIn(BaseModel):
 
 class VisitOut(VisitIn):
     id: uuid.UUID
+    jelly: Jelly = Field(description="그로우 젤리 12분류. 서버가 이름·분류·분야로 정한다 (분류가 없는 예전 기록도 조회할 때 정함)")
 
 
 class BulkItem(VisitIn):
@@ -55,12 +59,19 @@ class VisitPatch(BaseModel):
     mood: Mood | None = None
 
 
+def jelly_of(row: VisitRecord) -> Jelly:
+    """방문 기록의 젤리 12분류. 저장하지 않고 조회할 때마다 정해서 판정 규칙이 바뀌면 예전 기록에도 반영된다."""
+    return judge(row.place_name, row.category or "", row.theme)
+
+
 def out(row: VisitRecord) -> VisitOut:
     return VisitOut(
         id=row.id,
         place_key=row.place_key,
         place_name=row.place_name,
         theme=Theme(row.theme) if row.theme else None,
+        category=row.category or "",
+        jelly=jelly_of(row),
         visited_on=row.visited_on,
         stayed_minutes=row.stayed_minutes,
         status=row.status,
@@ -72,6 +83,7 @@ def _apply(row: VisitRecord, body: VisitIn) -> None:
     row.place_key = body.place_key
     row.place_name = body.place_name.strip()
     row.theme = body.theme.value if body.theme else None
+    row.category = body.category.strip()
     row.visited_on = body.visited_on
     row.stayed_minutes = body.stayed_minutes
     row.status = body.status
@@ -176,6 +188,17 @@ class MapTheme(BaseModel):
     places: list[MapPlace]
 
 
+class MapJelly(BaseModel):
+    jelly: Jelly
+    label: str = Field(description="분류 이름 (예: 자연·숲)")
+    character: str = Field(description="젤리 캐릭터 (예: 곰)")
+    stage: str = Field(description="none / drop(방울 1~3) / puff(몽글 4~9) / born(탄생 10+)")
+    stage_name: str = Field(description="곰 방울 / 곰 몽글 / 푸근한 숲 곰형")
+    experiences: int = Field(description="10분 이상 머문 확정 방문 수 (머문 시간을 모르면 셈)")
+    first_on: date = Field(description="처음 경험한 날")
+    places: list[MapPlace]
+
+
 class ExperienceMap(BaseModel):
     visit_count: int
     place_count: int
@@ -184,6 +207,41 @@ class ExperienceMap(BaseModel):
     this_month_visits: int
     new_themes_this_month: list[Theme]
     pending_count: int = Field(description="다녀왔는지 확인을 기다리는 방문 수")
+    jellies: list[MapJelly] = Field(default_factory=list, description="젤리 12분류별 경험 (#186). 경험이 많은 순")
+    empty_jellies: list[Jelly] = Field(default_factory=list, description="아직 경험이 없는 분류 ('비어 있는 별')")
+
+
+def _map_places(visits_by_place: dict[str, list[VisitRecord]]) -> list[MapPlace]:
+    items = []
+    for visits in visits_by_place.values():
+        last = max(visits, key=lambda v: (v.visited_on, v.created_at))
+        items.append(MapPlace(place_key=last.place_key, place_name=last.place_name, visits=len(visits), last_visited_on=last.visited_on, last_mood=last.mood))
+    items.sort(key=lambda p: (-p.visits, -p.last_visited_on.toordinal()))
+    return items
+
+
+def is_experience(row: VisitRecord) -> bool:
+    return row.status == "confirmed" and (row.stayed_minutes is None or row.stayed_minutes >= jelly_rules.MIN_STAY_MINUTES)
+
+
+def build_jellies(rows: list[VisitRecord]) -> tuple[list[MapJelly], list[Jelly]]:
+    """젤리 12분류로 묶는다. 같은 장소는 장소 키(없으면 이름)로 묶는다."""
+    by_kind: dict[Jelly, dict[str, list[VisitRecord]]] = defaultdict(lambda: defaultdict(list))
+    for r in rows:
+        if is_experience(r):
+            by_kind[jelly_of(r)][r.place_key or r.place_name].append(r)
+    result = []
+    for kind, places in by_kind.items():
+        count = sum(len(v) for v in places.values())
+        label, character, _ = jelly_rules.LABELS[kind]
+        result.append(
+            MapJelly(jelly=kind, label=label, character=character, stage=jelly_rules.stage(count),
+                     stage_name=jelly_rules.stage_name(kind, count), experiences=count,
+                     first_on=min(v.visited_on for vs in places.values() for v in vs), places=_map_places(places))
+        )
+    order = list(Jelly)
+    result.sort(key=lambda j: (-j.experiences, order.index(j.jelly)))
+    return result, [k for k in Jelly if k not in by_kind]
 
 
 def build_map(rows: list[VisitRecord], today: date) -> ExperienceMap:
@@ -199,16 +257,15 @@ def build_map(rows: list[VisitRecord], today: date) -> ExperienceMap:
     for theme, places in by_theme.items():
         if theme == "other":
             continue  # 분야를 모르는 방문은 장소 수·방문 수에만 센다
-        items = []
-        for visits in places.values():
-            last = max(visits, key=lambda v: (v.visited_on, v.created_at))
-            items.append(MapPlace(place_key=last.place_key, place_name=last.place_name, visits=len(visits), last_visited_on=last.visited_on, last_mood=last.mood))
-        items.sort(key=lambda p: (-p.visits, -p.last_visited_on.toordinal()))
+        items = _map_places(places)
         themes.append(MapTheme(theme=Theme(theme), label=THEME_LABELS[theme], visits=sum(p.visits for p in items), places=items))
     themes.sort(key=lambda t: -t.visits)
     seen = {t.theme for t in themes}
     month = (today.year, today.month)
+    jellies, empty_jellies = build_jellies(rows)
     return ExperienceMap(
+        jellies=jellies,
+        empty_jellies=empty_jellies,
         visit_count=len(confirmed),
         place_count=len({(r.place_key or r.place_name) for r in confirmed}),
         themes=themes,

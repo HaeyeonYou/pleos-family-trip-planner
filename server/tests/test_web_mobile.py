@@ -339,14 +339,18 @@ def test_grow_experience_map_theme_sheet_and_visit_confirmation():
             await mom.post("/me/visits/bulk", json={"visits": rows})
 
             grow = (await mom.get("/m/grow")).text
-            assert "서아의 경험맵" in grow and "다녀온 곳 1곳 확인하기" in grow
-            assert "가지 2 · 잎 3 · 방문 4번" in grow and "서울숲 · 2회" in grow and "수목원" in grow and "키즈카페" in grow
-            assert "아직 없는 가지" in grow and "전시" in grow and "/m/course?theme=exhibition" in grow
+            assert "서아의 경험 우주" in grow and "다녀온 곳 1곳 확인하기" in grow
+            # 젤리 12분류 (#186): 서울숲·수목원 = 자연·숲, 키즈카페 = 몸놀이
+            assert "별 2개 · 4개의 경험 · 3개 장소" in grow and "서울숲 · 2회" in grow and "수목원" in grow and "키즈카페" in grow
+            assert "자연·숲 · 곰 방울" in grow and "몸놀이 · 말 방울" in grow
+            assert "비어 있는 별" in grow and "과학·박물관" in grow and "/m/course?theme=exhibition" in grow
             assert "어제 간 곳" in grow  # 확인 대기 안내에 장소 이름
 
-            theme = (await mom.get("/m/grow/theme/nature")).text
-            assert "자연" in theme and "서울숲 · 2회" in theme and "신났어요" in theme and "이 분야로 코스 받기" in theme
-            assert (await mom.get("/m/grow/theme/exhibition")).status_code == 303  # 방문 없는 분야는 경험맵으로
+            star = (await mom.get("/m/grow/jelly/nature")).text
+            assert "자연·숲" in star and "서울숲 · 2회" in star and "신났어요" in star and "이 분야로 코스 받기" in star
+            assert "/m/course?theme=nature" in star
+            assert (await mom.get("/m/grow/jelly/science")).status_code == 303  # 경험 없는 분류는 경험 우주로
+            assert (await mom.get("/m/grow/theme/nature")).status_code == 303  # 예전 5분야 주소
 
             home = (await mom.get("/m/")).text
             assert "다녀온 곳 1곳 확인하기" in home and "다시 가볼까요?" in home and "서울숲" in home and "2번 다녀왔어요" in home
