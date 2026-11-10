@@ -25,6 +25,7 @@ Figma 파일 `xeLwkzhH8tnsazQdOriGU2` → 페이지 `종합 정리` → 섹션 `
 - 스냅샷 노드 기록 항목: 이름, 종류, 화면 기준 x·y, 크기, 문구, 글꼴(family/weight/size/lineHeight), 채우기·선 색, 모서리, 불투명도, 오토레이아웃, 효과, 숨김, 컴포넌트 id, 부모.
 - 화면 → 세션: H01·H02·H02-1 → `home-h01-h02`, C01~C12 → `care-c01`, D01 → `drive-voice-d01`, G01 → 없음(결정 대기). 섹션 공통 변경이나 새 색은 모든 세션.
 - 변경이 없으면 기록하지 않는다(`state.json`만 갱신, 커밋 안 함).
+- 감시 범위는 섹션 `351:2611`만 유지한다(사용자 결정, 2026-11-11). 섹션 밖 온보딩 O 화면, 웹 S02, `피드백 반영` 섹션(`369:11525`)은 감시하지 않으며, 바뀌어도 알림이 가지 않는다.
 
 ## 변경이 있을 때 절차 (주기 작업이 따른다)
 1. `python3 tools/figma_watch.py check` → `status: changed`면 `CHANGELOG.md`·`snapshot.json`·`state.json`이 바뀐다.
