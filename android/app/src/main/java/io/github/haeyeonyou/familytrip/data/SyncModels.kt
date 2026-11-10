@@ -88,6 +88,17 @@ data class ServerChild(
     @SerialName("feed_interval_minutes") val feedIntervalMinutes: Int? = null,
     @SerialName("nap_count") val napCount: Int? = null,
     @SerialName("age_months") val ageMonths: Int = 0,
+    /** YYYY-MM-DD. 웹·차 온보딩이 일까지 받은 아이만 있다 (#184) */
+    @SerialName("birth_date") val birthDate: String? = null,
+    @SerialName("rear_facing_seat") val rearFacingSeat: Boolean? = null,
+    @SerialName("stroller_use") val strollerUse: Boolean? = null,
+    @SerialName("nap_times") val napTimes: String? = null,
+    // 차가 쓰지 않지만 고쳐 올릴 때 웹에서 넣은 값을 지우지 않으려고 함께 읽는다 (서버 PUT은 전체를 바꾼다)
+    val temperament: List<String> = emptyList(),
+    @SerialName("nap_in_car") val napInCar: Boolean? = null,
+    @SerialName("heat_sensitivity") val heatSensitivity: String? = null,
+    @SerialName("motion_sickness") val motionSickness: Boolean? = null,
+    @SerialName("noise_sensitivity") val noiseSensitivity: String? = null,
 )
 
 @Serializable
@@ -97,6 +108,15 @@ data class ChildIn(
     @SerialName("feeding_type") val feedingType: String?,
     @SerialName("feed_interval_minutes") val feedIntervalMinutes: Int?,
     @SerialName("nap_count") val napCount: Int?,
+    @SerialName("birth_date") val birthDate: String? = null,
+    @SerialName("rear_facing_seat") val rearFacingSeat: Boolean? = null,
+    @SerialName("stroller_use") val strollerUse: Boolean? = null,
+    @SerialName("nap_times") val napTimes: String? = null,
+    val temperament: List<String> = emptyList(),
+    @SerialName("nap_in_car") val napInCar: Boolean? = null,
+    @SerialName("heat_sensitivity") val heatSensitivity: String? = null,
+    @SerialName("motion_sickness") val motionSickness: Boolean? = null,
+    @SerialName("noise_sensitivity") val noiseSensitivity: String? = null,
 )
 
 /** `GET /me/family`. 멤버(호칭)는 차 앱이 쓰지 않아 읽지 않는다. */

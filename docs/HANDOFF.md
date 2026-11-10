@@ -176,6 +176,7 @@
 | 그로우 G01 경험 우주 + 젤리 12종 성장 | ✅ 에뮬레이터 확인·병합, 원본 젤리 그림 반영(#181, 2026-11-11). 서버 12분류·그로우 음성 명령은 다른 세션 | #164 · PR #170, #181 | [164-grow-g01.md](docs/agent-tasks/164-grow-g01.md) |
 | 그로우 음성 명령 (기간·분류 보기, 다시 가볼 곳, ○○ 다시 가자) | ✅ 서버 의도·규칙 해석, 앱 연결, 에뮬레이터 정차·주행(D01) 확인 (2026-11-11). 남은 일: grow_go 화면 흐름·실제 STT 확인 | #185 · PR #189 | [185-grow-voice.md](docs/agent-tasks/185-grow-voice.md) |
 | Figma 11/10 디자인 변경 감시 (주기 확인·기록·세션 전달) | 🔶 3시간 주기 감시 중, 기준선 저장(2026-11-11). 온보딩 O01~O06 정리 → [1110-onboarding-o01.md](docs/agent-tasks/1110-onboarding-o01.md) | #157 · `feature/157-figma-watch` | [157-figma-watch.md](docs/agent-tasks/157-figma-watch.md) |
+| 온보딩 O01~O06 (차 앱·서버 생년월일 일·카시트·케어 장소 API·웹 S02) | ✅ 에뮬레이터 확인·병합(2026-11-11). QO5(아이별 모드 값)는 임시로 가족 공통 | #184 · PR #187, 차 앱 PR(지시서 로그) | [1110-onboarding-o01.md](docs/agent-tasks/1110-onboarding-o01.md) |
 | 서버: 대체 후보 우회 시간·거리, 재계산 뒤 나들이 후보 | ✅ 완료 (2026-11-10), 앱 반영은 home-finish 몫 | #160 · `feature/160-server-detour` | [160-server-detour.md](docs/agent-tasks/160-server-detour.md) |
 | 서버: 그로우 젤리 12분류 판정·앱/웹 반영 | ✅ 완료 (2026-11-11). 코스 장소·방문 기록에 `jelly`, 앱 `classify` 서버 값 우선, 웹 그로우 12분류. 서버 반영 시 `alembic upgrade head` 필요 | #186 · `feature/186-server-jelly12` | [186-server-jelly12.md](docs/agent-tasks/186-server-jelly12.md) |
 

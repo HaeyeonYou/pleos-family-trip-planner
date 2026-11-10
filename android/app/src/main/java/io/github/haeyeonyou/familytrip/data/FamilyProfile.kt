@@ -8,9 +8,14 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.io.File
+import java.time.LocalDate
 import java.time.YearMonth
 
-/** 아이 한 명. 생년월만 저장하고 나이는 그때그때 계산한다. */
+/**
+ * 아이 한 명. 생년월(일)을 저장하고 나이는 그때그때 계산한다.
+ * 온보딩 O04(#184)에서 받는 값([birthDay]·[stroller]·[rearFacingSeat]·[napTimes])은 서버 아이 정보와 같은 값이다.
+ * null은 "아직 모름"이라 서버 값을 따른다 (예전 화면이 이 값을 빼고 저장해도 서버 값이 지워지지 않는다).
+ */
 @Serializable
 data class Child(
     val birthYear: Int,
@@ -18,9 +23,27 @@ data class Child(
     val name: String = "",
     /** 서버(웹)에 등록된 이 아이의 id. 서버와 맞춘 아이에게만 있다. */
     val serverId: String? = null,
+    /** 태어난 날 (1~31). 달만 아는 아이는 null (서버 `birth_date`) */
+    val birthDay: Int? = null,
+    /** 유모차를 쓰는지 (서버 `stroller_use`) */
+    val stroller: Boolean? = null,
+    /** 카시트 뒤보기 (서버 `rear_facing_seat`) */
+    val rearFacingSeat: Boolean? = null,
+    /** 평소 낮잠 시간대 글 (서버 `nap_times`, 예: "오후 1시쯤") */
+    val napTimes: String? = null,
 ) {
     fun ageMonths(now: YearMonth = YearMonth.now()): Int =
         ((now.year - birthYear) * 12 + (now.monthValue - birthMonth)).coerceAtLeast(0)
+
+    /** 날짜 기준 개월 수. 태어난 날을 알면 생일 전날까지는 한 달 덜 센다 (서버 `age_months`와 같은 규칙). */
+    fun ageMonthsOn(today: LocalDate): Int {
+        val months = (today.year - birthYear) * 12 + (today.monthValue - birthMonth)
+        val day = birthDay
+        return (if (day != null && today.dayOfMonth < day) months - 1 else months).coerceAtLeast(0)
+    }
+
+    /** 생년월일 날짜 (일을 모르면 null) */
+    fun birthDate(): LocalDate? = birthDay?.let { runCatching { LocalDate.of(birthYear, birthMonth, it) }.getOrNull() }
 }
 
 /**
