@@ -344,23 +344,25 @@ class MainActivity : ComponentActivity() {
                         composable(Routes.CARE) {
                             val care = container.care
                             val careState by care.state.collectAsStateWithLifecycle()
+                            val careDelay by container.delayAlert.ui.collectAsStateWithLifecycle()
                             CareScreen(
                                 state = state,
                                 care = careState,
-                                isParked = vehicle.isParked,
+                                delayAlert = careDelay,
                                 actions = CareActions(
                                     // 폰에서 보낸 공조 프리셋이 있으면 그 값으로 베이비케어를 맞춘다.
                                     onBabyCare = { on -> care.setBabyCare(on, state.babyCarePreset, onApplied = { vm.dismissPreset("boarding") }) },
-                                    onSleepMode = care::setSleepMode,
-                                    onFed = care::markFed,
-                                    onInterval = care::setFeedingInterval,
+                                    onFedAt = { at -> care.markFed(at) },
                                     onFind = { kind -> scope.launch { care.findNearby(kind) } },
                                     onAddWaypoint = { place -> care.addWaypoint(place) },
+                                    onDelayAddWaypoint = container.delayAlert::addWaypoint,
+                                    onDelayKeepGoing = container.delayAlert::keepGoing,
                                     onApplyPreset = vm::applyPreset,
                                     onSavePreset = vm::savePreset,
                                     onDismissPreset = { vm.dismissPreset(it) },
                                     onEnter = {
                                         care.refreshClimate()
+                                        care.refreshFrequent()
                                         scope.launch { CareKind.cards.forEach { care.findNearby(it) } }
                                     },
                                 ),
@@ -468,7 +470,8 @@ class MainActivity : ComponentActivity() {
                     }
                     val delayAlert by container.delayAlert.ui.collectAsStateWithLifecycle()
                     DelayAlertPanel(
-                        alert = delayAlert,
+                        // 정차 중에 케어 화면을 보고 있으면 오른쪽 슬롯 카드가 알려 주므로 전체 화면으로 덮지 않는다 (주행 중에는 그대로).
+                        alert = delayAlert.takeUnless { vehicle.isParked && route == Routes.CARE },
                         onAddWaypoint = container.delayAlert::addWaypoint,
                         onKeepGoing = container.delayAlert::keepGoing,
                     )

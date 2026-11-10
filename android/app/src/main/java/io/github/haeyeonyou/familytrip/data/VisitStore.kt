@@ -31,6 +31,11 @@ data class Visit(
     val departedAt: String? = null,
     /** 서버가 정한 방문 id. 웹 등 다른 곳에서 받아온 기록에만 있고, 차에서 만든 기록은 [id]에서 만든 UUID를 쓴다. */
     val serverId: String? = null,
+    /** 장소 좌표 (장소의 위치이지 사람의 위치가 아니다). 케어 화면 '자주 가는 케어 장소'의 길 안내에 쓰며 서버에는 올리지 않는다. 예전 기록에는 없다. */
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+    /** 도착할 때 확인된 편의 (nursing_room, stroller, pet). 서버에는 올리지 않는다. 예전 기록·웹에서 받은 기록에는 없다. */
+    val amenities: List<String> = emptyList(),
 ) {
     val date: LocalDate get() = LocalDateTime.parse(arrivedAt).toLocalDate()
 
@@ -74,6 +79,9 @@ class VisitStore(private val file: File) {
             address = place.address,
             placeKey = "${place.source}:${place.sourceId}",
             arrivedAt = now.withNano(0).toString(),
+            latitude = place.latitude,
+            longitude = place.longitude,
+            amenities = CARE_AMENITIES.filter { place.amenities[it] == "available" },
         )
         write(visits + visit)
     }
@@ -100,6 +108,9 @@ class VisitStore(private val file: File) {
     }
 
     companion object {
+        /** 방문에 함께 적어 두는 편의: 케어 화면의 시설 칩(수유실·유모차·반려동물)과 같다. */
+        val CARE_AMENITIES = listOf("nursing_room", "stroller", "pet")
+
         /** 차에 두는 방문 기록 상한. 서버 목록 한 번 조회 상한([VISIT_LIST_LIMIT])과 같다. */
         const val MAX_VISITS = VISIT_LIST_LIMIT
     }
