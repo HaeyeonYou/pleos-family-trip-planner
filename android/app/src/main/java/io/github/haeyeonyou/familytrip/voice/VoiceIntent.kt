@@ -30,7 +30,7 @@ sealed interface Utterance {
 }
 
 private val CHOOSE = Regex("(1|2|3|일|이|삼|하나|둘|셋|첫|두)\\s?(번째|번)")
-private val CANCEL = listOf("아니야", "아니에요", "아냐", "취소", "그만", "됐어", "틀렸어")
+private val CANCEL = listOf("아니야", "아니에요", "아니요", "아뇨", "아냐", "취소", "그만", "됐어", "틀렸어")
 private val YES = setOf("응", "네", "예", "그래", "그래요", "좋아", "좋아요", "맞아", "맞아요", "해줘", "해주세요", "응응", "어")
 private val KEEP_GOING = listOf("그대로", "그냥가", "그냥 가", "괜찮아", "닫아")
 

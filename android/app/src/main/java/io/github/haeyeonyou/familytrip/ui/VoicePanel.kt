@@ -57,6 +57,11 @@ fun VoicePanel(
     onClose: () -> Unit,
 ) {
     if (!state.open) return
+    // 주행 중 1곳 제안 (D01): 목록·문장 버튼 대신 큰 버튼 2개짜리 카드
+    state.proposal?.let { proposal ->
+        DrivingVoiceCard(state, proposal, onAccept = { onSubmit("좋아") }, onDecline = { onSubmit("아니요") })
+        return
+    }
     val tone = ToneState.current
     val accent = state.situation?.tone?.accent ?: tone.accent
     Box(
