@@ -83,8 +83,10 @@ class Child(Base):
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     nickname: Mapped[str] = mapped_column(String(30))
-    # 태어난 달의 1일로 저장 (생일은 개월 수 계산에만 쓴다)
+    # 태어난 달의 1일로 저장 (생일은 개월 수 계산에만 쓴다). birth_date가 있으면 그 달로 맞춘다 (예전 클라이언트 호환)
     birth_month: Mapped[date] = mapped_column(Date)
+    # 생년월일 (일까지, 차 온보딩 O04·웹 S02). 예전에 달만 받은 아이는 비어 있다
+    birth_date: Mapped[date | None] = mapped_column(Date, default=None)
     # breast(모유) / formula(분유) / mixed(혼합) / solid(이유식 후기·유아식)
     feeding_type: Mapped[str | None] = mapped_column(String(10), default=None)
     feed_interval_minutes: Mapped[int | None] = mapped_column(Integer, default=None)
@@ -102,6 +104,8 @@ class Child(Base):
     noise_sensitivity: Mapped[str | None] = mapped_column(String(10), default=None)
     # 유모차 사용 → 코스 조건의 '유모차 길' 기본 선택
     stroller_use: Mapped[bool | None] = mapped_column(Boolean, default=None)
+    # 카시트 뒤보기 (차 온보딩 O04 '함께 챙길 것')
+    rear_facing_seat: Mapped[bool | None] = mapped_column(Boolean, default=None)
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
 
 
@@ -158,6 +162,27 @@ class VisitRecord(Base):
     # excited / normal / sleepy / bad (아이 기분 한 번 탭)
     mood: Mapped[str | None] = mapped_column(String(10), default=None)
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
+
+
+class CarePlace(Base):
+    """자주 가는 케어 장소. 차가 도착 기록으로 고른 곳을 올리고, 다른 차가 QR로 연결할 때 내려받는다.
+
+    개인정보 최소화: 장소 키·이름·확인된 시설·방문 수·마지막 방문 날짜만 둔다. 위치 좌표는 받지 않는다
+    (차는 이름으로 `care/nearby` 후보와 맞춰 좌표를 찾는다).
+    """
+
+    __tablename__ = "care_places"
+    __table_args__ = (UniqueConstraint("user_id", "place_name", name="uq_care_places_user_id_place_name"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    place_key: Mapped[str] = mapped_column(String(80), default="")
+    place_name: Mapped[str] = mapped_column(String(60))
+    # 방문하며 확인된 시설 (nursing_room / stroller / pet)
+    amenities: Mapped[list] = mapped_column(JSONB, default=list, server_default="[]")
+    visit_count: Mapped[int] = mapped_column(Integer, default=0)
+    last_visited_on: Mapped[date | None] = mapped_column(Date, default=None)
+    updated_at: Mapped[datetime] = mapped_column(default=utcnow)
 
 
 class CourseStart(Base):
