@@ -253,6 +253,33 @@ Figma 팔레트 프레임(358:5057)의 7색은 모두 읽어서 일치했다: Pr
 
 ---
 
+## 4-O. 온보딩 O01~O06 명세와 현재 코드 (2026-11-11 추가)
+
+화면 글·구성은 `02`의 "온보딩 O01~O06", 미정 사항은 `05`의 QO1~QO9, 구현 지시는 `docs/agent-tasks/1110-onboarding-o01.md`.
+
+| 화면 | 필요한 데이터·기능 | 지금 있는 것 | 차이 |
+|---|---|---|---|
+| O01 시작 | 첫 실행 여부, 정차 여부 | `MainActivity.kt:172` 계정이 없고 이번 실행에서 건너뛰지 않았으면 `Routes.LOGIN`부터. 첫 실행 플래그 없음(`AccountStore.skipped`는 실행 중 메모리 값) | 온보딩 완료 플래그(차 로컬) 새로. 시작 화면 분기 `GUIDE > 온보딩 미완료 > HOME`. 주행 중이면 안내만 |
+| O02 QR | 로그인 요청·QR·만료 시각·폴링, 로그인 후 가져온 항목 표시, 차 기록 합치기 | 서버 `POST /auth/car-login`, `GET /auth/car-login/{code}/qr.png`, `POST /auth/car-login/{id}/poll`(`server/app/auth/api.py:55~87`, 응답에 `expires_at`). 앱 `ui/LoginScreen.kt`(QR 표시·폴링·만료 시 새 요청). 동기화 `data/ServerSync.kt`·`FamilySync.kt`·`FeedingSync.kt`·`VisitSync.kt`·`PresetSync.kt`가 로그인 후 차 기록과 서버를 맞춘다 | 화면만 새로(카운트다운·`새 QR 받기`·가져온 항목 4줄 체크). **자주 가는 케어 장소**는 차 로컬(`care/FrequentCarePlaces.kt`)뿐이라 서버에 없음 |
+| O03 권한 | 차량 정보·문/정차·위치 권한, 공조 지원 여부, 음성·캘린더 사용 동의 | 공조 지원 조회 `vehicle/PleosVehicleRepository.kt:115~117`(`checkHvac*Capabilities`). 위치 `location/`. 캘린더 연동 코드 **없음** | 권한 요청 화면 새로. 공조 미지원 시 "이 차는 안내만 해요". 캘린더는 기능이 없어 선택 토글만 그리거나 숨김(QO6) |
+| O04 아이 정보 | 이름(최대 10자), 생년월일(일까지)·출산 예정일, 수유 간격, 낮잠 시간대, 함께 챙길 것 | 앱 `data/FamilyProfile.kt` `Child(birthYear, birthMonth, name, serverId)`, `petAlong`(가족 단위). 서버 `ChildIn`(`server/app/family.py:61`) `nickname`(30자), `birth_month`(YYYY-MM), `feed_interval_minutes`(60~360), `nap_count`, `nap_times`(자유 글), `stroller_use`, `temperament` 등. 코스 요청엔 개월 수만 보냄(#47) | **생년월일 일·출산 예정일 필드 없음**(QO2). `수유 안 해요` 값 없음(null로 대체 가능, QO3). 낮잠 `오전 10시쯤/오후 1시쯤/일정하지 않아요`는 `nap_times` 글로 저장 가능. **카시트 뒤보기 필드 없음**. 반려견은 아이가 아니라 가족 값 |
+| O04-1 생년월일 휠 | 휠 선택, 즉시 월령, 미래 날짜 = 예정일 | 없음 | 휠 컴포넌트 새로(키보드 없음). 월령 계산은 `Child.ageMonths` 재사용(일 단위 반영 여부 QO2) |
+| O05 아이 목록 | 아이별 수유 간격·낮잠·모드 값, 아이 추가, 마지막 선택 아이 유지 | 서버 `GET /family`·`PUT/DELETE /children/{id}`, 앱 `care/ChildSelect.kt`·`ui/CareChildSelect.kt`. 프리셋은 **계정 단위**(`server/app/presets.py`, `user_id`+`slot`) | 문구 "아이마다 … 케어 모드 값을 따로 저장"이 임시 결정 D4(모드는 가족 공통)와 충돌(QO5) |
+| O06 완료 | 모드 요약, 첫 추천 코스, 마지막 수유 시각 기록 | 수유 기록 `data/FeedingStore.kt`·서버 `/feedings`, 코스 `/course` | 칩 → 수유 기록 1건 생성. `나중에`면 기록 없이 C02 상태로 H01 |
+
+### 서버에 필요한 것 (온보딩)
+| 항목 | 현재 | 필요한 일 | 크기 |
+|---|---|---|---|
+| 생년월일(일) · 출산 예정일 | `birth_month` YYYY-MM만 | QO2 결정에 따라 `birth_date`(선택, YYYY-MM-DD)와 `is_due_date`(또는 `due_date`) 추가, 웹 S02와 맞춤. 코스 요청엔 지금처럼 개월 수만 | S |
+| 카시트 뒤보기 | 없음 | `ChildIn`에 `rear_facing_seat: bool \| None` 추가(쓰임새가 정해지면) | S |
+| 수유 안 함 | `feed_interval_minutes` null = 모름 | `feeding_type`으로 표현할지, 별도 값이 필요한지 QO3 | S |
+| 자주 가는 케어 장소 동기화 | 차 로컬만 | O02가 "불러옴"이라고 하므로 `/me/care-places` 같은 목록 API 필요(지금 범위면 O02 행을 숨기는 것도 가능) | M |
+| 아이별 모드 값 | 프리셋은 계정 단위 | QO5에서 "아이별"로 정하면 `ClimatePreset`에 `child_id` 추가와 앱 동기화 변경 | M |
+| 온보딩 완료 여부 | 없음 | 차 로컬 플래그로 충분(서버 불필요, 추정). QR로 불러온 가족에 아이가 있으면 O05로 가는 판단은 `GET /family`로 가능 | — |
+
+### 앱에 필요한 것 (온보딩)
+- 새 화면 묶음 `ui/onboarding/`(O01~O06), 온보딩 진행 상태(단계·입력 중인 아이) 저장, 시작 화면 분기, 주행 중 차단 안내. 권한 요청(위치 등)과 공조 지원 조회 결과 표시. 생년월일 휠 시트. 기존 `LoginScreen.kt`의 QR·폴링 로직은 O02에 재사용.
+
 ## 5. 다른 에이전트의 분석 `docs/development-plan-1110.md`와 대조
 
 대상: `/Users/kwonstar/Pleos_Application/docs/development-plan-1110.md` (읽기만 함). 아래는 중요도순. "근거"는 Figma 노드 id 또는 코드 위치다.
