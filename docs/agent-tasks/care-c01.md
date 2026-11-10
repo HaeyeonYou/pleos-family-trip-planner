@@ -1,6 +1,6 @@
 # 작업 지시·기록: 케어 화면 C01~C12 (11/10 디자인)
 
-- 상태: **진행 중 (1차 C01·C02·C05·C06 에뮬레이터 확인 후 병합, 2차 남음)** (2026-11-10 시작) · 세션명 `care-c01` · 이슈 #150 · 브랜치 `feature/150-care-c01-grid`
+- 상태: **완료 (C01~C12 모두 에뮬레이터 확인 후 병합, 2026-11-10)** · 이슈 #150 · PR #156(1차), #166(C09~C12), #169(C08), #171(C03), #172(C04), #174(C07) · 남은 일: #168(적용 시점 서버 필드), 7절의 확인 못 한 것(주행 중 전환·실차)
 - 공통 방식·파일 소유·토큰 한도 점검 규칙: [1110-screen-sessions-plan.md](1110-screen-sessions-plan.md) (먼저 읽는다)
 
 ## 1. 목표와 완료 조건
@@ -30,6 +30,7 @@
 ## 6. 진행 로그
 | 날짜 | 한 일 | 다음 단계 |
 |---|---|---|
+| 2026-11-10 | 2차 마무리: HANDOFF 케어 행·#24 갱신. 테스트 계정에 아이 2명(서아·도윤)과 수유 기록이 남아 있음(확인용 실데이터) | #168 서버 적용 시점, 주행 중·실차 확인 |
 | 2026-11-10 | C07: 수유 루틴을 아이별로(D4). `FeedingStore`가 아이별 저장(첫째=기존 키, 나머지=서버 아이 id)·`selectedChildId`·`select`·`firstChild`, `FeedingSync`가 고른 아이 id로 기록(`FeedingIn.child_id`)·`status?child_id=`로 받기, `FamilySync`가 둘째부터 간격도 맞춤, 설정 화면 간격은 첫째 그대로. `care/ChildSelect.kt`+`ChildSelectTest`, `FeedingSyncChildTest`, `ui/CareChildSelect.kt`(480폭 드롭다운, 정차 중에만). 테스트 계정에 아이 2명(서아 2025-09 분유 3시간·낮잠 2, 도윤 2023-09 유아식·낮잠 1)을 `/me/children`으로 등록해 확인: 도윤 기록이 서버에 도윤 id로, 서아 타이머는 그대로. 비교 `150-care-c07-vs-figma.png` | 2차 마무리(HANDOFF·#24) |
 | 2026-11-10 | C04: `care/SleepMode.kt`(음성 크기=낮잠 프리셋 음량·기본 10%, "잠든 지 N분")+`SleepModeTest`. `setSleepMode`가 켠 시각 저장, 낮잠 프리셋을 공조에 적용(없으면 바람만 약하게), 끄면 베이비케어 값·이전 공조로. 낮잠 카드 탭으로 켜고 끔(적용 중 태그 "알림 · 안내 음성 최소화 중"), 슬롯 "잠든 지 N분"+"수면 모드 끄기 · “애 깼다”", 다크는 기존 `ToneState.sleep`→`SitterSurface.Dark`. 에뮬레이터 켜기·끄기 확인, 비교 `150-care-c04-vs-figma.png` | C07 아이 선택 |
 | 2026-11-10 | C03: `care/FeedingStop.kt`(세션·N분째·기록 규칙·도착 판정)+`FeedingStopTest`, `CareController.startFeedingStop/finishFeedingStop`(P단에서만, 서버 `feeding_stop` 프리셋 또는 24°C·송풍 적용, 앱 재시작에도 이어감, 끝나면 시작 시각 기록, 출발하면 자동 종료(3분 미만은 기록 안 함), 공조는 베이비케어 값 또는 이전 설정으로), `ui/CareFeedingStop.kt`(수유 중 타이머·적용 중 슬롯·도착 질문 8초·안내 토스트). 음성 "수유할게"는 정차 중이면 세션 시작(VoiceController 최소 추가), "다 먹었어"(feed_log)는 세션 끝. C10 안내 띠·C12 "도착해서 정차하면" 상자 추가. 에뮬레이터: 시작→앱 재시작 후 1분째 유지→끝났어요로 23:42 기록 확인. 비교 `150-care-c03-vs-figma.png` | C04 수면 다크 |
