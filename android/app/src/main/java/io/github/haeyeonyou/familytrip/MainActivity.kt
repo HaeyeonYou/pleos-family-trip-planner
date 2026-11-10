@@ -65,6 +65,11 @@ import io.github.haeyeonyou.familytrip.voice.VoiceTab
 import io.github.haeyeonyou.familytrip.voice.etaText
 import io.github.haeyeonyou.familytrip.voice.weatherText
 import kotlinx.coroutines.launch
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import io.github.haeyeonyou.familytrip.onboarding.LocalVoiceEnabled
+import io.github.haeyeonyou.familytrip.onboarding.OnboardingMode
+import io.github.haeyeonyou.familytrip.onboarding.withChild
 
 private object Routes {
     const val HOME = "home"
@@ -77,11 +82,14 @@ private object Routes {
     const val LOGIN = "login"
     const val CARE = "care"
     const val SETTINGS = "settings"
+    /** 온보딩 O01~O06 (#184). 설정 > 아이 정보는 아이 단계(O04·O05)만 */
+    const val ONBOARDING = "onboarding"
+    const val ONBOARDING_CHILDREN = "onboarding_children"
 }
 
 /** 화면이 속한 왼쪽 메뉴. 로그인 화면은 메뉴 없이 보인다. */
 private fun tabOf(route: String?): MainTab? = when (route) {
-    null, Routes.LOGIN -> null
+    null, Routes.LOGIN, Routes.ONBOARDING, Routes.ONBOARDING_CHILDREN -> null
     Routes.CARE -> MainTab.CARE
     Routes.EXPERIENCE -> MainTab.GROW
     Routes.SETTINGS, Routes.PROFILE, Routes.DEV -> MainTab.SETTINGS
@@ -124,6 +132,60 @@ class MainActivity : ComponentActivity() {
         notificationsAllowed.value = hasNotificationPermission()
     }
 
+    private fun needsOnboarding() = io.github.haeyeonyou.familytrip.onboarding.OnboardingFlow.startsWithOnboarding(
+        guideActive = container.guide.state.value.active,
+        done = container.onboarding.done,
+        loggedIn = container.account.account.value != null,
+        profile = container.profile.load(),
+    )
+
+    /** 온보딩 O03 `다음`: 고른 항목에 필요한 권한을 묻고, 답이 오면(거절해도) 다음으로 간다. */
+    private var onboardingPermissionDone: (() -> Unit)? = null
+    private val onboardingPermissionRequest =
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+            container.startLocationIfPermitted()
+            notificationsAllowed.value = hasNotificationPermission()
+            onboardingPermissionDone?.invoke()
+            onboardingPermissionDone = null
+        }
+
+    private fun requestOnboardingPermissions(choices: io.github.haeyeonyou.familytrip.onboarding.LinkChoices, done: () -> Unit) {
+        val wanted = buildList {
+            // 필수: 차량 정보(에너지)·문/정차(주행)·위치, 도착 안내 알림
+            add("pleos.car.permission.CAR_ENERGY")
+            add("pleos.car.permission.CAR_DRIVE")
+            add(FUSED_LOCATION_PERMISSION)
+            add(Manifest.permission.ACCESS_FINE_LOCATION)
+            add(Manifest.permission.POST_NOTIFICATIONS)
+            if (choices.climate) addAll(listOf("pleos.car.permission.CAR_CLIMATE", "pleos.car.permission.CONTROL_CAR_CLIMATE"))
+            if (choices.voice) add(Manifest.permission.RECORD_AUDIO)
+        }
+        val missing = wanted.filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
+        if (missing.isEmpty()) return done()
+        onboardingPermissionDone = done
+        onboardingPermissionRequest.launch(missing.toTypedArray())
+    }
+
+    /** 아이 이름을 음성으로 한 번 듣는다 (마이크 권한이 없으면 먼저 묻는다). */
+    private var pendingNameListen: ((String) -> Unit)? = null
+    private val nameMicRequest =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            val cb = pendingNameListen
+            pendingNameListen = null
+            if (granted && cb != null) listenName(cb)
+        }
+
+    private fun listenName(onHeard: (String) -> Unit) {
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            pendingNameListen = onHeard
+            nameMicRequest.launch(Manifest.permission.RECORD_AUDIO)
+            return
+        }
+        container.voiceIo.listen { result ->
+            if (result is io.github.haeyeonyou.familytrip.voice.ListenResult.Heard) onHeard(result.text)
+        }
+    }
+
     private fun hasNotificationPermission() =
         checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
 
@@ -131,6 +193,52 @@ class MainActivity : ComponentActivity() {
         val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
         val fallback = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", packageName, null))
         runCatching { startActivity(intent) }.recoverCatching { startActivity(fallback) }
+    }
+
+    /** 온보딩 화면 (#184). 저장은 기존 저장소(가족 정보·낮잠·선호 조건·케어 아이 선택)를 그대로 쓴다. */
+    @Composable
+    private fun OnboardingRoute(vm: TripViewModel, state: io.github.haeyeonyou.familytrip.ui.TripUiState, isParked: Boolean, mode: OnboardingMode, onDone: () -> Unit) {
+        val care by container.care.state.collectAsStateWithLifecycle()
+        val presets by container.serverSync.presets.collectAsStateWithLifecycle()
+        val choices by container.onboarding.choices.collectAsStateWithLifecycle()
+        val profile by container.profile.profile.collectAsStateWithLifecycle()
+        var placesTick by remember { mutableStateOf(0) }
+        io.github.haeyeonyou.familytrip.ui.onboarding.OnboardingScreen(
+            mode = mode,
+            api = container.api,
+            profile = profile,
+            isParked = isParked,
+            presets = presets,
+            carePlaceNames = remember(placesTick) { container.serverSync.carePlaces.cached().map { it.placeName } },
+            selectedChildId = care.selectedChildId,
+            choices = choices,
+            firstRecommendation = state.options.firstOrNull()?.name,
+            actions = io.github.haeyeonyou.familytrip.ui.onboarding.OnboardingActions(
+                onLoggedIn = { account ->
+                    container.account.save(account)
+                    // 가족·수유·방문·프리셋을 지금 받아 O02 오른쪽 목록에 체크한다 (실패한 영역은 다음 주기에 다시)
+                    container.serverSync.refresh(io.github.haeyeonyou.familytrip.data.SyncChange(presets = true, feedings = true, visits = true, family = true, cars = true))
+                    runCatching { container.serverSync.carePlaces.reconcile() }
+                    placesTick++
+                    vm.syncNow()
+                },
+                climateSupported = { runCatching { container.vehicle.readClimate().supported }.getOrNull() },
+                requestPermissions = ::requestOnboardingPermissions,
+                saveChoices = container.onboarding::saveChoices,
+                listenName = ::listenName,
+                saveChild = { draft ->
+                    vm.saveProfile(container.profile.load().withChild(draft))
+                    draft.nap?.window?.let(vm::setNap)
+                    if (io.github.haeyeonyou.familytrip.onboarding.TagAlong.STROLLER in draft.tags) vm.setPreference(io.github.haeyeonyou.familytrip.data.Preference.STROLLER, true)
+                },
+                selectChild = container.care::selectChild,
+                finish = {
+                    container.onboarding.markDone()
+                    onDone()
+                },
+                close = onDone,
+            ),
+        )
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -143,7 +251,8 @@ class MainActivity : ComponentActivity() {
             Manifest.permission.POST_NOTIFICATIONS,
         )
             .filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
-        if (missing.isNotEmpty()) permissionRequest.launch(missing.toTypedArray())
+        // 첫 실행은 온보딩 O03에서 권한을 묻는다 (QO6)
+        if (missing.isNotEmpty() && !needsOnboarding()) permissionRequest.launch(missing.toTypedArray())
 
         val factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
@@ -168,8 +277,8 @@ class MainActivity : ComponentActivity() {
                     val start = remember {
                         when {
                             vm.guide.value.active -> Routes.GUIDE
-                            // 처음 실행·로그아웃 상태면 로그인 QR부터 (이번 실행에서 건너뛰면 묻지 않음)
-                            container.account.account.value == null && !container.account.skipped -> Routes.LOGIN
+                            // 처음 실행이면 온보딩부터 (끝냈거나 '나중에 하기'를 눌렀으면 홈, QO7)
+                            needsOnboarding() -> Routes.ONBOARDING
                             else -> Routes.HOME
                         }
                     }
@@ -302,6 +411,8 @@ class MainActivity : ComponentActivity() {
                         onDispose { container.voice.host = null }
                     }
 
+                    val linkChoices by container.onboarding.choices.collectAsStateWithLifecycle()
+                    CompositionLocalProvider(LocalVoiceEnabled provides linkChoices.voice) {
                     AppShell(tab = tabOf(route ?: start), onTab = ::openTab, onMic = ::onMicClick, drive = DriveMode.from(vehicle)) {
                     Box(modifier = Modifier.fillMaxSize()) {
                     NavHost(navController = nav, startDestination = start) {
@@ -319,6 +430,10 @@ class MainActivity : ComponentActivity() {
                                     goHome()
                                 },
                             )
+                        }
+                        composable(Routes.ONBOARDING) { OnboardingRoute(vm, state, vehicle.isParked, OnboardingMode.FIRST_RUN, onDone = ::goHome) }
+                        composable(Routes.ONBOARDING_CHILDREN) {
+                            OnboardingRoute(vm, state, vehicle.isParked, OnboardingMode.EDIT_CHILDREN, onDone = { nav.popBackStack() })
                         }
                         composable(Routes.HOME) {
                             HomeScreen(
@@ -352,6 +467,7 @@ class MainActivity : ComponentActivity() {
                                     },
                                     fed = vm::markFed,
                                     feedingInterval = vm::setFeedingInterval,
+                                    openChildInfo = { nav.navigate(Routes.ONBOARDING_CHILDREN) },
                                 ),
                             )
                         }
@@ -421,7 +537,8 @@ class MainActivity : ComponentActivity() {
                                 feeding = careState.feeding,
                                 nap = state.nap,
                                 actions = SettingsActions(
-                                    onEditProfile = { nav.navigate(Routes.PROFILE) },
+                                    // 설정 > 아이 정보: 온보딩 O04·O05로 (QO7)
+                                    onEditProfile = { nav.navigate(Routes.ONBOARDING_CHILDREN) },
                                     onLogin = { nav.navigate(Routes.LOGIN) },
                                     onLogout = {
                                         scope.launch {
@@ -532,6 +649,7 @@ class MainActivity : ComponentActivity() {
                         onListen = ::onMicClick,
                         onClose = container.voice::close,
                     )
+                    }
                     }
                     }
                   }

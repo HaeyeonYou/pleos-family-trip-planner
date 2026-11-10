@@ -56,6 +56,8 @@ data class HomeActions(
     val feedingInterval: (Int) -> Unit,
     /** 상단 음성 입력줄 */
     val onMic: () -> Unit = {},
+    /** 아이 정보가 없을 때 안내 카드의 `아이 정보 넣기` → 온보딩 O04 (QO7, #184). null이면 카드를 그리지 않는다 */
+    val openChildInfo: (() -> Unit)? = null,
 )
 
 /**
@@ -92,7 +94,7 @@ fun HomeScreen(
         SitterThreeColumns(
             first = { MapColumn(selected, state.weather, now, state.going[selected?.placeKey] ?: 0, actions) },
             second = { CourseListColumn(state, shown, selected, filters, actions) { selectedKey = it.placeKey } },
-            third = { RightColumn(visits, saved, actions) },
+            third = { RightColumn(visits, saved, actions, needsChildInfo = state.profile?.children.isNullOrEmpty()) },
         )
     }
 }
@@ -295,14 +297,28 @@ private fun CourseItem(title: String, option: CourseOption, going: Int, selected
 // 3열
 
 @Composable
-private fun RightColumn(visits: List<Visit>, saved: List<SavedCourse>, actions: HomeActions) {
+private fun RightColumn(visits: List<Visit>, saved: List<SavedCourse>, actions: HomeActions, needsChildInfo: Boolean = false) {
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(SitterGrid.GAP.dp)) {
         Row(Modifier.fillMaxWidth().height(200.dp), horizontalArrangement = Arrangement.spacedBy(SitterGrid.GAP.dp)) {
             StopSpaceTile(actions.openCare, Modifier.weight(1f).fillMaxHeight())
             ExperienceTile(visits, actions.openGrow, Modifier.weight(1f).fillMaxHeight())
         }
-        RecentCourses(saved, actions.reopenCourse, Modifier.weight(1f))
+        val openChildInfo = actions.openChildInfo
+        if (needsChildInfo && openChildInfo != null) ChildInfoCard(openChildInfo) else RecentCourses(saved, actions.reopenCourse, Modifier.weight(1f))
+        if (needsChildInfo && openChildInfo != null) Spacer(Modifier.weight(1f))
         ShortcutDock()
+    }
+}
+
+/** 온보딩을 `나중에 하기`로 넘겨 아이 정보가 없을 때 1장 (QO7). 누르면 온보딩 O04부터. */
+@Composable
+private fun ChildInfoCard(onOpen: () -> Unit) {
+    val s = SitterSurface.current
+    SitterCard(Modifier.fillMaxWidth().clickable(onClick = onOpen), tone = SitterCardTone.Active) {
+        SitterIcon(SitterIcons.Baby, s.primary)
+        Text("아이 정보를 넣으면 맞춰 드려요", style = SitterText.Title3, color = s.ink, modifier = Modifier.padding(top = 12.dp))
+        Text("월령에 맞춰 케어 모드와 추천 코스를 준비해요", style = SitterText.Caption, color = s.inkMute, modifier = Modifier.padding(top = 4.dp))
+        Text("아이 정보 넣기", style = SitterText.Label, color = s.primary, modifier = Modifier.padding(top = 12.dp))
     }
 }
 
