@@ -39,6 +39,7 @@ import io.github.haeyeonyou.familytrip.care.CareKind
 import io.github.haeyeonyou.familytrip.care.CareSlot
 import io.github.haeyeonyou.familytrip.care.CareState
 import io.github.haeyeonyou.familytrip.care.FeedingPhase
+import io.github.haeyeonyou.familytrip.care.FeedingStopSession
 import io.github.haeyeonyou.familytrip.care.FrequentCarePlace
 import io.github.haeyeonyou.familytrip.care.Nearby
 import io.github.haeyeonyou.familytrip.care.QUICK_FED_CHOICES
@@ -70,6 +71,12 @@ data class CareActions(
     val onUndoWaypoint: () -> Unit,
     /** C12 "안내 계속" */
     val onContinueGuidance: () -> Unit,
+    /** C03 수유 정차 모드 켜기 (정차 중에만) */
+    val onStartFeedingStop: () -> Unit,
+    /** C03 "수유 끝났어요" */
+    val onFinishFeedingStop: () -> Unit,
+    /** 경유지 도착 후 "수유 정차 모드를 켤까요?"에 "괜찮아요" */
+    val onDismissFeedingStopAsk: () -> Unit,
     val onDelayAddWaypoint: (DelayCandidate) -> Unit,
     val onDelayKeepGoing: () -> Unit,
     val onApplyPreset: (slot: String) -> Unit,
@@ -128,7 +135,7 @@ fun CareScreen(
         SitterThreeColumns(
             first = { BabyCareColumn(state, care, actions, isParked, onEdit = { editingSlot = it }) },
             second = {
-                FeedingTimerCard(care.feeding, now, actions, Modifier.height(410.dp))
+                FeedingTimerCard(care.feeding, care.feedingStop, now, actions, Modifier.height(410.dp))
                 Spacer(Modifier.height(16.dp))
                 FrequentPlacesCard(care.frequent, actions.onAddWaypoint, Modifier.weight(1f))
             },
@@ -138,13 +145,22 @@ fun CareScreen(
                     UrgentTile(CareKind.REST, SitterIcons.Parking, care.nearby[CareKind.REST], actions)
                 }
                 Spacer(Modifier.height(16.dp))
-                CareSlotCard(care, delayAlert, now, actions, Modifier.height(370.dp))
+                CareSlotCard(care, delayAlert, now, actions, Modifier.height(370.dp), stopSummary = state.presets.firstOrNull { it.slot == "feeding_stop" }?.let { modeSummary(it.settings) } ?: "24°C · 송풍")
                 Spacer(Modifier.weight(1f))
                 ShortcutDock()
             },
         )
         care.urgent?.let { UrgentCareSheet(it, care.frequent, onAdd = actions.onAddWaypoint, onClose = actions.onCloseUrgent) }
         WaypointToast(care.addedWaypoint, onUndo = actions.onUndoWaypoint)
+        CareNoticeToast(care.notice, care.noticeAt)
+        if (care.askFeedingStop && care.feedingStop == null) {
+            FeedingStopAsk(
+                place = care.addedWaypoint?.place?.name,
+                summary = state.presets.firstOrNull { it.slot == "feeding_stop" }?.let { modeSummary(it.settings) } ?: "24°C · 송풍",
+                onYes = actions.onStartFeedingStop,
+                onNo = actions.onDismissFeedingStopAsk,
+            )
+        }
         editingSlot?.let { slot ->
             ModeEditSheet(
                 presets = state.presets,
@@ -194,7 +210,8 @@ private fun BabyCareColumn(state: TripUiState, care: CareState, actions: CareAct
             SitterToggle(care.babyCare, onCheckedChange = { if (!care.babyCareBusy) actions.onBabyCare(it) })
         }
         Text("베이비케어 모드", style = SitterText.Title2, color = s.ink, modifier = Modifier.padding(top = 16.dp))
-        Text(boarding?.let { modeSummary(it.settings) } ?: "24°C · 약풍", style = SitterText.Body2, color = s.inkMute, modifier = Modifier.padding(top = 4.dp))
+        val stopSummary = state.presets.firstOrNull { it.slot == "feeding_stop" }?.let { modeSummary(it.settings) } ?: "24°C · 송풍"
+        Text(if (care.feedingStop != null) "수유 정차 모드 적용 중 · $stopSummary" else boarding?.let { modeSummary(it.settings) } ?: "24°C · 약풍", style = SitterText.Body2, color = s.inkMute, modifier = Modifier.padding(top = 4.dp))
         Row(Modifier.padding(top = 20.dp), horizontalArrangement = Arrangement.spacedBy(32.dp)) {
             Column {
                 // SDK에 실내 온도 센서가 없어 공조의 설정값을 읽는다 (Q11)
@@ -211,7 +228,13 @@ private fun BabyCareColumn(state: TripUiState, care: CareState, actions: CareAct
         val stop = state.presets.firstOrNull { it.slot == "feeding_stop" }
         ModeRow(SitterIcons.Moon, "낮잠 · 수면 모드", nap?.let { modeSummary(it.settings) } ?: "23°C · 미풍", "“애 잔다”") { actions.onApplyPreset("nap") }
         Spacer(Modifier.height(16.dp))
-        ModeRow(SitterIcons.Milk, "수유 정차 모드", (stop?.let { modeSummary(it.settings) } ?: "24°C · 송풍") + " · 정차 시에만", "“수유할게”") { actions.onApplyPreset("feeding_stop") }
+        ModeRow(
+            SitterIcons.Milk,
+            "수유 정차 모드",
+            (stop?.let { modeSummary(it.settings) } ?: "24°C · 송풍") + if (isParked) " · 정차 시에만" else " · 정차하면 켤 수 있어요",
+            "“수유할게”",
+            active = care.feedingStop != null,
+        ) { if (isParked && care.feedingStop == null) actions.onStartFeedingStop() }
         Spacer(Modifier.weight(1f))
         if (state.presets.isNotEmpty()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -223,9 +246,9 @@ private fun BabyCareColumn(state: TripUiState, care: CareState, actions: CareAct
 }
 
 @Composable
-private fun ModeRow(icon: ImageVector, title: String, summary: String, voice: String, onClick: () -> Unit) {
+private fun ModeRow(icon: ImageVector, title: String, summary: String, voice: String, active: Boolean = false, onClick: () -> Unit) {
     val s = SitterSurface.current
-    SitterRow(Modifier.fillMaxWidth(), onClick = onClick) {
+    SitterRow(Modifier.fillMaxWidth(), selected = active, outlined = active, onClick = onClick) {
         Column(Modifier.fillMaxWidth()) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
                 IconCircle(icon, s.ink, s.card)
@@ -234,7 +257,12 @@ private fun ModeRow(icon: ImageVector, title: String, summary: String, voice: St
                 Text(voice, style = SitterText.Caption, color = s.inkMute, modifier = Modifier.padding(start = 4.dp, top = 2.dp))
             }
             Text(title, style = SitterText.Title3, color = s.ink, modifier = Modifier.padding(top = 12.dp))
-            Text(summary, style = SitterText.Caption, color = s.inkMute, modifier = Modifier.padding(top = 2.dp))
+            if (active) {
+                // Figma C03: 적용 중 태그 (진한 채움 + 흰 글자)
+                Text("적용 중", style = SitterText.Label, color = Color.White, modifier = Modifier.padding(top = 6.dp).clip(SitterShapes.Tag).background(s.primary).padding(horizontal = 12.dp, vertical = 4.dp))
+            } else {
+                Text(summary, style = SitterText.Caption, color = s.inkMute, modifier = Modifier.padding(top = 2.dp))
+            }
         }
     }
 }
@@ -260,8 +288,12 @@ private fun trimTemp(v: Float): String = if (v % 1f == 0f) v.toInt().toString() 
 
 /** 수유 타이머 (C02 첫 기록 전 · C01 보통 · C05 임박 · C06 지남). 단계는 [feedingPhase]가 정한다. */
 @Composable
-private fun FeedingTimerCard(routine: FeedingRoutine, now: Long, actions: CareActions, modifier: Modifier) {
+private fun FeedingTimerCard(routine: FeedingRoutine, stop: FeedingStopSession?, now: Long, actions: CareActions, modifier: Modifier) {
     val s = SitterSurface.current
+    if (stop != null) {
+        FeedingNowCard(stop, now, actions.onFinishFeedingStop, modifier)
+        return
+    }
     val phase = feedingPhase(routine, now)
     val accent = when (phase) {
         FeedingPhase.Soon -> SitterPalette.Warn
@@ -492,10 +524,10 @@ private fun UrgentTile(kind: CareKind, icon: ImageVector, result: Nearby?, actio
 
 /** 오른쪽 가변 슬롯 392x370. 무엇을 보일지는 [pickCareSlot]이 정한다. 닫은 슬롯은 수유 기록이 바뀌면 다시 살아난다. */
 @Composable
-private fun CareSlotCard(care: CareState, delay: DelayAlertUi?, now: Long, actions: CareActions, modifier: Modifier) {
+private fun CareSlotCard(care: CareState, delay: DelayAlertUi?, now: Long, actions: CareActions, modifier: Modifier, stopSummary: String) {
     val phase = feedingPhase(care.feeding, now)
     var dismissed by remember(care.feeding.lastFedAt) { mutableStateOf(setOf<CareSlot>()) }
-    val slot = pickCareSlot(phase, delay != null, dismissed, waypointActive = care.addedWaypoint != null)
+    val slot = pickCareSlot(phase, delay != null, dismissed, waypointActive = care.addedWaypoint != null, feedingNow = care.feedingStop != null)
     fun dismiss(s: CareSlot) { dismissed = dismissed + s }
     val nursing = (care.nearby[CareKind.NURSING] as? Nearby.Found)?.places.orEmpty()
     val nursingRows = nursing.take(2).map { SlotRow(it.name, detourLabel(it.onRoute, it.detourMinutes, it.driveMinutes)) { actions.onAddWaypoint(it) } }
@@ -521,6 +553,7 @@ private fun CareSlotCard(care: CareState, delay: DelayAlertUi?, now: Long, actio
             if (nursing.isEmpty()) "근처 수유실을 찾고 있어요" else "경로 위 가장 가까운 수유실부터 보여 드려요",
             nursingRows, "수유실 경유지 추가", nursing.isNotEmpty(), { nursing.firstOrNull()?.let(actions.onAddWaypoint) }, "나중에",
         ) { dismiss(CareSlot.FeedingOverdue) }
+        CareSlot.FeedingNow -> FeedingStopSlot(care.feedingStop!!, stopSummary, modifier)
         CareSlot.Waypoint -> WaypointSlot(care.addedWaypoint!!, care.feeding, actions.onUndoWaypoint, actions.onContinueGuidance, modifier)
         else -> TodaySlot(care.feeding, modifier)
     }
