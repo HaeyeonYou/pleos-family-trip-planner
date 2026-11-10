@@ -309,6 +309,12 @@ class MainActivity : ComponentActivity() {
                                         vm.openOption(it)
                                         nav.navigate(Routes.COURSE)
                                     },
+                                    startOption = {
+                                        vm.openOption(it)
+                                        vm.startGuide()
+                                        nav.navigate(Routes.GUIDE)
+                                    },
+                                    onMic = ::onMicClick,
                                     changeConditions = { nav.navigate(Routes.INPUT) },
                                     openCare = { openTab(MainTab.CARE) },
                                     openGrow = { openTab(MainTab.GROW) },
