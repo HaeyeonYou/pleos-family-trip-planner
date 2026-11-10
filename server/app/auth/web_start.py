@@ -98,7 +98,7 @@ async def child_step_save(request: Request, user: User | None = Depends(optional
         body = parse_child_form(form, family.child_out(existing) if existing is not None else None)
         await family.save_child(db, user, existing.id if existing is not None else uuid.uuid4(), body)
     except (ValidationError, ValueError, HTTPException):
-        context = _step_context(1, existing, code, error="이름과 태어난 달을 다시 확인해 주세요. 태어난 달은 2025-09처럼 적어요.")
+        context = _step_context(1, existing, code, error="이름과 생년월일을 다시 확인해 주세요. 생년월일은 오늘까지의 날짜로 골라 주세요.")
         context["v"] = form_values(form, context["v"])
         return templates.TemplateResponse(request, "onboard_child.html", context, status_code=400)
     return RedirectResponse(with_code("/m/start/care", code), status_code=303)

@@ -2,9 +2,10 @@
 {% macro basic(v, max_month, tags) %}
 <label class="field" for="nickname">이름(애칭)</label>
 <input id="nickname" name="nickname" type="text" maxlength="30" value="{{ v.nickname }}" placeholder="예: 서아" required>
-<label class="field" for="birth_month">태어난 달 (예: 2025-09)</label>
-<input id="birth_month" name="birth_month" type="month" max="{{ max_month }}" value="{{ v.birth_month }}" pattern="\d{4}-\d{2}" placeholder="2025-09" required>
-<p class="muted small" style="margin-top:6px">생일은 개월 수를 계산할 때만 써요.</p>
+<label class="field" for="birth_date">생년월일 (예: 2025-09-03)</label>
+<input id="birth_date" name="birth_date" type="date" max="{{ max_date }}" value="{{ v.birth_date }}" pattern="\d{4}-\d{2}-\d{2}" placeholder="2025-09-03" {{ "" if v.birth_month and not v.birth_date else "required" }}>
+{% if v.birth_month and not v.birth_date %}<input type="hidden" name="birth_month" value="{{ v.birth_month }}"><p class="muted small" style="margin-top:6px">지금은 {{ v.birth_month[:4] }}년 {{ v.birth_month[5:]|int }}월로만 알고 있어요. 날짜를 고르면 일까지 맞춰요.</p>{% endif %}
+<p class="muted small" style="margin-top:6px">생년월일은 개월 수를 계산할 때만 써요. 차 화면에서 넣어도 같은 값이에요.</p>
 <fieldset class="group"><legend>어떤 아이인가요? (여러 개)</legend>
   <div class="seg" role="group">
     {% for key, label in tags %}<label><input type="checkbox" name="temperament" value="{{ key }}" {{ 'checked' if key in v.temperament }}><span>{{ label }}</span></label>{% endfor %}
@@ -67,5 +68,12 @@
     <label><input type="radio" name="stroller_use" value="0" {{ 'checked' if v.stroller_use == '0' }}><span>안 써요</span></label>
   </div>
   <p class="muted small" style="margin-top:6px">쓰면 추천 코스 조건에 「유모차 길」을 미리 골라 둬요.</p>
+</fieldset>
+<fieldset class="group"><legend>카시트 방향</legend>
+  <div class="seg" role="radiogroup">
+    <label><input type="radio" name="rear_facing_seat" value="1" {{ 'checked' if v.rear_facing_seat == '1' }}><span>뒤보기</span></label>
+    <label><input type="radio" name="rear_facing_seat" value="0" {{ 'checked' if v.rear_facing_seat == '0' }}><span>앞보기</span></label>
+  </div>
+  <p class="muted small" style="margin-top:6px">차 화면의 「함께 챙길 것 · 카시트 뒤보기」와 같은 값이에요.</p>
 </fieldset>
 {% endmacro %}
