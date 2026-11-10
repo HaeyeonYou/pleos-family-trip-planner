@@ -2,6 +2,7 @@ package io.github.haeyeonyou.familytrip.data
 
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -33,6 +34,21 @@ class VisitSyncTest {
         assertEquals(180, item.stayedMinutes)
         assertEquals("confirmed", item.status)
         assertNull(item.mood)
+    }
+
+    @Test
+    fun 장소_분류를_올리고_서버가_정한_젤리_분류를_받아_둔다() {
+        val v = outing(1, depart = "2026-11-05T13:00:00").copy(category = "가정,생활 > 복합쇼핑몰")
+        assertEquals("가정,생활 > 복합쇼핑몰", VisitMapper.toServer(v, null).category)
+        assertEquals(120, VisitMapper.toServer(v.copy(category = "가".repeat(200)), null).category.length)
+        assertEquals("", VisitMapper.toServer(outing(2), null).category) // 예전 기록
+        val web = VisitOut(id = "aaaaaaaa-0000-0000-0000-000000000009", placeName = "타임빌라스", visitedOn = "2026-11-03", category = "가정,생활 > 복합쇼핑몰", jelly = "travel")
+        val added = VisitMapper.fromServer(web, 7)
+        assertEquals("travel", added.jelly)
+        assertEquals("가정,생활 > 복합쇼핑몰", added.category)
+        // 예전 서버 응답(jelly 없음)도 읽는다
+        val old = Json { ignoreUnknownKeys = true }.decodeFromString<VisitOut>("""{"id":"x","visited_on":"2026-11-03"}""")
+        assertNull(old.jelly)
     }
 
     @Test

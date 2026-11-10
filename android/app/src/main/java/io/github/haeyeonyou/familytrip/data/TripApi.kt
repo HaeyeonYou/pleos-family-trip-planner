@@ -82,6 +82,8 @@ data class CoursePlace(
     @SerialName("amenity_notes") val amenityNotes: Map<String, String> = emptyMap(),
     /** 나들이 장소의 경험 분야 (nature, exhibition, experience, play). 경험 지도에 쓴다. */
     val theme: String? = null,
+    /** 그로우 젤리 12분류 (서버 #186, art … travel). 귀가·예전 서버는 없음 */
+    val jelly: String? = null,
     /** 대체 후보일 때만 (서버 #160): 교체 대상 장소에서 직선거리 m. 그 역할 장소가 코스에 없으면 null */
     @SerialName("distance_m") val distanceM: Int? = null,
     /** 대체 후보일 때만 (서버 #160): 바꾸면 앞→후보→뒤 이동이 지금보다 몇 분 늘어나는지 (음수면 줄어듦) */
