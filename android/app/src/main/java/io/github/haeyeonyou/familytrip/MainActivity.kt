@@ -445,6 +445,9 @@ class MainActivity : ComponentActivity() {
                                         nav.navigate(Routes.GUIDE)
                                     },
                                     onBack = { nav.popBackStack() },
+                                    weather = state.weather,
+                                    origin = state.courseOrigin,
+                                    going = course.stops.firstOrNull { it.role == "outing" }?.place?.let { state.going["${it.source}:${it.sourceId}"] } ?: 0,
                                 )
                             }
                         }
