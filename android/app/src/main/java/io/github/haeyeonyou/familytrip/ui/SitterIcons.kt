@@ -273,4 +273,10 @@ object SitterIcons {
         "M10.5 20.5l10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7z",
         "M8.5 8.5l7 7",
     )
+
+    /** 코스 타임라인 교체 표시 ↻ (Figma 아이콘 SVG 미보관, Lucide rotate-cw 계열 24·선 2) */
+    val Refresh = sitterIcon("refresh", 24, 2.0f,
+        "M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8",
+        "M21 3v5h-5",
+    )
 }

@@ -216,7 +216,8 @@ private fun CourseListColumn(
                         option = option,
                         going = state.going[option.placeKey] ?: 0,
                         selected = option.placeKey == selected?.placeKey,
-                        onSelect = { onSelect(option) },
+                        // 디자이너 Note 357:1716 "코스 행 탭 = 상세": 지도 미리보기도 이 코스로 맞추고 H02로 간다
+                        onSelect = { onSelect(option); actions.openOption(option) },
                         onStart = { actions.startOption(option) },
                     )
                 }

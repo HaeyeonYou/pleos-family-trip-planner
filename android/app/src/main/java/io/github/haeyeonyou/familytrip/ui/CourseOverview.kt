@@ -6,46 +6,51 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import io.github.haeyeonyou.familytrip.data.CourseResponse
 import io.github.haeyeonyou.familytrip.data.CourseStop
-import io.github.haeyeonyou.familytrip.data.StopParking
 import io.github.haeyeonyou.familytrip.data.FeedingRoutine
-import java.time.Duration
-import java.time.LocalTime
+import io.github.haeyeonyou.familytrip.data.StopParking
+import io.github.haeyeonyou.familytrip.data.WeatherInfo
+import java.time.Instant
+import java.time.ZoneId
 
 /**
- * 코스 상세 (피그마 HF02). 왼쪽 흰 카드에 코스 타임라인, 오른쪽에 지도·도착 정보·대안·코스 시작.
- * 화면 분할(좁은 창)일 때는 지도와 정보를 타임라인 위에 쌓는다.
+ * 코스 상세 (11/10 디자인 H02 `353:2745`)와 대체 장소 고르기 (H02-1 `353:3066`).
+ * 앱 프레임 1256x886: 위에 뒤로·제목·날씨, 요약 태그 5종, 아래 왼쪽 1·2열(800)은 코스 타임라인, 3열(392)은
+ * H02면 지도·도착·대안 안내·버튼 3개, ↻ 교체를 누르면(H02-1) 그 자리에 대체 후보 3곳과 취소·이걸로 바꾸기.
+ * 바로가기 독은 없다(셸 규칙: 코스 상세 제외). 계산은 CourseDetailLogic.kt.
  */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun CourseOverview(
     course: CourseResponse,
@@ -53,178 +58,357 @@ fun CourseOverview(
     error: String?,
     message: String?,
     feeding: FeedingRoutine,
+    edit: CourseEditActions,
     onStartGuide: () -> Unit,
     onEdit: () -> Unit,
     onSave: () -> Unit,
     onBack: () -> Unit,
+    weather: WeatherInfo? = null,
+    going: Int = 0,
+    origin: io.github.haeyeonyou.familytrip.data.LatLng? = null,
 ) {
-    val wide = !isNarrowWindow()
+    val s = SitterSurface.current
     val outing = course.stops.firstOrNull { it.role == "outing" } ?: course.stops.first()
-    val side: @Composable (Modifier) -> Unit = { m ->
-        Column(modifier = m, verticalArrangement = Arrangement.spacedBy(20.dp)) {
-            CourseMap(
-                stops = course.stops,
-                path = course.path,
-                modifier = Modifier.fillMaxWidth().height(if (wide) 420.dp else 300.dp).clip(RoundedCornerShape(32.dp)),
-            )
-            ArrivalCard(course, outing, feeding)
-            AlternativeRow(onEdit)
-            if (loading) CircularProgressIndicator()
-            ErrorText(error)
-            message?.let { Text(it, fontSize = 20.sp, color = MaterialTheme.colorScheme.primary) }
-            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                BigButton("➤  코스 시작", onStartGuide, modifier = Modifier.weight(1f), enabled = !loading)
-                GrayButton("✎  경유지 편집", onEdit)
+    val now = rememberNow()
+    val nextFeeding = feeding.nextAt?.let { Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalTime() }
+    val point = feedingPoint(course, nextFeeding)
+    // H02-1: 교체 중인 경유지 번호와 고른 후보
+    var swapping by remember(course) { mutableStateOf<Int?>(null) }
+    var reordering by remember(course) { mutableStateOf<Int?>(null) }
+    val visits = course.stops.count { it.role != "home" }
+
+    // 독 자리를 이 화면이 맡는다고 알려(셸의 옛 독 줄을 끄고) 아무것도 두지 않는다: H02·H02-1은 독 대신 뒤로 버튼
+    SitterCanvas(ownsDock = true) {
+        // 머리: 뒤로 · 제목 · 부제 · 날씨
+        Row(Modifier.padding(start = 24.dp, top = 22.dp, end = 24.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier.size(60.dp).clip(CircleShape).background(s.card).clickable(onClick = onBack),
+                contentAlignment = Alignment.Center,
+            ) { SitterIcon(SitterIcons.ChevronLeft, s.ink, size = SitterIconSize.Medium) }
+            Column(Modifier.padding(start = 20.dp).weight(1f)) {
+                Text("${outing.place.name} 나들이 코스", style = SitterText.Title1, color = s.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(subtitle(course, going), style = SitterText.Caption, color = s.inkMute, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                GrayButton("코스 저장", onSave)
+            weather?.let { w ->
+                SitterWeather(
+                    w.temperature?.let { "${Math.round(it)}°" } ?: "--",
+                    listOf(w.condition, w.region).filter { it.isNotBlank() }.joinToString(" · "),
+                )
             }
         }
-    }
-
-    Column(
-        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 48.dp, vertical = 36.dp),
-        verticalArrangement = Arrangement.spacedBy(24.dp),
-    ) {
-        Text(
-            "←  뒤로",
-            fontSize = 20.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = onBack).padding(vertical = 6.dp),
-        )
-        FlowRow(verticalArrangement = Arrangement.Bottom, horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-            Text("${outing.place.name} 코스", fontSize = 44.sp, fontWeight = FontWeight.Bold)
-            Text(summary(course), fontSize = 22.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 8.dp))
+        // 요약 태그 5종 (y 118)
+        Row(Modifier.padding(start = 24.dp, top = 112.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            courseTags(course).forEach { SummaryTag(it) }
         }
-        course.warnings.forEach { Text("⚠ $it", fontSize = 20.sp, color = MaterialTheme.colorScheme.tertiary) }
-        if (wide) {
-            Row(horizontalArrangement = Arrangement.spacedBy(28.dp)) {
-                Timeline(course, Modifier.weight(1f))
-                side(Modifier.weight(1.15f))
+        // 본문 (y 168): 왼쪽 타임라인 800, 오른쪽 392
+        Row(
+            Modifier.padding(start = SitterGrid.MARGIN.dp, top = SitterGrid.BODY_TOP.dp, end = SitterGrid.MARGIN.dp, bottom = SitterGrid.MARGIN.dp).fillMaxSize(),
+            horizontalArrangement = Arrangement.spacedBy(SitterGrid.GAP.dp),
+        ) {
+            SitterCard(Modifier.width(SitterGrid.DOUBLE_W.dp).fillMaxHeight(), contentPadding = PaddingValues(start = 20.dp, top = 20.dp, end = 20.dp, bottom = 12.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("코스 타임라인", style = SitterText.Title3, color = s.ink, modifier = Modifier.weight(1f))
+                    Text("↻ 교체 · ✕ 삭제 · ≡ 순서 변경", style = SitterText.Caption, color = s.inkMute)
+                }
+                Column(Modifier.padding(top = 12.dp).verticalScroll(rememberScrollState())) {
+                    TimelineRow(course.departureAt.ifBlank { "--:--" }, "출발", hollow = true)
+                    course.stops.forEachIndexed { index, stop ->
+                        val home = stop.role == "home"
+                        TimelineRow(
+                            time = stop.arriveAt,
+                            title = if (home) "귀가" else stop.place.name,
+                            hollow = home,
+                            selected = swapping == index,
+                            onSwap = if (!home && !course.alternatives[stop.role].isNullOrEmpty()) ({ swapping = index; reordering = null }) else null,
+                            onRemove = if (!home && visits > 1 && !loading) ({ edit.remove(index) }) else null,
+                            onReorder = if (!home && visits > 1 && !loading) ({ reordering = if (reordering == index) null else index }) else null,
+                            reorderOpen = reordering == index,
+                            onMove = { delta -> reordering = null; edit.move(index, delta) },
+                            canMoveUp = index > 0,
+                            canMoveDown = index < visits - 1,
+                        ) {
+                            if (home) {
+                                Text("오늘 경험이 경험 나무에 기록돼요", style = SitterText.Caption, color = s.inkMute)
+                            } else {
+                                Text(stopLine(stop), style = SitterText.Caption, color = s.inkMute, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                AmenityTags(stop)
+                            }
+                        }
+                        if (point?.afterStop == index) {
+                            TimelineRow(point.time, point.title, hollow = false, highlight = true) {
+                                Text(point.detail, style = SitterText.Caption, color = s.inkMute, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                        }
+                    }
+                }
             }
-        } else {
-            side(Modifier.fillMaxWidth())
-            Timeline(course, Modifier.fillMaxWidth())
-        }
-    }
-}
-
-/** "총 4시간 · 첫 이동 18분" */
-private fun summary(course: CourseResponse): String {
-    val parts = mutableListOf<String>()
-    runCatching {
-        var minutes = Duration.between(LocalTime.parse(course.departureAt), LocalTime.parse(course.returnAt)).toMinutes()
-        if (minutes < 0) minutes += 24 * 60
-        parts += if (minutes % 60 == 0L) "총 ${minutes / 60}시간" else "총 ${minutes / 60}시간 ${minutes % 60}분"
-    }
-    course.stops.firstOrNull()?.let { parts += "첫 이동 ${it.driveMinutes}분" }
-    parts += "이동 ${course.totalDriveMinutes}분" + if (course.routeSource == "estimate") " (추정)" else ""
-    return parts.joinToString(" · ")
-}
-
-@Composable
-private fun Timeline(course: CourseResponse, modifier: Modifier) {
-    Column(
-        modifier = modifier
-            .clip(RoundedCornerShape(32.dp))
-            .background(Color.White)
-            .border(1.dp, TripColors.Line, RoundedCornerShape(32.dp))
-            .padding(28.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        Text("코스 타임라인", fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 12.dp))
-        TimelineRow(course.departureAt, "출발", hollow = true, highlight = false) {}
-        course.stops.forEach { stop ->
-            HorizontalDivider(color = TripColors.Line)
-            val home = stop.role == "home"
-            TimelineRow(stop.arriveAt, if (home) "귀가" else stop.place.name, hollow = home, highlight = false) {
-                if (home) {
-                    Sub("오늘 경험이 경험 나무에 기록돼요")
+            Column(Modifier.width(SitterGrid.COLUMN_W.dp).fillMaxHeight()) {
+                val target = swapping
+                if (target != null) {
+                    ReplacePanel(course, target, origin, loading, onCancel = { swapping = null }, onPick = { place ->
+                        swapping = null
+                        edit.swap(target, place)
+                    })
                 } else {
-                    Sub(listOfNotNull(ROLE_LABELS[stop.role], stop.place.shortCategory(), "${stop.stayMinutes}분 머무름").joinToString(" · "))
-                    AmenityChips(stop)
-                    ParkingInfo(stop.parking)
+                    DetailPanel(course, outing, feeding, now, loading, error, message, onStartGuide, onEdit, onSave)
                 }
             }
         }
     }
 }
 
+/** "오늘의 추천 코스 · 첫 이동 40분 · 지금 13대 가는 중" */
+private fun subtitle(course: CourseResponse, going: Int): String = listOfNotNull(
+    "오늘의 추천 코스",
+    course.stops.firstOrNull()?.let { "첫 이동 ${it.driveMinutes}분" },
+    going.takeIf { it > 0 }?.let { "지금 ${it}대 가는 중" },
+    "이동 추정".takeIf { course.routeSource == "estimate" },
+).joinToString(" · ")
+
 @Composable
-private fun TimelineRow(time: String, title: String, hollow: Boolean, highlight: Boolean, body: @Composable () -> Unit) {
+private fun SummaryTag(tag: CourseTag) {
+    val s = SitterSurface.current
+    val icon: ImageVector = when (tag.kind) {
+        CourseTag.Kind.TIME -> SitterIcons.Clock
+        CourseTag.Kind.NURSING -> SitterIcons.Milk
+        CourseTag.Kind.STROLLER -> SitterIcons.Baby
+        CourseTag.Kind.PARKING -> SitterIcons.Parking
+        CourseTag.Kind.PET -> SitterIcons.Info
+    }
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
-            .background(if (highlight) TripColors.GreenSoft else Color.Transparent)
-            .padding(horizontal = 16.dp, vertical = 18.dp),
-        horizontalArrangement = Arrangement.spacedBy(20.dp),
+        Modifier.height(44.dp).clip(SitterShapes.Pill).background(s.card).border(1.dp, s.line, SitterShapes.Pill).padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Text(time, fontSize = 22.sp, color = if (highlight) TripColors.Green else MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.width(76.dp))
-        Box(
-            modifier = Modifier
-                .padding(top = 6.dp)
-                .size(20.dp)
-                .clip(CircleShape)
-                .background(if (hollow) Color.White else TripColors.Green)
-                .border(4.dp, TripColors.Green, CircleShape),
-        )
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(title, fontSize = 26.sp, fontWeight = FontWeight.Bold)
-            body()
-        }
+        SitterIcon(icon, if (tag.available == false) s.inkMute else s.ink, size = SitterIconSize.Small)
+        Text(tag.label, style = SitterText.Body1, color = if (tag.available == false) s.inkMute else s.ink, maxLines = 1)
     }
 }
 
 @Composable
-private fun Sub(text: String) = Text(text, fontSize = 18.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+private fun TimelineRow(
+    time: String,
+    title: String,
+    hollow: Boolean,
+    highlight: Boolean = false,
+    selected: Boolean = false,
+    onSwap: (() -> Unit)? = null,
+    onRemove: (() -> Unit)? = null,
+    onReorder: (() -> Unit)? = null,
+    reorderOpen: Boolean = false,
+    onMove: (Int) -> Unit = {},
+    canMoveUp: Boolean = false,
+    canMoveDown: Boolean = false,
+    body: @Composable ColumnScope.() -> Unit = {},
+) {
+    val s = SitterSurface.current
+    Row(
+        Modifier
+            .padding(vertical = 3.dp)
+            .fillMaxWidth()
+            .clip(SitterShapes.Row)
+            .background(if (highlight || selected) s.primarySoft else Color.Transparent)
+            .then(if (selected) Modifier.border(2.dp, s.primary, SitterShapes.Row) else Modifier)
+            .padding(horizontal = 12.dp, vertical = 12.dp),
+    ) {
+        Text(time, style = SitterText.Body1, color = if (highlight) s.primary else s.inkSoft, modifier = Modifier.width(64.dp))
+        Box(
+            Modifier.padding(top = 4.dp, end = 14.dp).size(16.dp).clip(CircleShape)
+                .background(if (hollow) s.card else s.primary).border(2.dp, s.primary, CircleShape),
+        )
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(title, style = SitterText.Title3, color = s.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                onSwap?.let { swap ->
+                    Box(Modifier.padding(start = 6.dp).size(36.dp).clip(CircleShape).clickable(onClick = swap), contentAlignment = Alignment.Center) {
+                        SitterIcon(SitterIcons.Refresh, s.inkSoft, size = SitterIconSize.Small)
+                    }
+                }
+            }
+            body()
+        }
+        if (reorderOpen) {
+            RowAction(SitterIcons.ChevronLeft, enabled = canMoveUp, rotate = 90f) { onMove(-1) }
+            RowAction(SitterIcons.ChevronLeft, enabled = canMoveDown, rotate = -90f) { onMove(1) }
+        }
+        onRemove?.let { RowAction(SitterIcons.X, enabled = true, onClick = it) }
+        onReorder?.let { RowAction(SitterIcons.Grip, enabled = true, onClick = it) }
+    }
+}
 
-/** 편의 칩: 있으면 ✓, 정보가 없으면 — (없다는 뜻은 아님). */
+@Composable
+private fun RowAction(icon: ImageVector, enabled: Boolean, rotate: Float = 0f, onClick: () -> Unit) {
+    val s = SitterSurface.current
+    Box(
+        Modifier.size(48.dp).clip(CircleShape).clickable(enabled = enabled, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        SitterIcon(icon, if (enabled) s.inkSoft else s.line, modifier = Modifier.graphicsRotate(rotate), size = SitterIconSize.Medium)
+    }
+}
+
+private fun Modifier.graphicsRotate(degrees: Float): Modifier = if (degrees == 0f) this else rotate(degrees)
+
+/** 편의 태그: 있으면 체크, '정보 없음'은 빼기 표시 (없다는 뜻은 아님). 반려견은 있을 때만. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun AmenityChips(stop: CourseStop) {
-    val amenities = stop.place.amenities
-    if (amenities.isEmpty()) return
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        amenities.forEach { (key, value) ->
-            val available = value == "available"
+private fun AmenityTags(stop: CourseStop) {
+    val a = stop.place.amenities
+    val keys = listOf("nursing_room", "stroller", "kids_chair", "pet").filter { it in a }
+    if (keys.isEmpty()) return
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        keys.forEach { key ->
+            val ok = a[key] == "available"
+            if (key == "pet" && !ok) return@forEach
+            SitterTag(tagLabel(key), available = ok)
+        }
+    }
+}
+
+private fun tagLabel(key: String) = when (key) {
+    "nursing_room" -> "수유실"
+    "stroller" -> "유모차"
+    "kids_chair" -> "아기의자"
+    "pet" -> "반려동물"
+    else -> AMENITY_LABELS[key] ?: key
+}
+
+// ───────────── 오른쪽: H02 상세 ─────────────
+
+@Composable
+private fun ColumnScope.DetailPanel(
+    course: CourseResponse,
+    outing: CourseStop,
+    feeding: FeedingRoutine,
+    now: Long,
+    loading: Boolean,
+    error: String?,
+    message: String?,
+    onStartGuide: () -> Unit,
+    onEdit: () -> Unit,
+    onSave: () -> Unit,
+) {
+    val s = SitterSurface.current
+    CourseMap(stops = course.stops, path = course.path, modifier = Modifier.fillMaxWidth().height(330.dp).clip(SitterShapes.Card))
+    Spacer(Modifier.height(14.dp))
+    // 도착·수유 여유
+    val first = course.stops.firstOrNull { it.role != "home" } ?: outing
+    Row(
+        Modifier.fillMaxWidth().clip(SitterShapes.Card).background(s.primarySoft).padding(horizontal = 20.dp, vertical = 18.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        SitterIcon(SitterIcons.Clock, s.primary, size = SitterIconSize.Medium)
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            val next = feeding.nextAt?.let { " · 다음 수유 ${io.github.haeyeonyou.familytrip.data.clockLabel(it)}" } ?: ""
+            Text("도착 ${first.arriveAt}$next", style = SitterText.Title3, color = s.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(
-                (if (available) "✓ " else "— ") + (AMENITY_LABELS[key] ?: key),
-                fontSize = 18.sp,
-                color = if (available) TripColors.Ink else MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.clip(RoundedCornerShape(10.dp)).background(TripColors.Tile).padding(horizontal = 12.dp, vertical = 6.dp),
+                feedingSlackText(feeding, first.arriveAt, now) ?: "케어에서 수유를 기록하면 도착 때 여유를 알려 드려요",
+                style = SitterText.Caption,
+                color = s.primary,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
             )
         }
     }
+    Spacer(Modifier.height(12.dp))
+    // 대안 안내 (경유지 편집 화면으로)
+    Row(
+        Modifier.fillMaxWidth().clip(SitterShapes.Card).background(s.card).clickable(onClick = onEdit).padding(horizontal = 20.dp, vertical = 18.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        SitterIcon(SitterIcons.Info, s.inkSoft, size = SitterIconSize.Small)
+        Text("휴무·마감이면 대안 장소로 바꿔요", style = SitterText.Body2, color = s.inkSoft, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        SitterIcon(SitterIcons.ChevronRight, s.inkMute, size = SitterIconSize.Small)
+    }
+    Spacer(Modifier.weight(1f))
+    if (loading) CircularProgressIndicator(Modifier.align(Alignment.CenterHorizontally).padding(bottom = 8.dp))
+    (error ?: message)?.let {
+        Text(it, style = SitterText.Caption, color = if (error != null) SitterPalette.Danger else s.primary, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(bottom = 8.dp))
+    }
+    SitterButton("코스 시작", onStartGuide, Modifier.fillMaxWidth().height(72.dp), enabled = !loading, icon = SitterIcons.Nav)
+    Spacer(Modifier.height(12.dp))
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        SitterButton("경유지 편집", onEdit, Modifier.weight(1f), kind = SitterButtonKind.Line, icon = SitterIcons.Pencil)
+        SitterButton("코스 저장", onSave, Modifier.weight(1f), kind = SitterButtonKind.Line, icon = SitterIcons.Bookmark)
+    }
 }
 
-/**
- * 주차 정보: 추천 1순위를 한 줄로 ("주차 공영 120면 · 30분 400원 · 도보 약 2분"), 나머지는 작게 이름·거리만.
- * 목록이 비면 줄 자체를 숨긴다 ('정보 없음'과 '없음'을 구분해 없다고 단정하지 않는다).
- */
+// ───────────── 오른쪽: H02-1 대체 장소 ─────────────
+
 @Composable
-private fun ParkingInfo(lots: List<StopParking>) {
-    val best = lots.firstOrNull() ?: return
+private fun ColumnScope.ReplacePanel(
+    course: CourseResponse,
+    stopIndex: Int,
+    origin: io.github.haeyeonyou.familytrip.data.LatLng?,
+    loading: Boolean,
+    onCancel: () -> Unit,
+    onPick: (io.github.haeyeonyou.familytrip.data.CoursePlace) -> Unit,
+) {
+    val s = SitterSurface.current
+    val stop = course.stops[stopIndex]
+    val candidates = remember(course, stopIndex) { replacements(course, stopIndex, origin) }
+    var chosen by remember(course, stopIndex) { mutableStateOf(candidates.firstOrNull()?.place) }
+    SitterCard(Modifier.fillMaxWidth().weight(1f), contentPadding = PaddingValues(18.dp)) {
+        Text("${stop.place.name} 대체 장소", style = SitterText.Title3, color = s.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text("같은 시간대 · 경로에서 가까운 순 · 수유실·유모차 조건 유지", style = SitterText.Caption, color = s.inkMute, modifier = Modifier.padding(top = 4.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Column(Modifier.padding(top = 14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            if (candidates.isEmpty()) {
+                Text("지금은 바꿀 후보가 없어요. 경유지 편집에서 다른 장소를 넣을 수 있어요.", style = SitterText.Body2, color = s.inkSoft)
+            }
+            candidates.forEach { r -> CandidateCard(r, selected = chosen == r.place) { chosen = r.place } }
+        }
+        Spacer(Modifier.weight(1f))
+        Text("바꾸면 뒤 일정과 수유 지점 시간이 다시 계산돼요", style = SitterText.Caption, color = s.inkMute)
+    }
+    Spacer(Modifier.height(12.dp))
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        SitterButton("취소", onCancel, Modifier.weight(1f), kind = SitterButtonKind.Line)
+        SitterButton("이걸로 바꾸기", { chosen?.let(onPick) }, Modifier.weight(1f), enabled = chosen != null && !loading)
+    }
+}
+
+@Composable
+private fun CandidateCard(r: Replacement, selected: Boolean, onSelect: () -> Unit) {
+    val s = SitterSurface.current
     Column(
-        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(TripColors.GreenSoft).padding(horizontal = 14.dp, vertical = 10.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+        Modifier
+            .fillMaxWidth()
+            .clip(SitterShapes.Row)
+            .background(if (selected) s.primarySoft else s.tile)
+            .then(if (selected) Modifier.border(2.dp, s.primary, SitterShapes.Row) else Modifier)
+            .clickable(onClick = onSelect)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text(parkingLine(best), fontSize = 18.sp, fontWeight = FontWeight.Medium, color = TripColors.Ink)
-        parkingNote(best)?.let { Text(it, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-        lots.drop(1).forEach {
-            Text("다른 곳 · ${it.name} · ${walkText(it)}", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(r.place.name, style = SitterText.Title3, color = s.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(replacementMeta(r), style = SitterText.Caption, color = if (selected) s.primary else s.inkSoft, maxLines = 1)
+            }
+            if (selected) {
+                Box(Modifier.size(36.dp).clip(CircleShape).background(s.primary), contentAlignment = Alignment.Center) {
+                    SitterIcon(SitterIcons.Check, Color.White, size = SitterIconSize.Small)
+                }
+            } else {
+                Box(
+                    Modifier.clip(SitterShapes.Pill).background(s.card).clickable(onClick = onSelect).padding(horizontal = 16.dp, vertical = 8.dp),
+                ) { Text("선택", style = SitterText.Label, color = s.ink) }
+            }
+        }
+        val keys = listOf("nursing_room", "stroller", "kids_chair").filter { r.place.amenities[it] == "available" }
+        if (keys.isNotEmpty()) {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) { keys.forEach { SitterTag(tagLabel(it), available = true) } }
         }
     }
 }
 
-private fun walkText(lot: StopParking) = "도보 약 ${lot.walkMinutes}분"
-
-/** "주차 공영 120면 · 30분 400원 · 도보 약 2분" — 모르는 항목은 뺀다. */
+/** "주차 공영 120면 · 30분 400원 · 도보 약 2분" — 모르는 항목은 뺀다. (안내 화면 등에서 씀) */
 internal fun parkingLine(lot: StopParking): String =
     listOfNotNull(
         "주차 " + listOfNotNull(lot.kind, lot.capacity?.let { "${it}면" }).joinToString(" ").ifBlank { lot.name },
         lot.feeSummary.takeIf { it.isNotBlank() },
-        walkText(lot),
+        "도보 약 ${lot.walkMinutes}분",
     ).joinToString(" · ")
 
 /** 이름과, 도착 시각에 운영하지 않을 때의 경고. 운영시간을 모르면 아무 말도 하지 않는다. */
@@ -233,54 +417,3 @@ internal fun parkingNote(lot: StopParking): String? =
         false -> "${lot.name} · 도착 때 운영 안 함 (${lot.hours})"
         else -> lot.name
     }
-
-/** 도착 정보 (HF02: 도착 시각과 도착 기준 다음 수유까지 여유). */
-@Composable
-private fun ArrivalCard(course: CourseResponse, outing: CourseStop, feeding: FeedingRoutine) {
-    val now = rememberNow()
-    Row(
-        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(TripColors.GreenSoft).padding(24.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text("◷", fontSize = 28.sp, color = TripColors.Green)
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("${outing.place.name} 도착 ${outing.arriveAt} · 귀가 ${course.returnAt}", fontSize = 22.sp, fontWeight = FontWeight.Bold)
-            Text(
-                feedingSlackText(feeding, outing.arriveAt, now) ?: "케어 탭에서 수유 시각을 기록하면 도착 때 다음 수유까지 여유를 알려 드려요",
-                fontSize = 18.sp,
-                color = TripColors.Green,
-            )
-        }
-    }
-}
-
-@Composable
-private fun AlternativeRow(onClick: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(24.dp))
-            .background(Color.White)
-            .border(1.dp, TripColors.Line, RoundedCornerShape(24.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 24.dp, vertical = 20.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text("⟳  계획이 바뀌었나요? 휴무·마감이면 대안 장소로", fontSize = 20.sp, modifier = Modifier.weight(1f))
-        Text("대안 보기 ›", fontSize = 20.sp, color = TripColors.Green)
-    }
-}
-
-@Composable
-private fun GrayButton(text: String, onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .heightIn(min = 76.dp)
-            .clip(RoundedCornerShape(24.dp))
-            .background(TripColors.Tile)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 32.dp),
-        contentAlignment = Alignment.Center,
-    ) { Text(text, fontSize = 24.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 20.dp)) }
-}
