@@ -61,6 +61,8 @@ data class CareState(
     /** 베이비케어 적용 결과 문구 (적용됨 / 지원 안 함 / 시동 꺼짐) */
     val climateMessage: String? = null,
     val sleepMode: Boolean = false,
+    /** 수면 모드를 켠 시각 (C04 "잠든 지 N분"). 모르면 null. */
+    val sleepStartedAt: Long? = null,
     val feeding: FeedingRoutine = FeedingRoutine(),
     val nearby: Map<CareKind, Nearby> = emptyMap(),
     /** 경유지 추가 결과 문구 */
@@ -110,6 +112,7 @@ class CareController(
     private val _state = MutableStateFlow(
         CareState(
             sleepMode = prefs.getBoolean(KEY_SLEEP, false),
+            sleepStartedAt = prefs.getLong(KEY_SLEEP_AT, 0L).takeIf { it > 0 && prefs.getBoolean(KEY_SLEEP, false) },
             feeding = feedingStore.load(),
             // 앱이 다시 켜져도 진행 중인 수유 정차는 이어간다.
             feedingStop = prefs.getLong(KEY_FEED_STOP_AT, 0L).takeIf { it > 0 }?.let { FeedingStopSession(it, prefs.getBoolean(KEY_FEED_STOP_CLIMATE, false)) },
@@ -122,6 +125,8 @@ class CareController(
     private var arrivingSoonNotified = false
     /** 수유 정차 모드를 켜기 전 공조 설정 (끝낼 때 베이비케어가 꺼져 있으면 되돌린다). */
     private var beforeFeedingStop: ClimateReading? = null
+    /** 수면 모드를 켜기 전 공조 설정. */
+    private var beforeSleep: ClimateReading? = null
     /** 수유 정차 모드를 물어본 경유지 ([AddedWaypoint.addedAt]). 같은 곳에서 두 번 묻지 않는다. */
     private var askedFor: Long? = null
     private var feedingStopBusy = false
@@ -379,29 +384,61 @@ class CareController(
     // 수면 모드
 
     /**
-     * 수면 모드: 앱 안내 음성을 줄이고(음성 30%), 알림을 소리 없는 채널로 바꾸고, 도착 5분 전에 조용히 알린다.
+     * 수면 모드: 앱 안내 음성을 줄이고(낮잠 프리셋 음량, 기본 10%), 알림을 소리 없는 채널로 바꾸고, 도착 5분 전에 조용히 알린다.
      * 차량 공조가 켜져 있으면 바람을 가장 약하게 낮춘다. 차량 음량·화면 테마는 SDK에 제어 수단이 없어
      * 앱 안에서만 처리한다 (docs/research/pleos-care-control.md).
      */
     fun setSleepMode(on: Boolean) {
-        prefs.edit().putBoolean(KEY_SLEEP, on).apply()
+        val wasOn = _state.value.sleepMode
+        val startedAt = if (on) (if (wasOn) _state.value.sleepStartedAt else System.currentTimeMillis()) else null
+        prefs.edit().putBoolean(KEY_SLEEP, on).putLong(KEY_SLEEP_AT, startedAt ?: 0L).apply()
         notifier.quiet = on
         ToneState.sleep = on
         arrivingSoonNotified = false
-        _state.update { it.copy(sleepMode = on) }
-        if (on) {
-            scope.launch {
-                val reading = vehicle.readClimate()
-                if (reading.supported && reading.power == true) {
-                    val ok = vehicle.setFanSpeed(SLEEP_FAN_LEVEL)
-                    _state.update { it.copy(climateMessage = if (ok) "수면 모드: 공조 바람을 약하게 낮췄어요" else it.climateMessage) }
+        _state.update { it.copy(sleepMode = on, sleepStartedAt = startedAt) }
+        if (on == wasOn) return
+        scope.launch {
+            if (on) {
+                // 낮잠 프리셋("수면 모드와 함께")을 공조에 넣는다. 공조를 읽지 못하면 앱 안(음성·알림·다크)만.
+                val before = vehicle.readClimate()
+                if (!before.supported) return@launch
+                val nap = serverSync.presets.value.firstOrNull { it.slot == "nap" }?.settings
+                val applied = if (nap != null) vehicle.applyClimate(nap).applied.isNotEmpty() else before.power == true && vehicle.setFanSpeed(SLEEP_FAN_LEVEL)
+                if (applied) beforeSleep = before
+                _state.update {
+                    it.copy(
+                        targetTemperature = if (applied && nap != null) nap.temperature else it.targetTemperature,
+                        climateMessage = if (applied) "수면 모드: 공조를 낮잠 설정으로 맞췄어요" else it.climateMessage,
+                    )
+                }
+            } else {
+                // 끄면 베이비케어가 켜져 있으면 베이비케어 값, 아니면 켜기 전 공조로 되돌린다 (수유 정차 중이면 그대로 둔다).
+                if (_state.value.feedingStop == null) {
+                    val boardingTemp = serverSync.presets.value.firstOrNull { it.slot == "boarding" }?.settings?.temperature
+                    _state.update { it.copy(targetTemperature = boardingTemp ?: BABY_TARGET_TEMPERATURE) }
+                }
+                val before = beforeSleep ?: return@launch
+                beforeSleep = null
+                if (_state.value.feedingStop != null) return@launch
+                if (_state.value.babyCare) {
+                    val boarding = serverSync.presets.value.firstOrNull { it.slot == "boarding" }?.settings
+                    vehicle.applyClimate(boarding ?: ClimateSettings(name = "베이비케어", power = true, temperature = BABY_TARGET_TEMPERATURE, fanSpeed = BABY_FAN_LEVEL))
+                    _state.update { it.copy(targetTemperature = boarding?.temperature ?: BABY_TARGET_TEMPERATURE) }
+                } else if (before.power != null) {
+                    vehicle.applyClimate(
+                        ClimateSettings(name = "복원", power = before.power, temperature = before.temperature ?: BABY_TARGET_TEMPERATURE, fanSpeed = before.fanSpeed ?: BABY_FAN_LEVEL),
+                    )
                 }
             }
         }
     }
 
-    /** 앱 안내 음성의 크기 (0~1). 수면 모드에서는 30%. */
-    val voiceVolume: Float get() = if (_state.value.sleepMode) SLEEP_VOICE_VOLUME else 1f
+    /** 앱 안내 음성의 크기 (0~1). 수면 모드에서는 낮잠 프리셋 음량(없으면 10%) (Q09). */
+    val voiceVolume: Float
+        get() = if (_state.value.sleepMode) sleepVoiceVolume(napVolume()) else 1f
+
+    /** 낮잠 프리셋의 미디어 음량(%). */
+    fun napVolume(): Int? = serverSync.presets.value.firstOrNull { it.slot == "nap" }?.settings?.mediaVolume
 
     // 급한 케어 찾기
 
@@ -498,9 +535,9 @@ class CareController(
 
     private companion object {
         const val KEY_SLEEP = "sleep_mode"
+        const val KEY_SLEEP_AT = "sleep_started_at"
         const val KEY_FEED_STOP_AT = "feeding_stop_started_at"
         const val KEY_FEED_STOP_CLIMATE = "feeding_stop_climate"
-        const val SLEEP_VOICE_VOLUME = 0.3f
         const val ROUTE_END_GRACE_MS = 15_000L
     }
 }
