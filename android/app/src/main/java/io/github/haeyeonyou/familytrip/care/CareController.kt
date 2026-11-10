@@ -153,7 +153,10 @@ class CareController(
                 if (!v.isParked) {
                     if (st.feedingStop != null && v.gear != io.github.haeyeonyou.familytrip.vehicle.GearState.UNKNOWN) finishFeedingStop(auto = true)
                     if (st.askFeedingStop) _state.update { it.copy(askFeedingStop = false) }
-                } else if (st.feedingStop == null && st.addedWaypoint != null && askedFor != st.addedWaypoint.addedAt &&
+                } else if (st.addedWaypoint != null) {
+                    Log.i(TAG, "정차: 케어 경유지 있음, 위치 앎=${knownLocation() != null}, 물어봄=${askedFor == st.addedWaypoint.addedAt}")
+                }
+                if (v.isParked && st.feedingStop == null && st.addedWaypoint != null && askedFor != st.addedWaypoint.addedAt &&
                     arrivedAtWaypoint(true, st.addedWaypoint, knownLocation())
                 ) {
                     askedFor = st.addedWaypoint.addedAt
