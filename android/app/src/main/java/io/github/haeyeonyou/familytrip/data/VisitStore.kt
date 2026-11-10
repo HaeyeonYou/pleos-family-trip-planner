@@ -24,6 +24,10 @@ data class Visit(
     val role: String,
     /** 나들이 장소의 경험 분야. 식사·카페는 없음 */
     val theme: String? = null,
+    /** 장소 분류 원문 (관광공사 cat3·카카오 category_name 등). 서버에 올려 젤리 12분류 근거로 쓴다. 예전 기록에는 없다 (#186) */
+    val category: String = "",
+    /** 서버가 정한 젤리 12분류 (코스 장소·서버 방문 기록에서). 없으면 앱이 이름 규칙으로 정한다 (#186) */
+    val jelly: String? = null,
     val address: String = "",
     /** 서버 장소 키 (source:source_id). 추천에서 최근 다녀온 곳을 빼는 데 쓴다. 예전 기록에는 없다. */
     val placeKey: String? = null,
@@ -76,6 +80,8 @@ class VisitStore(private val file: File) {
             placeName = place.name,
             role = role,
             theme = place.theme,
+            category = place.category,
+            jelly = place.jelly,
             address = place.address,
             placeKey = "${place.source}:${place.sourceId}",
             arrivedAt = now.withNano(0).toString(),

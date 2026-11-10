@@ -44,6 +44,7 @@ class TourPlace:
     cat3: str
     distance_m: float
     image_url: str
+    lcls3: str = ""  # 새 분류체계 소분류 (lclsSystm3). 행사는 cat1~3 대신 이것만 온다 (예: EV020700 공연)
     event_start: str = ""  # 행사·축제 시작일 YYYYMMDD
     event_end: str = ""
 
@@ -167,6 +168,7 @@ def _to_place(item: dict) -> TourPlace:
         cat3=item.get("cat3", ""),
         distance_m=float(item.get("dist") or 0),
         image_url=item.get("firstimage", ""),
+        lcls3=item.get("lclsSystm3", ""),
     )
 
 

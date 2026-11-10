@@ -141,7 +141,7 @@ def test_visits_upload_confirm_summary_and_privacy():
             all_visits = (await mom.get("/me/visits")).json()
             assert len(all_visits) == 2
             # 받지 않는 정보는 응답에도 없다: 좌표·음성·도착 시각
-            assert set(all_visits[0]) == {"id", "place_key", "place_name", "theme", "visited_on", "stayed_minutes", "status", "mood"}
+            assert set(all_visits[0]) == {"id", "place_key", "place_name", "theme", "category", "jelly", "visited_on", "stayed_minutes", "status", "mood"}
             extra = visit("몰래", "nature", "2026-11-01") | {"latitude": 37.5, "longitude": 127.0, "voice_url": "x"}
             saved = (await mom.put(f"/me/visits/{uuid.uuid4()}", json=extra)).json()
             assert "latitude" not in saved and "voice_url" not in saved
@@ -208,6 +208,40 @@ def test_experience_map_groups_places_and_finds_empty_branches():
             assert m["new_themes_this_month"] == ["play"] and m["this_month_visits"] == 1
 
             assert (await phone(client).get("/me/experience-map")).status_code == 401
+
+    run(scenario)
+
+
+def test_visits_carry_server_jelly_and_map_groups_by_jelly():
+    """방문 기록의 젤리 12분류 (#186): 분류 원문이 있으면 그것으로, 예전 기록(분류 없음)은 이름·분야로 조회할 때 정한다."""
+    async def scenario(client):
+        async with phone(client) as mom:
+            await signup(mom, "mom_jelly")
+            rows = [
+                visit("타임빌라스 수원점", "play", "2026-10-01", category="가정,생활 > 복합쇼핑몰"),  # 몰 → 여행 (몸놀이 아님)
+                visit("블루타이거 서초", "play", "2026-10-02", category="가정,생활 > 유아 > 놀이시설 > 키즈카페"),
+                visit("블루타이거 서초", "play", "2026-10-09", category="가정,생활 > 유아 > 놀이시설 > 키즈카페"),
+                visit("해움미술관", "exhibition", "2026-10-03", category="A02060500"),
+                visit("서울숲", "nature", "2026-10-04"),  # 예전 기록: 분류 없음 → 이름(숲)
+                visit("어딘가", "exhibition", "2026-10-05"),  # 이름도 없음 → 분야
+                visit("잠깐 들른 곳", "nature", "2026-10-06", stayed_minutes=5),  # 10분 미만은 경험이 아니다
+            ]
+            await mom.post("/me/visits/bulk", json={"visits": rows})
+            got = {(v["place_name"], v["visited_on"]): v for v in (await mom.get("/me/visits")).json()}
+            assert got[("타임빌라스 수원점", "2026-10-01")]["jelly"] == "travel"
+            assert got[("타임빌라스 수원점", "2026-10-01")]["category"] == "가정,생활 > 복합쇼핑몰"
+            assert got[("블루타이거 서초", "2026-10-02")]["jelly"] == "move"
+            assert got[("해움미술관", "2026-10-03")]["jelly"] == "art"
+            assert got[("서울숲", "2026-10-04")]["jelly"] == "nature" and got[("서울숲", "2026-10-04")]["category"] == ""
+            assert got[("어딘가", "2026-10-05")]["jelly"] == "science"
+
+            m = (await mom.get("/me/experience-map")).json()
+            assert m["jellies"][0]["jelly"] == "move" and m["jellies"][0]["experiences"] == 2  # 경험 많은 순
+            move = m["jellies"][0]
+            assert move["label"] == "몸놀이" and move["character"] == "말" and move["stage"] == "drop" and move["stage_name"] == "말 방울"
+            assert move["places"][0]["place_name"] == "블루타이거 서초" and move["places"][0]["visits"] == 2
+            assert sum(j["experiences"] for j in m["jellies"]) == 6  # 5분 머문 곳은 빠진다
+            assert "water" in m["empty_jellies"] and "move" not in m["empty_jellies"] and len(m["jellies"]) + len(m["empty_jellies"]) == 12
 
     run(scenario)
 

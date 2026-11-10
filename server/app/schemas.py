@@ -1,6 +1,6 @@
 from enum import Enum
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class Theme(str, Enum):
@@ -9,6 +9,23 @@ class Theme(str, Enum):
     EXHIBITION = "exhibition"  # 전시
     PLAY = "play"            # 쇼핑·놀이 (키즈카페, 테마파크, 복합쇼핑몰)
     PET = "pet"              # 반려동물 동반
+
+
+class Jelly(str, Enum):
+    """그로우 젤리 B안 12분류 (#186). 판정은 app/course/jelly.py, 앱 grow/JellyModel.kt JellyKind와 이름이 같다."""
+
+    ART = "art"          # 전시·미술 (유니콘)
+    SCIENCE = "science"  # 과학·박물관 (공룡)
+    NATURE = "nature"    # 자연·숲 (곰)
+    ANIMAL = "animal"    # 동물·교감 (강아지)
+    WATER = "water"      # 물놀이 (카피바라)
+    MOVE = "move"        # 몸놀이 (말)
+    MUSIC = "music"      # 음악·공연 (고양이)
+    BOOK = "book"        # 책·이야기 (웜뱃)
+    FOOD = "food"        # 맛 탐험 (햄스터)
+    FRIEND = "friend"    # 친구·어울림 (펭귄)
+    MAKE = "make"        # 만들기 (비버)
+    TRAVEL = "travel"    # 여행 (수달)
 
 
 class TripConditions(BaseModel):
@@ -93,6 +110,19 @@ class Place(BaseModel):
         None,
         description="나들이 장소의 경험 분야 (TourAPI 분류코드·카카오 분류에서). 앱 경험 지도가 쓴다",
     )
+    jelly: Jelly | None = Field(
+        None,
+        description="그로우 젤리 12분류. 비어 있으면 서버가 이름·분류(category)·분야로 정해 채운다. 귀가 지점은 없음",
+    )
+
+    @model_validator(mode="after")
+    def _fill_jelly(self) -> "Place":
+        # 만들 때 한 번 정한다: 나중에 category를 바꿔도(행사 → "행사·축제") 원래 분류 코드로 정한 값이 남는다.
+        if self.jelly is None and self.source != "user":
+            from app.course.jelly import judge  # 순환 import 방지
+
+            self.jelly = judge(self.name, self.category, self.theme)
+        return self
 
 
 class Alternative(Place):
