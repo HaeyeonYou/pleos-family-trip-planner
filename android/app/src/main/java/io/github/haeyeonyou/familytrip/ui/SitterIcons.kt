@@ -98,6 +98,11 @@ object SitterIcons {
         "M9 18L15 12L9 6",
     )
 
+    /** 아래 화살표 (C07 아이 칩 드롭다운, ChevronRight를 돌린 모양) */
+    val ChevronDown = sitterIcon("cd", 24, 2.2f,
+        "M6 9L12 15L18 9",
+    )
+
     /** icon/grip (원본 26, 선 2.2) */
     val Grip = sitterIcon("grip", 26, 2.2f,
         "M4.33325 9.75H21.6666",

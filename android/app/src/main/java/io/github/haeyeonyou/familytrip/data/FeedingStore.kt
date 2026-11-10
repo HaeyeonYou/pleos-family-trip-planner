@@ -60,30 +60,62 @@ fun clockLabel(epochMs: Long): String =
 /**
  * 수유 루틴을 기기에 저장한다. 로그인했다면 [FeedingSync]·[FamilySync]가 서버와 맞춘다.
  * 바뀔 때마다 [routine] 흐름이 알려, 서버에서 받은 값도 홈·케어 화면에 바로 반영된다.
+ *
+ * 아이별 수유 (C07, D4 "수유 타이머만 아이별"): 아이마다 루틴을 따로 둔다. 첫째 아이(목록 맨 앞)는 키가 null이고
+ * 이 기능 전부터 쓰던 저장 키를 그대로 쓴다. 다른 아이는 서버 아이 id로 저장한다.
+ * [load]/[save]/[routine]은 **지금 고른 아이**([selectedChildId]) 것이고, [firstChild]는 첫째 아이 것이다.
  */
 class FeedingStore(context: Context) : FeedingRoutineStore {
     private val prefs = context.getSharedPreferences("feeding", Context.MODE_PRIVATE)
-    private val _routine = MutableStateFlow(read())
+    private val _selected = MutableStateFlow(prefs.getString(KEY_SELECTED, null))
+
+    /** 지금 고른 아이의 서버 id. null이면 첫째 아이. */
+    val selectedChildId: StateFlow<String?> = _selected.asStateFlow()
+    private val _routine = MutableStateFlow(read(_selected.value))
     val routine: StateFlow<FeedingRoutine> = _routine.asStateFlow()
 
-    private fun read(): FeedingRoutine = FeedingRoutine(
-        lastFedAt = prefs.getLong(KEY_LAST, 0L).takeIf { it > 0 },
-        intervalMinutes = prefs.getInt(KEY_INTERVAL, FeedingRoutine.DEFAULT_INTERVAL_MINUTES),
+    private fun lastKey(child: String?) = if (child == null) KEY_LAST else "$KEY_LAST:$child"
+    private fun intervalKey(child: String?) = if (child == null) KEY_INTERVAL else "$KEY_INTERVAL:$child"
+
+    private fun read(child: String?): FeedingRoutine = FeedingRoutine(
+        lastFedAt = prefs.getLong(lastKey(child), 0L).takeIf { it > 0 },
+        intervalMinutes = prefs.getInt(intervalKey(child), FeedingRoutine.DEFAULT_INTERVAL_MINUTES),
     )
 
     override fun load(): FeedingRoutine = _routine.value
 
+    override fun save(routine: FeedingRoutine) = saveFor(_selected.value, routine)
+
+    /** [child] 아이의 루틴 (null = 첫째). */
+    fun loadFor(child: String?): FeedingRoutine = if (child == _selected.value) _routine.value else read(child)
+
     @Synchronized
-    override fun save(routine: FeedingRoutine) {
+    fun saveFor(child: String?, routine: FeedingRoutine) {
         prefs.edit()
-            .putLong(KEY_LAST, routine.lastFedAt ?: 0L)
-            .putInt(KEY_INTERVAL, routine.intervalMinutes)
+            .putLong(lastKey(child), routine.lastFedAt ?: 0L)
+            .putInt(intervalKey(child), routine.intervalMinutes)
             .apply()
-        _routine.value = routine
+        if (child == _selected.value) _routine.value = routine
+    }
+
+    /** 케어 대상 아이를 고른다 (null = 첫째). 홈·케어·음성이 모두 이 아이의 수유 타이머를 본다. */
+    @Synchronized
+    fun select(child: String?) {
+        if (child == _selected.value) return
+        prefs.edit().putString(KEY_SELECTED, child).apply()
+        _selected.value = child
+        _routine.value = read(child)
+    }
+
+    /** 첫째 아이의 루틴 (가족 정보 동기화가 첫째 아이 간격을 맞추는 데 쓴다). */
+    val firstChild: FeedingRoutineStore = object : FeedingRoutineStore {
+        override fun load() = loadFor(null)
+        override fun save(routine: FeedingRoutine) = saveFor(null, routine)
     }
 
     private companion object {
         const val KEY_LAST = "last_fed_at"
         const val KEY_INTERVAL = "interval_minutes"
+        const val KEY_SELECTED = "selected_child"
     }
 }

@@ -135,11 +135,20 @@ class FamilySync(
     private val routine: FeedingRoutineStore,
     private val snapshot: JsonFile<List<ServerChild>>,
     private val newId: () -> String = { UUID.randomUUID().toString() },
+    /** 첫째가 아닌 아이의 수유 간격을 차에 맞춘다 (서버 아이 id, 분). C07 아이별 수유. */
+    private val childInterval: (String, Int) -> Unit = { _, _ -> },
 ) {
     private val lock = Mutex()
 
     /** 마지막으로 맞춘 서버의 첫째 아이 수유 방식 (수유 기록 종류를 정하는 데 쓴다). */
     fun firstChildFeedingType(): String? = snapshot.load().firstOrNull()?.feedingType
+
+    /** 마지막으로 맞춘 서버의 아이들 (수유 방식·낮잠 횟수 등 차에 없는 항목 포함). */
+    fun serverChildren(): List<ServerChild> = snapshot.load()
+
+    /** [childId] 아이의 수유 방식 (null = 첫째). */
+    fun feedingTypeOf(childId: String?): String? =
+        if (childId == null) firstChildFeedingType() else snapshot.load().firstOrNull { it.id == childId }?.feedingType
 
     /** 차에서 고친 것이 아직 서버에 안 올라갔는지 (네트워크 없이 확인). */
     fun hasPendingUpload(): Boolean {
@@ -183,6 +192,7 @@ class FamilySync(
             val r = routine.load()
             if (r.intervalMinutes != interval) routine.save(r.copy(intervalMinutes = interval))
         }
+        current.drop(1).forEach { c -> c.feedIntervalMinutes?.let { childInterval(c.id, it) } }
         snapshot.save(current)
     }
 

@@ -41,16 +41,21 @@ class ServerSync(
     val family = FamilySync(
         TripApiFamilyRemote(api),
         profileStore,
-        feedingStore,
+        feedingStore.firstChild,
         JsonFile(File(dir, "family_snapshot.json"), serverChildrenSerializer) { emptyList() },
+        childInterval = { id, minutes ->
+            val r = feedingStore.loadFor(id)
+            if (r.intervalMinutes != minutes) feedingStore.saveFor(id, r.copy(intervalMinutes = minutes))
+        },
     )
     val visits = VisitSync(visitStore, TripApiVisitRemote(api), visitState)
     val feedings = FeedingSync(
         remote = TripApiFeedingRemote(api),
         queue = JsonFile(File(dir, "feeding_queue.json"), FeedingQueueData.serializer()) { FeedingQueueData() },
         routine = feedingStore,
-        kind = { feedingKindOf(family.firstChildFeedingType()) },
+        kind = { feedingKindOf(family.feedingTypeOf(feedingStore.selectedChildId.value)) },
         owner = { loginId() },
+        childId = { feedingStore.selectedChildId.value },
     )
     val presetSync = PresetSync(
         TripApiPresetRemote(api),
@@ -76,6 +81,9 @@ class ServerSync(
         feedings.record(fedAtMs)
         kick { feedings.flush(); feedings.pull() }
     }
+
+    /** 케어 대상 아이를 바꿨다: 그 아이의 마지막 수유를 서버에서 받는다 (C07). */
+    fun onChildSelected() = kick { feedings.flush(); feedings.pull() }
 
     /** 차에서 고친 아이 정보·수유 간격을 서버에 올린다. */
     fun onFamilyEdited() = kick { family.reconcile() }
