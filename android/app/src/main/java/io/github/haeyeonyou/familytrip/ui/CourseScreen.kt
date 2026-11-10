@@ -63,11 +63,14 @@ fun CourseScreen(
     onSave: () -> Unit,
     onStartGuide: () -> Unit,
     onBack: () -> Unit,
+    weather: io.github.haeyeonyou.familytrip.data.WeatherInfo? = null,
+    going: Int = 0,
+    origin: io.github.haeyeonyou.familytrip.data.LatLng? = null,
 ) = DrivingAware(isParked) {
     var editing by remember { mutableStateOf(false) }
     if (!editing) {
         // 기본은 HF02 코스 상세. 편집(경유지 편집·대안 보기)일 때만 아래 편집 화면.
-        CourseOverview(course, loading, error, message, feeding, onStartGuide, onEdit = { editing = true }, onSave = onSave, onBack = onBack)
+        CourseOverview(course, loading, error, message, feeding, edit, onStartGuide, onEdit = { editing = true }, onSave = onSave, onBack = onBack, weather = weather, going = going, origin = origin)
         return@DrivingAware
     }
     // 상세를 펼친 장소, 교체 후보를 펼친 장소 (각각 하나만)
