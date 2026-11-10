@@ -41,6 +41,9 @@ import io.github.haeyeonyou.familytrip.care.CareState
 import io.github.haeyeonyou.familytrip.care.FeedingPhase
 import io.github.haeyeonyou.familytrip.care.FeedingStopSession
 import io.github.haeyeonyou.familytrip.care.sleepVoicePercent
+import io.github.haeyeonyou.familytrip.care.childChipLabel
+import io.github.haeyeonyou.familytrip.care.childOptions
+import io.github.haeyeonyou.familytrip.care.selectedChildIndex
 import io.github.haeyeonyou.familytrip.care.FrequentCarePlace
 import io.github.haeyeonyou.familytrip.care.Nearby
 import io.github.haeyeonyou.familytrip.care.QUICK_FED_CHOICES
@@ -80,6 +83,11 @@ data class CareActions(
     val onDismissFeedingStopAsk: () -> Unit,
     /** C04 낮잠·수면 모드 켜기/끄기 */
     val onSleepMode: (Boolean) -> Unit,
+    /** C07 케어 대상 아이 고르기 (null = 첫째) */
+    val onSelectChild: (String?) -> Unit = {},
+    /** C07 드롭다운 행: 아이별 수유 루틴, 서버 아이 정보 */
+    val childRoutine: (String?) -> FeedingRoutine = { FeedingRoutine() },
+    val serverChildren: () -> List<io.github.haeyeonyou.familytrip.data.ServerChild> = { emptyList() },
     val onDelayAddWaypoint: (DelayCandidate) -> Unit,
     val onDelayKeepGoing: () -> Unit,
     val onApplyPreset: (slot: String) -> Unit,
@@ -105,8 +113,12 @@ fun CareScreen(
 ) {
     LaunchedEffect(Unit) { actions.onEnter() }
     val now = rememberNow()
-    val child = state.profile?.children?.firstOrNull()
-    val chipLabel = child?.let { "${it.name.ifBlank { "아이" }} · ${it.ageMonths()}개월" } ?: "아이"
+    val children = state.profile?.children.orEmpty()
+    val child = children.getOrNull(selectedChildIndex(children, care.selectedChildId))
+    val chipLabel = childChipLabel(children, care.selectedChildId)
+    var choosingChild by remember { mutableStateOf(false) }
+    // 아이 선택은 정차 중에만 (주행하면 닫는다)
+    LaunchedEffect(isParked) { if (!isParked) choosingChild = false }
     var editingSlot by rememberSaveable { mutableStateOf<String?>(null) }
     var modeSaveError by remember { mutableStateOf<String?>(null) }
     // 모드 편집은 정차(P단) 중에만. 주행을 시작하면 닫는다.
@@ -126,7 +138,7 @@ fun CareScreen(
             },
         )
         SitterChipRow {
-            SitterChip(chipLabel, selected = true, onClick = {}, icon = SitterIcons.Baby)
+            SitterChip(chipLabel, selected = true, onClick = { if (isParked && children.size > 1) choosingChild = true }, icon = SitterIcons.Baby, trailing = if (children.size > 1) SitterIcons.ChevronDown else null)
             CareKindChip(CareKind.NURSING, actions)
             CareKindChip(CareKind.DIAPER, actions)
             CareKindChip(CareKind.REST, actions)
@@ -156,6 +168,13 @@ fun CareScreen(
         care.urgent?.let { UrgentCareSheet(it, care.frequent, onAdd = actions.onAddWaypoint, onClose = actions.onCloseUrgent) }
         WaypointToast(care.addedWaypoint, onUndo = actions.onUndoWaypoint)
         CareNoticeToast(care.notice, care.noticeAt)
+        if (choosingChild) {
+            ChildSelectDropdown(
+                options = childOptions(children, actions.serverChildren(), care.selectedChildId, actions.childRoutine),
+                onSelect = { key -> actions.onSelectChild(key); choosingChild = false },
+                onDismiss = { choosingChild = false },
+            )
+        }
         if (care.askFeedingStop && care.feedingStop == null) {
             FeedingStopAsk(
                 place = care.addedWaypoint?.place?.name,

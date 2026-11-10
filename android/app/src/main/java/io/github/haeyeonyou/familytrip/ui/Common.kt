@@ -263,6 +263,8 @@ fun SitterChip(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     icon: ImageVector? = null,
+    /** 글자 뒤 아이콘 (아이 칩의 아래 화살표 등) */
+    trailing: ImageVector? = null,
 ) {
     val s = SitterSurface.current
     val color = if (selected) s.primary else s.ink
@@ -279,6 +281,7 @@ fun SitterChip(
     ) {
         icon?.let { SitterIcon(it, color, size = SitterIconSize.Medium) }
         Text(label, style = SitterText.Body1, color = color, maxLines = 1)
+        trailing?.let { SitterIcon(it, color, size = SitterIconSize.Small) }
     }
 }
 

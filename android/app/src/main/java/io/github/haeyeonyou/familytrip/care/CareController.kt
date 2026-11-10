@@ -73,6 +73,8 @@ data class CareState(
     val urgent: UrgentSheet? = null,
     /** 케어에서 넣은 경유지 (C12 토스트·"다음 경유지" 슬롯). 빼거나 안내가 끝나면 null. */
     val addedWaypoint: AddedWaypoint? = null,
+    /** 케어 대상 아이 (서버 아이 id, null = 첫째). 수유 타이머만 아이별이다 (D4). */
+    val selectedChildId: String? = null,
     /** 진행 중인 수유 정차 (C03 "수유 중 N분째"). 없으면 null. */
     val feedingStop: FeedingStopSession? = null,
     /** 경유지에 도착해 정차했을 때 수유 정차 모드를 켤지 묻는다 (C10·C12 안내). */
@@ -114,6 +116,7 @@ class CareController(
             sleepMode = prefs.getBoolean(KEY_SLEEP, false),
             sleepStartedAt = prefs.getLong(KEY_SLEEP_AT, 0L).takeIf { it > 0 && prefs.getBoolean(KEY_SLEEP, false) },
             feeding = feedingStore.load(),
+            selectedChildId = feedingStore.selectedChildId.value,
             // 앱이 다시 켜져도 진행 중인 수유 정차는 이어간다.
             feedingStop = prefs.getLong(KEY_FEED_STOP_AT, 0L).takeIf { it > 0 }?.let { FeedingStopSession(it, prefs.getBoolean(KEY_FEED_STOP_CLIMATE, false)) },
         ),
@@ -140,7 +143,7 @@ class CareController(
         notifier.quiet = _state.value.sleepMode
         ToneState.sleep = _state.value.sleepMode
         // 수유 루틴은 저장소가 하나뿐이다: 홈·음성·서버에서 받은 변경도 같은 값을 본다.
-        scope.launch { feedingStore.routine.collect { f -> _state.update { it.copy(feeding = f) } } }
+        scope.launch { feedingStore.routine.collect { f -> _state.update { it.copy(feeding = f, selectedChildId = feedingStore.selectedChildId.value) } } }
         // 방문 기록이 바뀌면(도착·서버에서 받은 변경) 자주 가는 케어 장소를 다시 고른다.
         scope.launch { visits.revision.collect { refreshFrequent() } }
         // 정차(P단) 감지 (D10): 출발하면 수유 정차를 끝내고, 케어 경유지에 도착해 정차하면 수유 정차 모드를 묻는다.
@@ -197,9 +200,9 @@ class CareController(
         serverSync.onFed(at)
     }
 
-    /** 수유 간격을 바꾼다. 로그인했다면 첫째 아이의 수유 간격으로 서버에도 올린다. */
+    /** 수유 간격을 바꾼다 (설정 화면: 첫째 아이). 로그인했다면 첫째 아이의 수유 간격으로 서버에도 올린다. */
     fun setFeedingInterval(minutes: Int) {
-        feedingStore.save(feedingStore.load().copy(intervalMinutes = minutes))
+        feedingStore.firstChild.save(feedingStore.firstChild.load().copy(intervalMinutes = minutes))
         serverSync.onFamilyEdited()
     }
 
@@ -300,6 +303,18 @@ class CareController(
             _state.update { it.copy(currentTemperature = now.temperature ?: it.currentTemperature) }
         }
     }
+
+    // 아이 선택 (C07)
+
+    /** 케어 대상 아이를 바꾼다 (null = 첫째). 그 아이의 마지막 수유를 서버에서 받아 온다. 모드 값은 가족 공통이라 그대로다. */
+    fun selectChild(childId: String?) {
+        feedingStore.select(childId)
+        _state.update { it.copy(selectedChildId = childId, feeding = feedingStore.load()) }
+        serverSync.onChildSelected()
+    }
+
+    /** [childId] 아이의 수유 루틴 (드롭다운의 다음 수유 표시). */
+    fun routineOf(childId: String?): FeedingRoutine = feedingStore.loadFor(childId)
 
     // 수유 정차 모드 (C03)
 

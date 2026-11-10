@@ -19,7 +19,7 @@ class FeedingSyncTest {
             failure?.let { throw it }
             puts[id] = body
         }
-        override suspend fun status() = FeedingStatus(lastFedAt = lastFedAt)
+        override suspend fun status(childId: String?) = FeedingStatus(lastFedAt = lastFedAt)
     }
 
     private val noon = OffsetDateTime.parse("2026-11-08T12:10:00+09:00").toInstant().toEpochMilli()

@@ -360,7 +360,7 @@ interface TripApi {
     suspend fun putFeeding(@Path("id") id: String, @Body body: FeedingIn): Response<Unit>
 
     @GET("me/feedings/status")
-    suspend fun feedingStatus(): FeedingStatus
+    suspend fun feedingStatus(@Query("child_id") childId: String? = null): FeedingStatus
 
     // 가족 정보 (서버 app/family.py)
 
