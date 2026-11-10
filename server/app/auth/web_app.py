@@ -358,7 +358,7 @@ def _child_view(c) -> dict:
         bits.append(f"{out.feed_interval_minutes / 60:g}시간 간격")
     if out.nap_count is not None:
         bits.append(f"낮잠 {out.nap_count}회")
-    return {"id": out.id, "nickname": out.nickname, "age": f"{out.age_months}개월", "born": out.birth_month.replace("-", "."), "detail": " · ".join(bits)}
+    return {"id": out.id, "nickname": out.nickname, "age": f"{out.age_months}개월", "born": out.birth_date.strftime("%Y.%m.%d") if out.birth_date else out.birth_month.replace("-", "."), "detail": " · ".join(bits)}
 
 
 async def _my_context(db: AsyncSession, user: User, notice: str = "", **extra) -> dict:
@@ -416,12 +416,13 @@ def _tri(value) -> str:
 def _child_values(child=None) -> dict:
     """폼에 채울 값(모두 글자). 아이가 없으면 빈 값."""
     if child is None:
-        return {"nickname": "", "birth_month": "", "temperament": [], "feeding_type": "", "feed_interval_minutes": "", "nap_count": "",
-                "nap_times": "", "nap_in_car": "", "heat_sensitivity": "", "motion_sickness": "", "noise_sensitivity": "", "stroller_use": ""}
+        return {"nickname": "", "birth_month": "", "birth_date": "", "temperament": [], "feeding_type": "", "feed_interval_minutes": "", "nap_count": "",
+                "nap_times": "", "nap_in_car": "", "heat_sensitivity": "", "motion_sickness": "", "noise_sensitivity": "", "stroller_use": "", "rear_facing_seat": ""}
     out = family.child_out(child)
     return {
         "nickname": out.nickname,
         "birth_month": out.birth_month,
+        "birth_date": out.birth_date.isoformat() if out.birth_date else "",
         "temperament": list(out.temperament),
         "feeding_type": out.feeding_type or "",
         "feed_interval_minutes": out.feed_interval_minutes or "",
@@ -432,6 +433,7 @@ def _child_values(child=None) -> dict:
         "motion_sickness": _tri(out.motion_sickness),
         "noise_sensitivity": out.noise_sensitivity or "",
         "stroller_use": _tri(out.stroller_use),
+        "rear_facing_seat": _tri(out.rear_facing_seat),
     }
 
 
@@ -444,6 +446,7 @@ def _child_choices() -> dict:
         "heat_choices": list(family.HEAT_LABELS.items()),
         "noise_choices": list(family.NOISE_LABELS.items()),
         "max_month": datetime.now(KST).strftime("%Y-%m"),
+        "max_date": datetime.now(KST).strftime("%Y-%m-%d"),
     }
 
 
@@ -470,7 +473,14 @@ def parse_child_form(form, base: "family.ChildOut | None") -> "family.ChildIn":
         return {"1": True, "0": False}.get(form.get(key) or "")
 
     if "basic" in sections:
-        data |= {"nickname": form.get("nickname") or "", "birth_month": form.get("birth_month") or "", "temperament": [t for t in form.getlist("temperament") if t in family.TEMPERAMENTS]}
+        # 생년월일(일까지)이 기본이고, 날짜를 안 고른 예전 아이는 숨은 칸의 태어난 달을 그대로 보낸다
+        birth_date = (form.get("birth_date") or "").strip() or None
+        data |= {
+            "nickname": form.get("nickname") or "",
+            "birth_date": birth_date,
+            "birth_month": None if birth_date else (form.get("birth_month") or None),
+            "temperament": [t for t in form.getlist("temperament") if t in family.TEMPERAMENTS],
+        }
     if "care" in sections:
         data |= {
             "feeding_type": form.get("feeding_type") or None,
@@ -485,6 +495,7 @@ def parse_child_form(form, base: "family.ChildOut | None") -> "family.ChildIn":
             "motion_sickness": tri("motion_sickness"),
             "noise_sensitivity": form.get("noise_sensitivity") or None,
             "stroller_use": tri("stroller_use"),
+            "rear_facing_seat": tri("rear_facing_seat"),
         }
     return family.ChildIn(**data)
 
@@ -527,7 +538,7 @@ async def _save_child(request: Request, db: AsyncSession, user: User, child_id: 
         body = parse_child_form(form, family.child_out(existing) if existing is not None else None)
         await family.save_child(db, user, child_id, body)
     except (ValidationError, ValueError):
-        context = _child_form_context(existing, error="입력한 값을 다시 확인해 주세요. 태어난 달은 2025-09처럼 적어요.")
+        context = _child_form_context(existing, error="입력한 값을 다시 확인해 주세요. 생년월일은 오늘까지의 날짜로 골라 주세요.")
         context["v"] = form_values(form, context["v"])
         return templates.TemplateResponse(request, "child_form.html", context, status_code=400)
     except HTTPException as e:  # 아이 수 제한
