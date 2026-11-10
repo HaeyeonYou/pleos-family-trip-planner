@@ -211,6 +211,7 @@ fun ExperienceScreen(
     )
 
     if (showKinds) {
+        androidx.activity.compose.BackHandler { showKinds = false }
         KindsSheet(states, jellyType(states)?.line, onClose = { showKinds = false })
     }
     births.firstOrNull()?.takeIf { !driving }?.let { kind ->

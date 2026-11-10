@@ -55,6 +55,8 @@ class JellyModelTest {
         assertEquals(JellyKind.BOOK, classify("구리시립 어린이도서관", "outing", null))
         assertEquals(JellyKind.BOOK, classify("그림책 북카페", "cafe", null))
         assertEquals(JellyKind.FOOD, classify("숲속 카페", "cafe", null))
+        assertEquals(JellyKind.FOOD, classify("숲속 카페", "outing", "nature")) // 서버에서 받은 기록
+        assertEquals(JellyKind.MOVE, classify("□□ 키즈카페", "outing", "play"))
         assertEquals(JellyKind.FRIEND, classify("구리시 육아종합지원센터", "outing", "experience"))
         assertEquals(JellyKind.MAKE, classify("베이비 쿠킹 클래스", "outing", "experience"))
         assertEquals(JellyKind.TRAVEL, classify("남산 전망대", "outing", null))
