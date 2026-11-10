@@ -12,7 +12,8 @@ import java.time.temporal.ChronoUnit
  * 규칙 (젤리 우주 B안 374:6875 정리본 `docs/development-plan-1110.md` 3.5 + 이 작업에서 정한 정의):
  * - 경험 1개 = 나들이·식사·카페 방문 1회 중 10분 이상 머문 것. 아직 떠나지 않았으면 도착 후 10분이 지나면 센다.
  *   웹에서 받은 기록처럼 떠난 시각이 없는 지난 기록도 도착 후 10분이 지났으므로 센다.
- * - 경험은 12분류 중 하나로 나눈다. 서버 분야는 5종뿐이라 앱이 장소 이름·역할·서버 분야로 판정한다 ([classify]).
+ * - 경험은 12분류 중 하나로 나눈다. 서버가 장소 분류 근거로 정한 값(#186, [Visit.jelly])을 먼저 쓰고,
+ *   없을 때(예전 기록·예전 서버)만 앱이 장소 이름·역할·서버 분야로 판정한다 ([classify]).
  * - 성장 단계는 분류별 누적 경험 수: 1~3 방울, 4~9 몽글, 10 이상 탄생. 한 번 태어난 캐릭터는 줄어들지 않는다.
  * - 조합 유형은 최근 6개월 경험으로 다시 센다: 1위 = 메인 캐릭터, 2위 = "한 스푼".
  * - 한 분류가 전체 경험의 절반을 넘으면(경험 4개 이상일 때) 비어 있는 별을 권한다.
@@ -45,6 +46,13 @@ enum class JellyKind(
     FRIEND("친구·어울림", "친구", "펭귄", "골목대장 펭귄형", "펭귄", "친구와 어울리고 차례를 기다리는 힘이 자랄 수 있어요", 0xFF6672FF, "penguin"),
     MAKE("만들기", "만들기", "비버", "뚝딱이 비버형", "비버", "손으로 만들고 끝까지 해내는 힘이 자랄 수 있어요", 0xFFFF9A4D, "beaver"),
     TRAVEL("여행", "여행", "수달", "모험가 수달형", "수달", "낯선 곳에서도 씩씩하게 둘러보는 힘이 자랄 수 있어요", 0xFF2EC4C4, "otter"),
+    ;
+
+    companion object {
+        /** 서버 값(app/schemas.py Jelly: "art" … "travel") → 분류. 모르는 값이면 null */
+        fun fromServer(value: String?): JellyKind? =
+            value?.let { v -> entries.firstOrNull { it.name.equals(v, ignoreCase = true) } }
+    }
 }
 
 enum class JellyStage(val min: Int) {
@@ -99,9 +107,10 @@ private val THEME_FALLBACK = mapOf(
     "pet" to JellyKind.ANIMAL,
 )
 
-/** 방문 하나의 경험 분류. */
-fun classify(v: Visit): JellyKind = classify(v.placeName, v.role, v.theme)
+/** 방문 하나의 경험 분류. 서버가 정한 값이 있으면 그것, 없으면 이름 규칙. */
+fun classify(v: Visit): JellyKind = JellyKind.fromServer(v.jelly) ?: classify(v.placeName, v.role, v.theme)
 
+/** 서버 값이 없을 때 쓰는 이름 규칙 (서버 app/course/jelly.py의 이름·분야 단계와 같은 목록). */
 fun classify(placeName: String, role: String, theme: String?): JellyKind {
     val name = placeName.replace(" ", "")
     fun has(words: List<String>) = words.any { it in name }
