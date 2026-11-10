@@ -168,6 +168,8 @@ class VoiceController(
                     .getOrNull()
             }
             val step = result?.let(::toStep)
+            // 문장 원문은 남기지 않는다 (동작 이름·출처만)
+            Log.i(TAG, "interpret → ${result?.action}/${result?.source} step=${step?.javaClass?.simpleName}")
             if (step == null || step == Step.Unsupported) {
                 _state.update {
                     it.copy(
