@@ -56,6 +56,7 @@ fun pickCareSlot(
     dismissed: Set<CareSlot> = emptySet(),
     waypointActive: Boolean = false,
     feedingNow: Boolean = false,
+    sleeping: Boolean = false,
 ): CareSlot {
     val candidates = buildList {
         if (feedingNow) add(CareSlot.FeedingNow)
@@ -63,6 +64,7 @@ fun pickCareSlot(
         if (phase == FeedingPhase.Soon) add(CareSlot.FeedingSoon)
         if (delayActive) add(CareSlot.Delay)
         if (waypointActive) add(CareSlot.Waypoint)
+        if (sleeping) add(CareSlot.Sleep)
     }.filter { it !in dismissed }
     return candidates.minByOrNull { it.priority } ?: CareSlot.Today
 }
