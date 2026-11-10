@@ -85,4 +85,13 @@ class ExperienceLayoutTest {
         assertEquals("자연·숲 경험 5개 · 탄생까지 5개", growthCaption(states.first { it.kind == JellyKind.NATURE }))
         assertEquals("과학·박물관 나들이를 하면 별이 생겨요", growthCaption(states.first { it.kind == JellyKind.SCIENCE }))
     }
+
+    @Test
+    fun 원본_그림은_12종_3단계가_모두_다르고_문구는_자랄_수_있어요로_끝난다() {
+        val ids = JellyKind.entries.flatMap { k -> listOf(JellyStage.DROP, JellyStage.PUFF, JellyStage.BORN).map { jellyRes(k, it) } }
+        assertEquals(36, ids.toSet().size)
+        assertEquals(jellyRes(JellyKind.ART, JellyStage.DROP), jellyRes(JellyKind.ART, JellyStage.NONE))
+        assertTrue(JellyKind.entries.all { it.power.endsWith("자랄 수 있어요") })
+        assertEquals(listOf("음악", "맛", "몸놀이", "여행"), listOf(JellyKind.MUSIC, JellyKind.FOOD, JellyKind.MOVE, JellyKind.TRAVEL).map { it.chip })
+    }
 }
