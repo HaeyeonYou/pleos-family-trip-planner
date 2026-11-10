@@ -1,204 +1,94 @@
 package io.github.haeyeonyou.familytrip.ui
 
+import android.content.res.Resources
+import android.graphics.BitmapFactory
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
+import io.github.haeyeonyou.familytrip.R
 import io.github.haeyeonyou.familytrip.grow.JellyKind
 import io.github.haeyeonyou.familytrip.grow.JellyStage
+import kotlin.math.roundToInt
 
 /*
- * 젤리 캐릭터 그림 (#164). B안(374:6875)의 12종 젤리를 원본 그림 없이 같은 규칙으로 그린다:
- * 방울 = 얼굴 없는 물방울, 몽글 = 눈이 생긴 둥근 젤리, 탄생 = 캐릭터 특징(뿔·귀·부리 등)이 붙은 젤리.
- * Figma 원본 그림을 받으면 이 파일만 바꾸면 된다.
+ * 젤리 캐릭터 그림 (#164, 원본 반영 #181). Figma 컴포넌트 세트 `Jelly Character`(371:6514)의 PNG 2배를
+ * `res/drawable-nodpi/jelly_<캐릭터>_<drop|puff|born>.png`로 넣었다 (`docs/design/pleos-1110/assets/grow/README.md`).
+ * PNG는 200x200 프레임을 2배(400)로 내보내면서 그림자가 오른쪽·아래로 번진 만큼 더 크다. 그래서 왼쪽 위를 프레임 원점으로 보고
+ * 400px = 프레임 한 변으로 맞춰 그린다. SVG는 흐림 필터를 써서 벡터로 옮기면 그림자·광택이 빠지므로 쓰지 않는다.
  */
 
-private val Eye = Color(0xFF191F28)
-private val Blush = Color(0xFFFF8FA3)
+/** PNG에서 Figma 프레임(200) 한 변의 픽셀 수 (2배). */
+private const val FRAME_PX = 400f
+
+/**
+ * 경험 우주에서 젤리 프레임 한 변(설계 단위). 원본 그림이 단계마다 프레임 안 크기가 달라(방울은 작고 탄생은 꽉 참)
+ * 모든 단계를 같은 프레임으로 그리면 Figma 그대로 커진다. 탄생 몸통이 분류 노드 반지름(28)쯤 된다.
+ */
+internal const val UNIVERSE_JELLY_FRAME = 76f
+
+internal fun jellyRes(kind: JellyKind, stage: JellyStage): Int {
+    val (drop, puff, born) = when (kind) {
+    JellyKind.ART -> Triple(R.drawable.jelly_unicorn_drop, R.drawable.jelly_unicorn_puff, R.drawable.jelly_unicorn_born)
+    JellyKind.SCIENCE -> Triple(R.drawable.jelly_dinosaur_drop, R.drawable.jelly_dinosaur_puff, R.drawable.jelly_dinosaur_born)
+    JellyKind.NATURE -> Triple(R.drawable.jelly_bear_drop, R.drawable.jelly_bear_puff, R.drawable.jelly_bear_born)
+    JellyKind.ANIMAL -> Triple(R.drawable.jelly_puppy_drop, R.drawable.jelly_puppy_puff, R.drawable.jelly_puppy_born)
+    JellyKind.WATER -> Triple(R.drawable.jelly_capybara_drop, R.drawable.jelly_capybara_puff, R.drawable.jelly_capybara_born)
+    JellyKind.MOVE -> Triple(R.drawable.jelly_horse_drop, R.drawable.jelly_horse_puff, R.drawable.jelly_horse_born)
+    JellyKind.MUSIC -> Triple(R.drawable.jelly_cat_drop, R.drawable.jelly_cat_puff, R.drawable.jelly_cat_born)
+    JellyKind.BOOK -> Triple(R.drawable.jelly_wombat_drop, R.drawable.jelly_wombat_puff, R.drawable.jelly_wombat_born)
+    JellyKind.FOOD -> Triple(R.drawable.jelly_hamster_drop, R.drawable.jelly_hamster_puff, R.drawable.jelly_hamster_born)
+    JellyKind.FRIEND -> Triple(R.drawable.jelly_penguin_drop, R.drawable.jelly_penguin_puff, R.drawable.jelly_penguin_born)
+    JellyKind.MAKE -> Triple(R.drawable.jelly_beaver_drop, R.drawable.jelly_beaver_puff, R.drawable.jelly_beaver_born)
+    JellyKind.TRAVEL -> Triple(R.drawable.jelly_otter_drop, R.drawable.jelly_otter_puff, R.drawable.jelly_otter_born)
+    }
+    return when (stage) {
+        JellyStage.NONE, JellyStage.DROP -> drop
+        JellyStage.PUFF -> puff
+        JellyStage.BORN -> born
+    }
+}
+
+internal fun loadJelly(resources: Resources, kind: JellyKind, stage: JellyStage): ImageBitmap =
+    BitmapFactory.decodeResource(resources, jellyRes(kind, stage)).asImageBitmap()
+
+/** 화면에 필요한 젤리 그림만 읽어 둔다 (분류·단계가 바뀔 때만 다시 읽음). */
+@Composable
+internal fun rememberJellyImages(needed: Set<Pair<JellyKind, JellyStage>>): Map<Pair<JellyKind, JellyStage>, ImageBitmap> {
+    val resources = LocalContext.current.resources
+    return remember(needed) { needed.associateWith { (k, s) -> loadJelly(resources, k, s) } }
+}
 
 @Composable
 fun JellyIcon(kind: JellyKind, stage: JellyStage, size: Dp, modifier: Modifier = Modifier) {
+    val resources = LocalContext.current.resources
+    val image = remember(kind, stage) { loadJelly(resources, kind, stage) }
     Canvas(modifier.size(size)) {
-        val r = this.size.minDimension / 2f * 0.78f
-        drawJelly(kind, stage, Offset(this.size.width / 2f, this.size.height / 2f + r * 0.08f), r)
+        val frame = this.size.minDimension
+        drawJellyImage(image, Offset(this.size.width / 2f, this.size.height / 2f), frame)
     }
 }
 
-/** [c]를 가운데로 반지름 [r] 안에 젤리를 그린다. 빈 별(NONE)은 그리지 않는다(화면이 따로 그림). */
-internal fun DrawScope.drawJelly(kind: JellyKind, stage: JellyStage, c: Offset, r: Float) {
-    val base = Color(kind.argb)
-    val light = lerp(base, Color.White, 0.55f)
-    val dark = lerp(base, Color.Black, 0.25f)
-    when (stage) {
-        JellyStage.NONE -> Unit
-        JellyStage.DROP -> drawDrop(c, r, base, light)
-        JellyStage.PUFF -> {
-            drawBody(c, r, base, light)
-            drawFace(c, r, smile = false)
-        }
-        JellyStage.BORN -> {
-            drawBehind(kind, c, r, base, dark)
-            drawBody(c, r, base, light)
-            drawFront(kind, c, r, base, light, dark)
-            drawFace(c, r, smile = true)
-        }
-    }
-}
+/** 경험 우주의 젤리: 같은 프레임으로 [c]에 그린다. */
+internal fun DrawScope.drawJelly(image: ImageBitmap, c: Offset) = drawJellyImage(image, c, UNIVERSE_JELLY_FRAME)
 
-private fun DrawScope.drawDrop(c: Offset, r: Float, base: Color, light: Color) {
-    val path = Path().apply {
-        moveTo(c.x, c.y - r)
-        cubicTo(c.x + r * 0.35f, c.y - r * 0.45f, c.x + r * 0.85f, c.y - r * 0.05f, c.x + r * 0.85f, c.y + r * 0.3f)
-        cubicTo(c.x + r * 0.85f, c.y + r * 0.8f, c.x + r * 0.45f, c.y + r, c.x, c.y + r)
-        cubicTo(c.x - r * 0.45f, c.y + r, c.x - r * 0.85f, c.y + r * 0.8f, c.x - r * 0.85f, c.y + r * 0.3f)
-        cubicTo(c.x - r * 0.85f, c.y - r * 0.05f, c.x - r * 0.35f, c.y - r * 0.45f, c.x, c.y - r)
-        close()
-    }
-    drawPath(path, Brush.verticalGradient(listOf(light, base), startY = c.y - r, endY = c.y + r))
-    drawOval(Color.White.copy(alpha = 0.7f), Offset(c.x - r * 0.5f, c.y - r * 0.05f), Size(r * 0.28f, r * 0.42f))
-}
-
-/** 몽글한 몸통: 아래가 조금 넓은 둥근 젤리. */
-private fun DrawScope.drawBody(c: Offset, r: Float, base: Color, light: Color) {
-    val path = Path().apply {
-        moveTo(c.x, c.y - r * 0.9f)
-        cubicTo(c.x + r * 0.62f, c.y - r * 0.9f, c.x + r, c.y - r * 0.35f, c.x + r, c.y + r * 0.25f)
-        cubicTo(c.x + r, c.y + r * 0.78f, c.x + r * 0.6f, c.y + r * 0.92f, c.x, c.y + r * 0.92f)
-        cubicTo(c.x - r * 0.6f, c.y + r * 0.92f, c.x - r, c.y + r * 0.78f, c.x - r, c.y + r * 0.25f)
-        cubicTo(c.x - r, c.y - r * 0.35f, c.x - r * 0.62f, c.y - r * 0.9f, c.x, c.y - r * 0.9f)
-        close()
-    }
-    drawPath(path, Brush.verticalGradient(listOf(light, base), startY = c.y - r, endY = c.y + r))
-    drawOval(Color.White.copy(alpha = 0.65f), Offset(c.x - r * 0.62f, c.y - r * 0.55f), Size(r * 0.3f, r * 0.22f))
-}
-
-private fun DrawScope.drawFace(c: Offset, r: Float, smile: Boolean) {
-    val eyeY = c.y + r * 0.05f
-    val eyeR = r * 0.09f
-    drawCircle(Eye, eyeR, Offset(c.x - r * 0.32f, eyeY))
-    drawCircle(Eye, eyeR, Offset(c.x + r * 0.32f, eyeY))
-    drawCircle(Color.White, eyeR * 0.4f, Offset(c.x - r * 0.29f, eyeY - eyeR * 0.35f))
-    drawCircle(Color.White, eyeR * 0.4f, Offset(c.x + r * 0.35f, eyeY - eyeR * 0.35f))
-    drawOval(Blush.copy(alpha = 0.55f), Offset(c.x - r * 0.68f, eyeY + r * 0.12f), Size(r * 0.24f, r * 0.13f))
-    drawOval(Blush.copy(alpha = 0.55f), Offset(c.x + r * 0.44f, eyeY + r * 0.12f), Size(r * 0.24f, r * 0.13f))
-    if (smile) {
-        val p = Path().apply {
-            moveTo(c.x - r * 0.12f, eyeY + r * 0.2f)
-            quadraticTo(c.x, eyeY + r * 0.32f, c.x + r * 0.12f, eyeY + r * 0.2f)
-        }
-        drawPath(p, Eye, style = Stroke(width = r * 0.06f, cap = StrokeCap.Round))
-    }
-}
-
-private fun DrawScope.ears(c: Offset, r: Float, color: Color, round: Boolean, spread: Float = 0.55f, size: Float = 0.3f) {
-    listOf(-1f, 1f).forEach { s ->
-        val ex = c.x + s * r * spread
-        val ey = c.y - r * 0.78f
-        if (round) {
-            drawCircle(color, r * size, Offset(ex, ey))
-        } else {
-            val p = Path().apply {
-                moveTo(ex - r * 0.25f, ey + r * 0.2f)
-                lineTo(ex + s * r * 0.05f, ey - r * 0.38f)
-                lineTo(ex + r * 0.25f, ey + r * 0.2f)
-                close()
-            }
-            drawPath(p, color)
-        }
-    }
-}
-
-/** 몸통 뒤에 그리는 특징 (귀·지느러미). */
-private fun DrawScope.drawBehind(kind: JellyKind, c: Offset, r: Float, base: Color, dark: Color) {
-    when (kind) {
-        JellyKind.NATURE -> ears(c, r, base, round = true)
-        JellyKind.ANIMAL -> listOf(-1f, 1f).forEach { s ->
-            drawOval(dark, Offset(c.x + s * r * 0.82f - r * 0.2f, c.y - r * 0.55f), Size(r * 0.4f, r * 0.75f))
-        }
-        JellyKind.WATER, JellyKind.BOOK, JellyKind.TRAVEL, JellyKind.MAKE -> ears(c, r, dark, round = true, spread = 0.6f, size = 0.18f)
-        JellyKind.FOOD -> ears(c, r, base, round = true, spread = 0.58f, size = 0.2f)
-        JellyKind.MUSIC -> ears(c, r, base, round = false)
-        JellyKind.MOVE -> ears(c, r, base, round = false, spread = 0.42f)
-        JellyKind.FRIEND -> listOf(-1f, 1f).forEach { s ->
-            drawOval(dark, Offset(c.x + s * r * 0.95f - r * 0.14f, c.y - r * 0.05f), Size(r * 0.28f, r * 0.6f))
-        }
-        else -> Unit
-    }
-}
-
-/** 몸통 앞에 그리는 특징 (뿔·가시·주둥이·배·이빨·수염). */
-private fun DrawScope.drawFront(kind: JellyKind, c: Offset, r: Float, base: Color, light: Color, dark: Color) {
-    when (kind) {
-        JellyKind.ART -> {
-            val horn = Path().apply {
-                moveTo(c.x - r * 0.16f, c.y - r * 0.82f)
-                lineTo(c.x, c.y - r * 1.38f)
-                lineTo(c.x + r * 0.16f, c.y - r * 0.82f)
-                close()
-            }
-            drawPath(horn, Color(0xFFFFC94D))
-            drawCircle(Color(0xFFFF9EC7), r * 0.14f, Offset(c.x - r * 0.42f, c.y - r * 0.72f))
-            drawCircle(Color(0xFF8FD3FF), r * 0.12f, Offset(c.x - r * 0.6f, c.y - r * 0.55f))
-        }
-        JellyKind.SCIENCE -> listOf(-0.42f, 0f, 0.42f).forEach { dx ->
-            val top = if (dx == 0f) 1.22f else 1.08f
-            val p = Path().apply {
-                moveTo(c.x + r * (dx - 0.17f), c.y - r * (0.86f - kotlin.math.abs(dx) * 0.2f))
-                lineTo(c.x + r * dx, c.y - r * top)
-                lineTo(c.x + r * (dx + 0.17f), c.y - r * (0.86f - kotlin.math.abs(dx) * 0.2f))
-                close()
-            }
-            drawPath(p, dark)
-        }
-        JellyKind.NATURE -> drawOval(light, Offset(c.x - r * 0.24f, c.y + r * 0.18f), Size(r * 0.48f, r * 0.32f))
-        JellyKind.WATER -> {
-            drawOval(dark.copy(alpha = 0.35f), Offset(c.x - r * 0.3f, c.y + r * 0.16f), Size(r * 0.6f, r * 0.36f))
-            drawCircle(Eye, r * 0.04f, Offset(c.x - r * 0.1f, c.y + r * 0.28f))
-            drawCircle(Eye, r * 0.04f, Offset(c.x + r * 0.1f, c.y + r * 0.28f))
-            drawCircle(Color(0xFFFFB347), r * 0.16f, Offset(c.x, c.y - r * 0.92f))
-        }
-        JellyKind.MOVE -> listOf(-0.15f, 0.05f, 0.25f).forEachIndexed { i, dx ->
-            drawCircle(dark, r * 0.15f, Offset(c.x + r * dx, c.y - r * (0.9f - i * 0.05f)))
-        }
-        JellyKind.MUSIC -> listOf(-1f, 1f).forEach { s ->
-            repeat(2) { k ->
-                drawLine(Eye.copy(alpha = 0.6f), Offset(c.x + s * r * 0.55f, c.y + r * (0.25f + k * 0.1f)), Offset(c.x + s * r * 0.92f, c.y + r * (0.2f + k * 0.16f)), strokeWidth = r * 0.04f)
-            }
-        }
-        JellyKind.BOOK -> drawOval(dark, Offset(c.x - r * 0.15f, c.y + r * 0.15f), Size(r * 0.3f, r * 0.2f))
-        JellyKind.FOOD -> listOf(-1f, 1f).forEach { s ->
-            drawCircle(lerp(base, Color.White, 0.75f), r * 0.26f, Offset(c.x + s * r * 0.62f, c.y + r * 0.38f))
-        }
-        JellyKind.FRIEND -> {
-            drawOval(Color.White.copy(alpha = 0.9f), Offset(c.x - r * 0.48f, c.y + r * 0.02f), Size(r * 0.96f, r * 0.86f))
-            val beak = Path().apply {
-                moveTo(c.x - r * 0.11f, c.y + r * 0.2f)
-                lineTo(c.x + r * 0.11f, c.y + r * 0.2f)
-                lineTo(c.x, c.y + r * 0.34f)
-                close()
-            }
-            drawPath(beak, Color(0xFFFFA733))
-        }
-        JellyKind.MAKE -> {
-            drawRect(Color.White, Offset(c.x - r * 0.12f, c.y + r * 0.3f), Size(r * 0.11f, r * 0.16f))
-            drawRect(Color.White, Offset(c.x + r * 0.01f, c.y + r * 0.3f), Size(r * 0.11f, r * 0.16f))
-        }
-        JellyKind.TRAVEL -> {
-            drawOval(light, Offset(c.x - r * 0.28f, c.y + r * 0.14f), Size(r * 0.56f, r * 0.34f))
-            listOf(-1f, 1f).forEach { s ->
-                drawLine(Eye.copy(alpha = 0.55f), Offset(c.x + s * r * 0.2f, c.y + r * 0.3f), Offset(c.x + s * r * 0.62f, c.y + r * 0.24f), strokeWidth = r * 0.035f)
-            }
-        }
-        JellyKind.ANIMAL -> drawCircle(Eye, r * 0.08f, Offset(c.x, c.y + r * 0.2f))
-    }
+/** 프레임 한 변이 [frame]이 되게, 프레임 가운데를 [c]에 맞춰 그린다. */
+private fun DrawScope.drawJellyImage(image: ImageBitmap, c: Offset, frame: Float) {
+    val k = frame / FRAME_PX
+    drawImage(
+        image,
+        dstOffset = IntOffset((c.x - frame / 2f).roundToInt(), (c.y - frame / 2f).roundToInt()),
+        dstSize = IntSize((image.width * k).roundToInt().coerceAtLeast(1), (image.height * k).roundToInt().coerceAtLeast(1)),
+        filterQuality = FilterQuality.High,
+    )
 }
