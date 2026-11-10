@@ -349,6 +349,7 @@ class MainActivity : ComponentActivity() {
                                 state = state,
                                 care = careState,
                                 delayAlert = careDelay,
+                                isParked = vehicle.isParked,
                                 actions = CareActions(
                                     // 폰에서 보낸 공조 프리셋이 있으면 그 값으로 베이비케어를 맞춘다.
                                     onBabyCare = { on -> care.setBabyCare(on, state.babyCarePreset, onApplied = { vm.dismissPreset("boarding") }) },
@@ -363,6 +364,7 @@ class MainActivity : ComponentActivity() {
                                     onDelayKeepGoing = container.delayAlert::keepGoing,
                                     onApplyPreset = vm::applyPreset,
                                     onSavePreset = vm::savePreset,
+                                    onSaveModes = vm::savePresetEdits,
                                     onDismissPreset = { vm.dismissPreset(it) },
                                     onEnter = {
                                         care.refreshClimate()
