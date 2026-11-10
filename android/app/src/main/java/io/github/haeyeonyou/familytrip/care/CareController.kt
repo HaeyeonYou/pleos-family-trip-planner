@@ -71,6 +71,13 @@ data class CareState(
     val urgent: UrgentSheet? = null,
     /** 케어에서 넣은 경유지 (C12 토스트·"다음 경유지" 슬롯). 빼거나 안내가 끝나면 null. */
     val addedWaypoint: AddedWaypoint? = null,
+    /** 진행 중인 수유 정차 (C03 "수유 중 N분째"). 없으면 null. */
+    val feedingStop: FeedingStopSession? = null,
+    /** 경유지에 도착해 정차했을 때 수유 정차 모드를 켤지 묻는다 (C10·C12 안내). */
+    val askFeedingStop: Boolean = false,
+    /** 케어 화면 맨 위 한 줄 안내 (수유 정차 모드 시작·종료 결과). [noticeAt]이 바뀌면 다시 보인다. */
+    val notice: String? = null,
+    val noticeAt: Long = 0L,
 )
 
 const val BABY_TARGET_TEMPERATURE = 24f
@@ -104,6 +111,8 @@ class CareController(
         CareState(
             sleepMode = prefs.getBoolean(KEY_SLEEP, false),
             feeding = feedingStore.load(),
+            // 앱이 다시 켜져도 진행 중인 수유 정차는 이어간다.
+            feedingStop = prefs.getLong(KEY_FEED_STOP_AT, 0L).takeIf { it > 0 }?.let { FeedingStopSession(it, prefs.getBoolean(KEY_FEED_STOP_CLIMATE, false)) },
         ),
     )
     val state: StateFlow<CareState> = _state.asStateFlow()
@@ -111,6 +120,12 @@ class CareController(
     /** 베이비케어를 켜기 전 공조 설정. 끌 때 되돌리는 데 쓴다. */
     private var beforeBabyCare: ClimateReading? = null
     private var arrivingSoonNotified = false
+    /** 수유 정차 모드를 켜기 전 공조 설정 (끝낼 때 베이비케어가 꺼져 있으면 되돌린다). */
+    private var beforeFeedingStop: ClimateReading? = null
+    /** 수유 정차 모드를 물어본 경유지 ([AddedWaypoint.addedAt]). 같은 곳에서 두 번 묻지 않는다. */
+    private var askedFor: Long? = null
+    private var feedingStopBusy = false
+
     /** 경유지를 넣은 뒤 안내가 한 번이라도 시작됐는지. 그 뒤 안내가 끝나면 경유지 카드를 내린다. */
     private var waypointRouting = false
     /** 안내가 끝난 것처럼 보일 때 잠시 기다렸다 카드를 내리는 작업. 내비가 경로를 바꿀 때 "종료→시작"을 잠깐 보내서다. */
@@ -123,6 +138,21 @@ class CareController(
         scope.launch { feedingStore.routine.collect { f -> _state.update { it.copy(feeding = f) } } }
         // 방문 기록이 바뀌면(도착·서버에서 받은 변경) 자주 가는 케어 장소를 다시 고른다.
         scope.launch { visits.revision.collect { refreshFrequent() } }
+        // 정차(P단) 감지 (D10): 출발하면 수유 정차를 끝내고, 케어 경유지에 도착해 정차하면 수유 정차 모드를 묻는다.
+        scope.launch {
+            vehicle.state.collect { v ->
+                val st = _state.value
+                if (!v.isParked) {
+                    if (st.feedingStop != null && v.gear != io.github.haeyeonyou.familytrip.vehicle.GearState.UNKNOWN) finishFeedingStop(auto = true)
+                    if (st.askFeedingStop) _state.update { it.copy(askFeedingStop = false) }
+                } else if (st.feedingStop == null && st.addedWaypoint != null && askedFor != st.addedWaypoint.addedAt &&
+                    arrivedAtWaypoint(true, st.addedWaypoint, knownLocation())
+                ) {
+                    askedFor = st.addedWaypoint.addedAt
+                    _state.update { it.copy(askFeedingStop = true) }
+                }
+            }
+        }
         // 수면 모드 중 도착 5분 전에 한 번만 조용히 알린다.
         scope.launch {
             navi.state.collect { n ->
@@ -153,6 +183,11 @@ class CareController(
 
     /** 방금 수유했다: 차에 저장하고, 로그인했다면 서버에도 기록한다 (못 올리면 쌓아 두었다가 다시 올린다). */
     fun markFed(at: Long = System.currentTimeMillis()) {
+        // 수유 정차 중의 "다 먹었어"·"방금 수유했어"는 수유 끝으로 본다 (시작 시각을 기록).
+        if (_state.value.feedingStop != null) {
+            finishFeedingStop(auto = false)
+            return
+        }
         feedingStore.save(feedingStore.load().copy(lastFedAt = at))
         serverSync.onFed(at)
     }
@@ -259,6 +294,86 @@ class CareController(
             val now = vehicle.readClimate()
             _state.update { it.copy(currentTemperature = now.temperature ?: it.currentTemperature) }
         }
+    }
+
+    // 수유 정차 모드 (C03)
+
+    /**
+     * 수유 정차 모드를 켠다: 정차(P단) 중에만. 서버 프리셋 `feeding_stop`(없으면 24°C·송풍)을 공조에 넣고 "수유 중" 타이머를 시작한다.
+     * 켜면 true. 주행 중이면 false.
+     */
+    fun startFeedingStop(): Boolean {
+        if (!vehicle.state.value.isParked) return false
+        if (_state.value.feedingStop != null || feedingStopBusy) return true
+        feedingStopBusy = true
+        val startedAt = System.currentTimeMillis()
+        prefs.edit().putLong(KEY_FEED_STOP_AT, startedAt).putBoolean(KEY_FEED_STOP_CLIMATE, false).apply()
+        _state.update { it.copy(feedingStop = FeedingStopSession(startedAt), askFeedingStop = false) }
+        scope.launch {
+            try {
+                val before = vehicle.readClimate()
+                val settings = serverSync.presets.value.firstOrNull { it.slot == "feeding_stop" }?.settings ?: FEEDING_STOP_DEFAULT
+                val applied = before.supported && vehicle.applyClimate(settings).applied.isNotEmpty()
+                if (applied) beforeFeedingStop = before
+                prefs.edit().putBoolean(KEY_FEED_STOP_CLIMATE, applied).apply()
+                val after = if (applied) vehicle.readClimate().temperature else null
+                _state.update { st ->
+                    st.copy(
+                        feedingStop = st.feedingStop?.copy(climateApplied = applied),
+                        targetTemperature = if (applied) settings.temperature else st.targetTemperature,
+                        currentTemperature = after ?: st.currentTemperature,
+                        notice = if (applied) "수유 정차 모드를 켰어요 · ${modeLine(settings)}" else "수유 시간을 셀게요 · 이 차에서는 공조를 바꾸지 못했어요",
+                        noticeAt = System.currentTimeMillis(),
+                    )
+                }
+            } finally {
+                feedingStopBusy = false
+            }
+        }
+        return true
+    }
+
+    /**
+     * 수유 정차 모드를 끝낸다. [auto]는 출발로 끝난 경우. 시작 시각을 마지막 수유로 기록하고(짧은 자동 종료는 제외),
+     * 공조는 베이비케어가 켜져 있으면 베이비케어 값으로, 아니면 켜기 전 설정으로 되돌린다.
+     */
+    fun finishFeedingStop(auto: Boolean = false) {
+        val session = _state.value.feedingStop ?: return
+        val now = System.currentTimeMillis()
+        val record = shouldRecordFeeding(session, now, auto)
+        prefs.edit().remove(KEY_FEED_STOP_AT).remove(KEY_FEED_STOP_CLIMATE).apply()
+        if (record) {
+            feedingStore.save(feedingStore.load().copy(lastFedAt = session.startedAt))
+            serverSync.onFed(session.startedAt)
+        }
+        _state.update { it.copy(feedingStop = null, notice = feedingStopEndMessage(session, record, auto), noticeAt = now) }
+        if (!session.climateApplied) return
+        val before = beforeFeedingStop
+        beforeFeedingStop = null
+        scope.launch {
+            if (_state.value.babyCare) {
+                val boarding = serverSync.presets.value.firstOrNull { it.slot == "boarding" }?.settings
+                vehicle.applyClimate(boarding ?: ClimateSettings(name = "베이비케어", power = true, temperature = BABY_TARGET_TEMPERATURE, fanSpeed = BABY_FAN_LEVEL))
+                _state.update { it.copy(targetTemperature = boarding?.temperature ?: BABY_TARGET_TEMPERATURE) }
+            } else if (before?.power != null) {
+                vehicle.applyClimate(
+                    ClimateSettings(name = "복원", power = before.power, temperature = before.temperature ?: BABY_TARGET_TEMPERATURE, fanSpeed = before.fanSpeed ?: BABY_FAN_LEVEL),
+                )
+            }
+        }
+    }
+
+    /** 도착 질문에 "괜찮아요". */
+    fun dismissFeedingStopAsk() = _state.update { it.copy(askFeedingStop = false) }
+
+    private fun modeLine(c: ClimateSettings) = "${if (c.temperature % 1f == 0f) c.temperature.toInt().toString() else c.temperature.toString()}°C · ${if (c.fanSpeed <= 1) "송풍" else "풍량 ${c.fanSpeed}단"}"
+
+    private fun knownLocation(): LatLng? {
+        val loc = location.state.value
+        if (loc.latitude != null && loc.longitude != null) return LatLng(loc.latitude, loc.longitude)
+        val n = navi.state.value
+        if (n.currentLatitude != null && n.currentLongitude != null) return LatLng(n.currentLatitude, n.currentLongitude)
+        return null
     }
 
     // 수면 모드
@@ -383,6 +498,8 @@ class CareController(
 
     private companion object {
         const val KEY_SLEEP = "sleep_mode"
+        const val KEY_FEED_STOP_AT = "feeding_stop_started_at"
+        const val KEY_FEED_STOP_CLIMATE = "feeding_stop_climate"
         const val SLEEP_VOICE_VOLUME = 0.3f
         const val ROUTE_END_GRACE_MS = 15_000L
     }
