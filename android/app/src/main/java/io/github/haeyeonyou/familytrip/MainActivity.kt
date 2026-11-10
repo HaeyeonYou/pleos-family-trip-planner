@@ -19,6 +19,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
@@ -181,6 +182,16 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                     val visitRevision by container.visits.revision.collectAsStateWithLifecycle()
+                    // 그로우 캐릭터 탄생 (#164): 주행 중에는 화면 없이 음성 1회(B안), 정차 중 축하 시트는 그로우 화면이 띄운다.
+                    var celebrated by remember { mutableStateOf(container.births.celebrated()) }
+                    LaunchedEffect(visitRevision, vehicle.isParked) {
+                        if (vehicle.isParked) return@LaunchedEffect
+                        val born = io.github.haeyeonyou.familytrip.grow.birthsIn(container.visits.all(), celebrated)
+                        if (born.isEmpty()) return@LaunchedEffect
+                        container.births.markCelebrated(born)
+                        celebrated = container.births.celebrated()
+                        container.voiceIo.speak(io.github.haeyeonyou.familytrip.grow.birthSpeech(state.profile?.childName.orEmpty(), born))
+                    }
                     val backStack by nav.currentBackStackEntryAsState()
                     val route = backStack?.destination?.route
                     fun openTab(tab: MainTab) {
@@ -403,12 +414,18 @@ class MainActivity : ComponentActivity() {
                             ExperienceScreen(
                                 visits = remember(visitRevision) { container.visits.all() },
                                 courses = remember { container.courses.all() },
-                                childName = state.profile?.childName.orEmpty(),
-                                isParked = vehicle.isParked,
+                                children = state.profile?.children.orEmpty(),
+                                weather = state.weather,
+                                celebrated = celebrated,
+                                onCelebrated = {
+                                    container.births.markCelebrated(it)
+                                    celebrated = container.births.celebrated()
+                                },
                                 onOpenCourse = {
                                     vm.openSavedCourse(it)
                                     nav.navigate(Routes.COURSE)
                                 },
+                                onRoute = { name, lat, lon -> container.navi.requestRoute(io.github.haeyeonyou.familytrip.navi.Place(name, lat, lon)) },
                                 onPlan = ::goHome,
                             )
                         }
