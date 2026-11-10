@@ -20,6 +20,7 @@ const val STATUS_CONFIRMED = "confirmed"
 /** 서버가 받는 분야 값 (app/schemas.py Theme). 모르는 값을 보내면 요청 전체가 거절되어 걸러 낸다. */
 private val SERVER_THEMES = setOf("nature", "experience", "exhibition", "play", "pet")
 private const val MAX_BULK = 200
+private const val MAX_CATEGORY = 120
 
 /** 차의 방문 [Visit]과 서버 방문 사이의 변환. */
 object VisitMapper {
@@ -44,6 +45,7 @@ object VisitMapper {
         // 웹에서 확인·기분을 바꿨다면 그 값을 지키고 올린다 (PUT은 상태·기분도 덮어쓴다).
         status = known?.status ?: STATUS_CONFIRMED,
         mood = known?.mood,
+        category = v.category.take(MAX_CATEGORY),
     )
 
     /** 웹 등 다른 곳에서 확정된 방문을 차에 들인다. 서버에는 시각이 없어 그날 정오로 둔다. */
@@ -54,6 +56,8 @@ object VisitMapper {
             placeName = s.placeName,
             role = "outing",
             theme = s.theme,
+            category = s.category,
+            jelly = s.jelly,
             placeKey = s.placeKey.ifBlank { null },
             arrivedAt = arrived.toString(),
             departedAt = s.stayedMinutes?.let { arrived.plusMinutes(it.toLong()).toString() },
@@ -213,7 +217,7 @@ class VisitSync(
     }
 }
 
-private fun VisitBulkItem.toIn() = VisitIn(placeKey, placeName, theme, visitedOn, stayedMinutes, status, mood)
+private fun VisitBulkItem.toIn() = VisitIn(placeKey, placeName, theme, visitedOn, stayedMinutes, status, mood, category)
 private fun VisitBulkItem.toKnown() = KnownVisit(status, mood, stayedMinutes)
 
 val knownVisitsSerializer = MapSerializer(String.serializer(), KnownVisit.serializer())
