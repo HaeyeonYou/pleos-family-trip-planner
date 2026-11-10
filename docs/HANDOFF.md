@@ -121,6 +121,13 @@
 - **Phase 1 (P1 - 핵심 화면 및 주행 인터랙션)**: `HomeScreen.kt`(3열, 8칩, 프로액티브), `CourseScreen.kt`(5태그, H02-1 대체 시트), `CareScreen.kt`(가변 슬롯 C01~C12), `VoicePanel.kt`(D01 1곳 제안 + 8초 타이머)
 - **Phase 2 (P2 - 게이미피케이션 & 고도화)**: `ExperienceUniverse.kt`(젤리 캐릭터 12종 렌더링, MBTI 유형 조합), C07 멀티 차일드 전환
 
+### [작업 단위 4] M1 디자인 토큰 & 공통 셸 (`feature/144-m1-shell-tokens`)
+| 상태 | 브랜치 | PR | 지시·기록 파일 |
+|---|---|---|---|
+| ✅ 완료 (2026-11-10) | `feature/144-m1-shell-tokens` | #145 (이슈 #144) | [docs/agent-tasks/m1-shell-tokens.md](docs/agent-tasks/m1-shell-tokens.md) |
+
+- 화면 세션이 알아야 할 것: 토큰 `SitterPalette`/`SitterSurface`/`SitterText`, 셸 API `SitterCanvas`·`ShortcutDock`·`LocalDriveMode`, 독 규칙(3열째, 코스 상세 제외). 사용법은 `docs/design/pleos-1110/07-m1-foundation.md`.
+
 ---
 
 ## 6. 로컬 실행 및 빌드 명령어
