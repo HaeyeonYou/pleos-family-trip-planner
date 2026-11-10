@@ -302,7 +302,8 @@ class VoiceController(
     // 케어 상황 4가지
 
     private fun handleSituation(heard: String, situation: CareSituation) {
-        ToneState.voice = situation.tone
+        // 주행 중 1곳 제안(D01)은 상황 톤을 입히지 않는다 (수면은 다크 그대로)
+        if (situation == CareSituation.SLEEP || host?.driving != true) ToneState.voice = situation.tone
         _state.update { VoiceUiState(open = true, heard = heard, situation = situation, busy = situation != CareSituation.SLEEP) }
         scope.launch {
             if (situation != CareSituation.SLEEP && host?.driving == true) {
@@ -364,8 +365,8 @@ class VoiceController(
     // 주행 중 1곳 제안 (D01)
 
     /** [kind]의 후보 중 1곳만 골라 말하고 "좋아"/"아니요"를 기다린다. 8초 안에 답이 없으면 닫힌다. */
-    private suspend fun propose(kind: CareKind, tone: CareTone?) {
-        tone?.let { ToneState.voice = it }
+    private suspend fun propose(kind: CareKind, @Suppress("UNUSED_PARAMETER") tone: CareTone?) {
+        // D01은 상황 톤(옛 수유·기저귀 색)을 입히지 않는다: Figma 356:6661은 기본 밝은 화면 + 어두운 막 위 흰 카드
         val places = care.findNearby(kind, PROPOSAL_CANDIDATES)
         val best = places?.let(::pickBestPlace)
         if (best == null) {
