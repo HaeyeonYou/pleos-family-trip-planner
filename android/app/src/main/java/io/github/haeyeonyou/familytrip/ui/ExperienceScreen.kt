@@ -447,12 +447,12 @@ private fun BirthSheet(kind: JellyKind, childName: String, onDone: () -> Unit) {
             Modifier.width(560.dp).clip(SitterShapes.Sheet).background(s.card).padding(32.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text("캐릭터 탄생", style = SitterText.Label, color = s.primary)
+            Text("${JellyStage.BORN.min}번째 ${kind.label} 경험이에요!", style = SitterText.Label, color = s.primary)
             JellyIcon(kind, JellyStage.BORN, 180.dp, Modifier.padding(vertical = 12.dp))
             Text("${childName}의 ${kind.character} 캐릭터가 태어났어요", style = SitterText.Title2, color = s.ink, textAlign = TextAlign.Center)
             Text(kind.typeName, style = SitterText.Title3, color = Color(kind.argb), modifier = Modifier.padding(top = 8.dp))
             Text(
-                "${kind.label} 경험 ${JellyStage.BORN.min}번 · ${kind.power}",
+                kind.power,
                 style = SitterText.Body2,
                 color = s.inkSoft,
                 textAlign = TextAlign.Center,

@@ -60,7 +60,7 @@ class JellyModelTest {
         assertEquals(JellyKind.FRIEND, classify("구리시 육아종합지원센터", "outing", "experience"))
         assertEquals(JellyKind.MAKE, classify("베이비 쿠킹 클래스", "outing", "experience"))
         assertEquals(JellyKind.TRAVEL, classify("남산 전망대", "outing", null))
-        // 이름으로 못 정하면 서버 분야, 그것도 없으면 여행·탐험
+        // 이름으로 못 정하면 서버 분야, 그것도 없으면 여행
         assertEquals(JellyKind.MOVE, classify("◎◎ 백화점", "outing", "play"))
         assertEquals(JellyKind.ANIMAL, classify("ㅁㅁ", "outing", "pet"))
         assertEquals(JellyKind.TRAVEL, classify("ㅁㅁ", "outing", null))
