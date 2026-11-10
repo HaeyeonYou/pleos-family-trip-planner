@@ -110,18 +110,45 @@ private fun HomeChips(state: TripUiState, filters: HomeFilters, actions: HomeAct
                 actions.toggleFilter { it.copy(duration = if (it.duration == d) null else d) }
             })
         }
-        SitterChip("반경 ${filters.radiusKm}km", selected = false, onClick = {
-            actions.toggleFilter { it.copy(radiusKm = nextRadiusKm(it.radiusKm)) }
-        })
-        SitterChip("반려견 동반", filters.pet, { actions.toggleFilter { it.copy(pet = !it.pet) } })
-        SitterChip("수유실 필수", filters.nursingRoom, { actions.toggleFilter { it.copy(nursingRoom = !it.nursingRoom) } })
-        SitterChip("유모차", filters.stroller, { actions.toggleFilter { it.copy(stroller = !it.stroller) } })
+        RadiusChip(filters.radiusKm) { km -> actions.toggleFilter { it.copy(radiusKm = km) } }
+        SitterChip("반려견 동반", filters.pet, { actions.toggleFilter { it.copy(pet = !it.pet) } }, icon = SitterIcons.Paw)
+        SitterChip("수유실 필수", filters.nursingRoom, { actions.toggleFilter { it.copy(nursingRoom = !it.nursingRoom) } }, icon = SitterIcons.Milk)
+        SitterChip("유모차", filters.stroller, { actions.toggleFilter { it.copy(stroller = !it.stroller) } }, icon = SitterIcons.Baby)
         // 읽기 전용: 가족 정보의 첫째 아이 나이. 누르면 조건 화면에서 고친다.
         child?.let {
             val months = it.ageMonths()
-            SitterChip(if (months < 36) "생후 ${ageLabel(months)}" else "아이 ${ageLabel(months)}", false, actions.changeConditions, icon = SitterIcons.Baby)
+            SitterChip(if (months < 36) "생후 ${ageLabel(months)}" else "아이 ${ageLabel(months)}", false, actions.changeConditions, icon = SitterIcons.Users)
         }
-        SitterChip("코스 다시 추천", false, actions.another, icon = SitterIcons.Turn)
+        SitterChip("코스 다시 추천", false, actions.another, icon = SitterIcons.Refresh)
+    }
+}
+
+/** 반경 칩 (Figma: "반경 10km ⌄"). 누르면 5·10·20km 중에서 고르는 목록이 열린다. */
+@Composable
+private fun RadiusChip(radiusKm: Int, onPick: (Int) -> Unit) {
+    val s = SitterSurface.current
+    var open by remember { mutableStateOf(false) }
+    // 팝업은 SitterCanvas 확대(LocalDensity)를 물려받지 않아 글자가 작아진다. 캔버스 밀도를 그대로 넘긴다.
+    val canvasDensity = androidx.compose.ui.platform.LocalDensity.current
+    Box {
+        SitterChip("반경 ${radiusKm}km", selected = false, onClick = { open = true }, trailingIcon = SitterIcons.ChevronDown)
+        androidx.compose.material3.DropdownMenu(
+            expanded = open,
+            onDismissRequest = { open = false },
+            containerColor = s.card,
+            shape = SitterShapes.Card,
+        ) {
+            androidx.compose.runtime.CompositionLocalProvider(androidx.compose.ui.platform.LocalDensity provides canvasDensity) {
+            HOME_RADIUS_STEPS_KM.forEach { km ->
+                androidx.compose.material3.DropdownMenuItem(
+                    text = { Text("반경 ${km}km", style = SitterText.Body1, color = if (km == radiusKm) s.primary else s.ink) },
+                    trailingIcon = if (km == radiusKm) ({ SitterIcon(SitterIcons.Check, s.primary, size = SitterIconSize.Small) }) else null,
+                    onClick = { open = false; if (km != radiusKm) onPick(km) },
+                    modifier = Modifier.height(64.dp).width(200.dp),
+                )
+            }
+            }
+        }
     }
 }
 
@@ -210,9 +237,9 @@ private fun CourseListColumn(
                 SitterButton("조건 줄이기", actions.changeConditions, kind = SitterButtonKind.Soft)
             }
             else -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                shown.forEachIndexed { index, option ->
+                shown.forEach { option ->
                     CourseItem(
-                        title = "[테마${index + 1}] ${option.name}",
+                        title = homeCourseTitle(option.name),
                         option = option,
                         going = state.going[option.placeKey] ?: 0,
                         selected = option.placeKey == selected?.placeKey,
@@ -243,8 +270,7 @@ private fun CenterMessage(content: @Composable () -> Unit) {
 @Composable
 private fun CourseItem(title: String, option: CourseOption, going: Int, selected: Boolean, onSelect: () -> Unit, onStart: () -> Unit) {
     val s = SitterSurface.current
-    val outing = option.course.stops.firstOrNull { it.role == "outing" }?.place
-    val available = outing?.amenities?.filterValues { it == "available" }?.keys.orEmpty().filter { it in AMENITY_LABELS }
+    val tags = homeCourseTags(option.course)
     SitterRow(selected = selected, onClick = onSelect, contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp)) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(title, style = SitterText.Title3, color = s.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -256,10 +282,8 @@ private fun CourseItem(title: String, option: CourseOption, going: Int, selected
                 )
                 if (going > 0) Text("● 지금 ${going}대", style = SitterText.Caption, color = s.primary, maxLines = 1)
             }
-            if (available.isNotEmpty()) {
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    available.take(3).forEach { SitterTag(AMENITY_LABELS.getValue(it).removeSuffix(" 동반")) }
-                }
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                tags.forEach { (label, ok) -> SitterTag(label, available = ok) }
             }
         }
         GradientCircleButton(size = 52.dp, modifier = Modifier.padding(start = 12.dp), onClick = onStart) {
@@ -402,7 +426,7 @@ internal fun proactiveSentence(weather: WeatherInfo?, option: CourseOption): Str
         val temp = w.temperature?.let { "${Math.round(it)}°예요." }
         listOfNotNull(cond, temp).joinToString(" ").takeIf { cond != null || temp != null }
     }
-    return listOfNotNull(wx, "${option.name} 어때요?").joinToString("\n")
+    return listOfNotNull(wx, "${homeCourseTitle(option.name)} 어때요?").joinToString("\n")
 }
 
 private fun temperatureLabel(w: WeatherInfo) = w.temperature?.let { "${Math.round(it)}°" } ?: "--"

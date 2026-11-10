@@ -97,7 +97,7 @@ internal fun feedingPoint(course: CourseResponse, nextFeeding: LocalTime?): Feed
     }
 }
 
-/** H02-1 후보 한 곳. [detourMinutes]는 앞뒤 지점 사이에서 더 걸리는 시간(직선거리 어림). */
+/** H02-1 후보 한 곳. [detourMinutes]는 앞뒤 지점 사이에서 더 걸리는 시간(서버 값, 없으면 직선거리 어림). */
 data class Replacement(val place: CoursePlace, val distanceM: Int, val detourMinutes: Int, val keepsNeeds: Boolean)
 
 const val REPLACEMENT_COUNT = 3
@@ -105,7 +105,8 @@ const val REPLACEMENT_COUNT = 3
 /**
  * [stopIndex] 경유지의 대체 후보 최대 3곳. 서버 `alternatives[role]`에서 고르고,
  * 원래 장소에 있던 수유실·유모차 조건을 지키는 곳 → 경로에서 덜 돌아가는 곳 순서 (디자인 Note "같은 시간대 · 경로에서 가까운 순 · 조건 유지").
- * 우회 시간은 서버가 주지 않아 직선거리 × 도로 계수로 어림한다(지금 장소 대비 더 걸리는 분). 바꾼 뒤 `/course/schedule` 재계산이 진짜 값이다.
+ * 우회 시간·거리는 서버가 준 `detour_minutes`·`distance_m`(#160)을 쓰고, 없으면(그 역할이 코스에 없었거나 경로가 바뀌어 지운 값)
+ * 직선거리 × 도로 계수로 어림한다. 바꾼 뒤 `/course/schedule` 재계산이 진짜 값이다.
  */
 internal fun replacements(course: CourseResponse, stopIndex: Int, origin: LatLng?): List<Replacement> {
     val stop = course.stops.getOrNull(stopIndex)?.takeIf { it.isVisit() } ?: return emptyList()
@@ -118,11 +119,12 @@ internal fun replacements(course: CourseResponse, stopIndex: Int, origin: LatLng
     return course.alternatives[stop.role].orEmpty()
         .filter { it.sourceId !in taken }
         .map { p ->
+            // 서버 값(#160: 실제 경로 시간 비율로 보정한 추정)이 있으면 그것, 없으면 직선거리 어림
             val extra = (leg(prev, p) + leg(next, p) - base).coerceAtLeast(0)
             Replacement(
                 place = p,
-                distanceM = FrequentCarePlaces.distanceMeters(LatLng(stop.place.latitude, stop.place.longitude), p.latitude, p.longitude),
-                detourMinutes = if (extra == 0) 0 else FrequentCarePlaces.minutes(extra),
+                distanceM = p.distanceM ?: FrequentCarePlaces.distanceMeters(LatLng(stop.place.latitude, stop.place.longitude), p.latitude, p.longitude),
+                detourMinutes = p.detourMinutes?.coerceAtLeast(0) ?: if (extra == 0) 0 else FrequentCarePlaces.minutes(extra),
                 keepsNeeds = needs.all { p.has(it) },
             )
         }
@@ -140,3 +142,30 @@ internal fun stopLine(stop: CourseStop): String = listOfNotNull(
     stop.stayMinutes.takeIf { it > 0 }?.let { "${it}분 머무름" },
     stop.parking.firstOrNull()?.let { "주차 " + listOfNotNull(it.kind, it.name.takeIf { _ -> it.kind == null }).joinToString(" ") + " 도보 약 ${it.walkMinutes}분" },
 ).joinToString(" · ")
+
+/** 장소 추가 후보: 서버 `alternatives`의 식사·나들이·카페 중 코스에 아직 없는 곳 (역할 순서 그대로, 빈 역할은 뺀다). */
+internal fun addCandidates(course: CourseResponse): List<Pair<String, List<CoursePlace>>> {
+    val taken = course.stops.map { it.place.sourceId }.toSet()
+    return listOf("meal", "outing", "cafe").mapNotNull { role ->
+        course.alternatives[role].orEmpty().filter { it.sourceId !in taken }.takeIf { it.isNotEmpty() }?.let { role to it }
+    }
+}
+
+/**
+ * 재계산 뒤 쓸 대체 후보. 서버가 새로 준 역할은 새 값으로 바꾸고, 안 준 역할은 이전 후보를 그대로 둔다.
+ * 이전 후보의 우회 분·거리(#160)는 그때 경로 기준이라, 경유지 순서·장소가 바뀌었으면 지워서 앱 어림값을 쓰게 한다
+ * (머무름만 바꾼 재계산이면 경로가 같아 그대로 둔다).
+ */
+internal fun mergeAlternatives(
+    course: CourseResponse,
+    requested: List<io.github.haeyeonyou.familytrip.data.ScheduleStop>,
+    fresh: Map<String, List<CoursePlace>>,
+): Map<String, List<CoursePlace>> {
+    val route = requested.map { it.place.sourceId }
+    val sameRoute = route == course.stops.filter { it.isVisit() }.map { it.place.sourceId }
+    // 코스에 들어간 곳은 후보에서 뺀다 (값을 지운 사본은 호출 쪽의 `목록 - 고른 장소`와 같지 않아 여기서 sourceId로 뺀다)
+    val old = course.alternatives.mapValues { (_, ps) ->
+        ps.filter { it.sourceId !in route }.map { if (sameRoute) it else it.copy(distanceM = null, detourMinutes = null) }
+    }
+    return old + fresh
+}
