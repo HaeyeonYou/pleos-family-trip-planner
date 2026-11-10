@@ -12,8 +12,8 @@ Figma 파일 `xeLwkzhH8tnsazQdOriGU2` → 페이지 `종합 정리` → 섹션 `
 - [x] 변경 기록 형식(`watch/CHANGELOG.md`), `.env.example`에 `FIGMA_TOKEN` 키 이름
 - [x] PR 병합 (PR #159)
 - [ ] 사용자 토큰 발급 → `baseline` 실행 → 기준선 스냅샷 커밋
-- [ ] 주기 실행(간격은 사용자에게 확인)
-- [ ] `docs/HANDOFF.md` 자기 행 갱신
+- [x] 주기 실행: 3시간마다(매 3시간 :17, 세션 예약 작업 `0ab06494`, 이 세션 안에서만 돌고 7일 뒤 자동 종료)
+- [x] `docs/HANDOFF.md` 자기 행 갱신
 
 ## 범위
 - 고침: `tools/figma_watch.py`, `tools/tests/`, `docs/design/pleos-1110/watch/`, `.env.example`(키 이름만), 이 파일, `docs/HANDOFF.md`의 자기 행.
@@ -33,6 +33,9 @@ Figma 파일 `xeLwkzhH8tnsazQdOriGU2` → 페이지 `종합 정리` → 섹션 `
 
 ## 진행 로그
 - 2026-11-10: 이슈 #157 생성. 공식 문서로 REST 한도 확인(Tier 1: View·Collab 월 20회까지, Dev·Full 분당 10~20회; `meta`는 Tier 3, 버전 기록은 Tier 2). 스크립트·테스트·문서 작성, 테스트 15개 통과. 사용자 `.env`에 `FIGMA_TOKEN` 없음 → 기준선은 토큰 발급 후.
+
+- 2026-11-10: PR #159 병합. 사용자가 간격을 따로 정하지 않아 추천 범위(2~3시간) 중 3시간으로 예약(Tier 1 월 15회 상한과 맞춤). 첫 실행 결과 `no_token` → 토큰이 들어오면 다음 주기에 자동으로 `baseline`을 만들고 PR로 병합한다.
+- 주의: 예약은 figma-watch 세션이 꺼지면 사라진다. 세션을 다시 열면 `/loop` 또는 예약 작업으로 다시 건다.
 
 ## 확인하지 못한 것
 - 실제 Figma 응답으로 돌려 보지 못했다(토큰 없음). 응답 모양은 공식 문서 기준으로 짰고 테스트는 가짜 응답이다. 첫 `baseline` 때 노드 수·화면 코드 매칭을 확인해야 한다.
