@@ -610,7 +610,7 @@ class TripViewModel(private val container: AppContainer) : ViewModel() {
                 )
             )
             // 근처 후보를 새로 받았으면 식사·카페 후보는 그것으로 바꾼다.
-            val base = course.alternatives + updated.alternatives
+            val base = mergeAlternatives(course, stops, updated.alternatives)
             _state.update {
                 it.copy(
                     course = updated.copy(alternatives = updateAlternatives(base)),
