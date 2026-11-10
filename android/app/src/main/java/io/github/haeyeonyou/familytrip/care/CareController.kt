@@ -67,6 +67,10 @@ data class CareState(
     val waypointMessage: String? = null,
     /** 자주 가는 케어 장소 (방문 기록에서). 없으면 케어 화면이 그 영역을 그리지 않는다. */
     val frequent: List<FrequentCarePlace> = emptyList(),
+    /** 열려 있는 급한 케어 시트 (C09~C11). 닫혀 있으면 null. */
+    val urgent: UrgentSheet? = null,
+    /** 케어에서 넣은 경유지 (C12 토스트·"다음 경유지" 슬롯). 빼거나 안내가 끝나면 null. */
+    val addedWaypoint: AddedWaypoint? = null,
 )
 
 const val BABY_TARGET_TEMPERATURE = 24f
@@ -107,6 +111,10 @@ class CareController(
     /** 베이비케어를 켜기 전 공조 설정. 끌 때 되돌리는 데 쓴다. */
     private var beforeBabyCare: ClimateReading? = null
     private var arrivingSoonNotified = false
+    /** 경유지를 넣은 뒤 안내가 한 번이라도 시작됐는지. 그 뒤 안내가 끝나면 경유지 카드를 내린다. */
+    private var waypointRouting = false
+    /** 안내가 끝난 것처럼 보일 때 잠시 기다렸다 카드를 내리는 작업. 내비가 경로를 바꿀 때 "종료→시작"을 잠깐 보내서다. */
+    private var waypointEndJob: Job? = null
 
     init {
         notifier.quiet = _state.value.sleepMode
@@ -118,6 +126,18 @@ class CareController(
         // 수면 모드 중 도착 5분 전에 한 번만 조용히 알린다.
         scope.launch {
             navi.state.collect { n ->
+                if (_state.value.addedWaypoint != null) {
+                    if (n.routing) {
+                        waypointRouting = true
+                        waypointEndJob?.cancel()
+                        waypointEndJob = null
+                    } else if (waypointRouting && waypointEndJob == null) {
+                        waypointEndJob = scope.launch {
+                            delay(ROUTE_END_GRACE_MS)
+                            if (!navi.state.value.routing) clearAddedWaypoint()
+                        }
+                    }
+                }
                 val remaining = n.remainingSeconds
                 if (!n.routing || remaining == null) {
                     arrivingSoonNotified = false
@@ -294,14 +314,62 @@ class CareController(
         _state.update { if (it.frequent == frequent) it else it.copy(frequent = frequent) }
     }
 
-    /** 찾은 곳을 경유지로 넣는다. 안내 중이 아니면 그곳을 목적지로 길안내를 시작한다. */
-    fun addWaypoint(place: CarePlace): String {
+    /**
+     * 찾은 곳을 경유지로 넣는다. 안내 중이 아니면 그곳을 목적지로 길안내를 시작한다.
+     * [showNavigation]이 false면 케어 화면에 머물러 C12 토스트와 "다음 경유지" 슬롯을 보인다 (시트·슬롯에서 넣을 때).
+     */
+    fun addWaypoint(place: CarePlace, showNavigation: Boolean = true): String {
         val asWaypoint = navi.addWaypointOrRoute(Place(place.name, place.latitude, place.longitude))
         val message = if (asWaypoint) "${place.name}을(를) 경유지로 넣었어요" else "안내 중인 경로가 없어 ${place.name}을(를) 목적지로 안내해요"
-        _state.update { it.copy(waypointMessage = message) }
-        navi.showNavigation()
+        waypointRouting = navi.state.value.routing
+        _state.update {
+            it.copy(
+                waypointMessage = message,
+                urgent = null,
+                addedWaypoint = AddedWaypoint(place, asWaypoint, System.currentTimeMillis()),
+            )
+        }
+        if (showNavigation) navi.showNavigation()
         return message
     }
+
+    /** C12 "되돌리기"·"경유지 빼기": 넣은 경유지를 뺀다 (목적지로 시작했으면 안내를 멈춘다). */
+    fun undoWaypoint() {
+        val added = _state.value.addedWaypoint ?: return
+        if (added.asWaypoint) navi.removeWaypoints() else navi.cancelRoute()
+        clearAddedWaypoint()
+    }
+
+    /** C12 "안내 계속": 내비 화면을 앞으로. */
+    fun continueGuidance() = navi.showNavigation()
+
+    private fun clearAddedWaypoint() {
+        waypointRouting = false
+        waypointEndJob?.cancel()
+        waypointEndJob = null
+        _state.update { it.copy(addedWaypoint = null, waypointMessage = null) }
+    }
+
+    // 급한 케어 시트 (C09~C11)
+
+    /**
+     * 급한 케어 시트를 열고 [kind] 후보를 [URGENT_LIMIT]곳 찾는다. 수유실·기저귀 교환대가 없으면 정차 공간을 대신 찾고(C10),
+     * 서버에 닿지 않으면 자주 가는 케어 장소를 대신 보인다.
+     */
+    fun openUrgent(kind: CareKind): Job {
+        _state.update { it.copy(urgent = UrgentSheet(kind)) }
+        return scope.launch {
+            val routeBased = guide.state.value.current?.place != null
+            val found = findNearby(kind, URGENT_LIMIT)
+            val fallback = if (found.isNullOrEmpty() && kind.fallsBackToParking()) findNearby(CareKind.REST, URGENT_LIMIT) else null
+            val offline = _state.value.frequent.map { it.toCarePlace() }
+            val sheet = urgentSheetOf(kind, found, fallback, offline, routeBased)
+            // 그사이 닫았거나 다른 종류를 열었으면 덮어쓰지 않는다.
+            _state.update { if (it.urgent?.kind == kind) it.copy(urgent = sheet) else it }
+        }
+    }
+
+    fun closeUrgent() = _state.update { it.copy(urgent = null) }
 
     fun clearWaypointMessage() = _state.update { it.copy(waypointMessage = null) }
 
@@ -316,5 +384,6 @@ class CareController(
     private companion object {
         const val KEY_SLEEP = "sleep_mode"
         const val SLEEP_VOICE_VOLUME = 0.3f
+        const val ROUTE_END_GRACE_MS = 15_000L
     }
 }
