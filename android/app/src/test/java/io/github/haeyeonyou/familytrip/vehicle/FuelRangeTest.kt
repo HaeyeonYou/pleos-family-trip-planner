@@ -29,23 +29,26 @@ class FuelRangeTest {
     }
 
     @Test
-    fun `코스 × 1_3보다 짧으면 부족`() {
-        assertEquals(FuelLevel.LOW, fuelLevel(50_000f, 40_000)) // 52km 필요
-        assertEquals(FuelLevel.ENOUGH, fuelLevel(53_000f, 40_000))
-        assertEquals(FuelLevel.ENOUGH, fuelLevel(52_000f, 40_000)) // 같으면 충분
+    fun `긴 코스는 코스 × 1_3보다 짧으면 부족`() {
+        assertEquals(FuelLevel.LOW, fuelLevel(120_000f, 100_000)) // 130km 필요
+        assertEquals(FuelLevel.ENOUGH, fuelLevel(131_000f, 100_000))
+        assertEquals(FuelLevel.ENOUGH, fuelLevel(130_000f, 100_000)) // 같으면 충분
     }
 
     @Test
     fun `기준값 하나만 바꾸면 판정이 바뀐다`() {
-        assertEquals(FuelLevel.LOW, fuelLevel(45_000f, 40_000, margin = 1.2))
-        assertEquals(FuelLevel.ENOUGH, fuelLevel(45_000f, 40_000, margin = 1.1))
+        assertEquals(FuelLevel.LOW, fuelLevel(115_000f, 100_000, margin = 1.2))
+        assertEquals(FuelLevel.ENOUGH, fuelLevel(115_000f, 100_000, margin = 1.1))
         assertEquals(1.3, FuelRange.FUEL_MARGIN, 0.0)
+        assertEquals(80_000, FuelRange.LOW_RANGE_METERS)
     }
 
     @Test
-    fun `코스가 없으면 50km 미만이 부족`() {
-        assertEquals(FuelLevel.LOW, fuelLevel(49_999f, null))
-        assertEquals(FuelLevel.ENOUGH, fuelLevel(50_000f, null))
+    fun `80km 미만이면 코스와 상관없이 부족 (QP2)`() {
+        assertEquals(FuelLevel.LOW, fuelLevel(79_999f, null))
+        assertEquals(FuelLevel.ENOUGH, fuelLevel(80_000f, null))
+        assertEquals(FuelLevel.LOW, fuelLevel(79_999f, 10_000)) // 짧은 코스라도
+        assertEquals(FuelLevel.ENOUGH, fuelLevel(80_000f, 40_000))
         assertEquals(FuelLevel.LOW, fuelLevel(10_000f, 0))
     }
 
