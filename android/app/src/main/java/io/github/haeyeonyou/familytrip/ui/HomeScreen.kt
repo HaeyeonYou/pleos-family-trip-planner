@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -118,6 +119,9 @@ fun HomeScreen(
 
 private const val HOME_COURSE_COUNT = 3
 
+/** 홈 지도 아래쪽을 덮는 탑승 감지 카드 높이(여백 포함). 경로는 이 위에 맞춘다. */
+private val HOME_MAP_CARD_SPACE = 300.dp
+
 // 상단 칩 줄
 
 @Composable
@@ -178,10 +182,13 @@ private fun MapColumn(selected: CourseOption?, weather: WeatherInfo?, nowMs: Lon
     val s = SitterSurface.current
     Box(Modifier.fillMaxSize().clip(SitterShapes.Card).background(s.tile)) {
         if (selected != null) {
-            // 코스가 바뀌면 지도를 새로 만든다 (CourseMap은 처음 받은 경로만 그린다)
-            androidx.compose.runtime.key(selected.placeKey) {
-                CourseMap(stops = selected.course.stops, path = selected.course.path, modifier = Modifier.fillMaxSize())
-            }
+            // 위쪽 배지와 아래 탑승 카드가 덮는 곳을 비워 경로가 그 사이에 오게 한다.
+            CourseMap(
+                stops = selected.course.stops,
+                path = selected.course.path,
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(start = 48.dp, top = 96.dp, end = 48.dp, bottom = HOME_MAP_CARD_SPACE),
+            )
         }
         if (selected != null) {
             Row(
