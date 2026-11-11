@@ -1,6 +1,6 @@
 # 코스 진행 H03·H03-1·H04 새 셸 (2026-11-11 지시서)
 
-- 상태: **대기**(실행 세션은 통제 세션이 시작) · 접수 전 필수: **예**
+- 상태: **완료** (이슈 #218, 브랜치 `feature/218-course-progress`, PR은 HANDOFF 행 참고) · 접수 전 필수: **예**
 - 근거: [`docs/audit/2026-11-11-figma-delta-after-audit.md`](../audit/2026-11-11-figma-delta-after-audit.md) P-1~P-3. Figma 18:20 변경(`watch/CHANGELOG.md`)에서 새로 생긴 화면이다.
 - 다른 지시서와 파일 겹침: `1111-shell-polish`(`MainActivity.kt`, `VoicePanel.kt`), `1111-feeding-cleanup`(`CourseOverview.kt`). 시작 전에 열린 PR과 작업 트리를 확인한다.
 
@@ -47,6 +47,21 @@
 
 ## 진행 로그
 - 2026-11-11: 지시서 작성(figma-watch 세션, Figma 18:20 변경 기준).
+- 2026-11-11 23시 (course-progress 세션, #218):
+  - 서버: 코스 수정 API는 원래 있었다(`POST /course/schedule`, 장소 바꾸기·붙이기에 그대로 씀). 웹에 보여 줄 "진행 중 코스"가 없어서 새로 만듦: `PUT/GET/DELETE /me/trip`(`server/app/trip.py`, 표 `current_trips`, 마이그레이션 `a6c2e9f41d58`), `/me/sync`에 `trip` 영역, 폰 웹 홈 첫 카드가 오늘 코스(진행 상태·다녀옴/지금/안 감)로 바뀜, `DELETE /me/visits`가 함께 지움. 좌표는 받지 않음. 테스트 `tests/test_trip.py`.
+  - 앱: `guide/CourseProgress.kt`(단계 판정·출발/지연·진행 줄·남은 일정·한 곳 더 후보·서버 스냅숏·음성 답 분류), `GuideSession` 종료 시점 변경(`goHome`=귀가 고른 순간 종료 + 집 안내, `endHere`=안내 취소, `replaceStops`=다시 계산한 코스 반영, `visited`=도착한 곳만), `data/TripSync.kt`(로그인 시 변경마다 업로드), `ui/GuideScreen.kt` 새 셸(H03·H03-1·H04 + 가는 중 화면), `TripViewModel` `swapNextDuringGuide`·`addExtraDuringGuide`(기존 `/course/schedule`), `VoiceController.askArrival`(주행 중 도착 질문)·`VoiceHost.answerArrival`, `MainActivity` GUIDE 인자. `CourseOverview.kt`는 `CandidateCard`를 `internal`로만 바꿈.
+  - 결정(이 세션): QC2 [여기서 코스 끝내기]는 왼쪽 카드 오른쪽 아래 텍스트 버튼(제안대로). 귀가를 고르면 내비를 앞으로 띄우지 않고 H04를 보인다(안내는 내비가 뒤에서 이어 감, H04 파란 카드를 누르면 내비). 음성 "바꿔줘"·"한 곳 더"는 오른쪽 후보 패널을 열고 고르기는 화면에서. "여기서 끝내자"도 음성으로 받음. 주행 중 도착 질문은 기어를 모를 때(UNKNOWN)는 묻지 않음.
+  - 기록: `recordArrival`은 원래도 도착 때만 기록했다. 이제 같은 장소를 두 번 기록하지 않도록 `visited`로 막고, 건너뛴·바꾼 곳은 도착이 없으니 기록되지 않는다.
+  - 단위 테스트 `guide/CourseProgressTest.kt`(11개), 전체 303개 통과. 서버 `test_trip.py`·`test_sync.py` 통과.
+- 2026-11-11 23:35 (course-progress 세션, #218) 에뮬레이터 확인과 추가 요청:
+  - 내비 주행 시뮬레이션(시험 서버 8050, DB `pleos_course`): 코스 시작 → 가는 중 화면 → 도착 헤드업 알림 → H03 → [장소 바꾸기] H02-1 후보(고산 근린공원) → `/course/schedule` 재계산 → 그곳 안내 → 도착 → H03-1 → [한 곳 더 가기] 후보 → 취소 → [귀가] → H04(다녀온 2곳만, 바꾼 곳은 기록 안 됨). 다른 코스로 [여기서 코스 끝내기] → H04 "여기서 끝냄". 캡처 `docs/screenshots/218-*.png`, Figma 비교 `218-h03-vs-figma.png`·`218-h03-1-vs-figma.png`·`218-h04-vs-figma.png`.
+  - 찾은 문제 1: 내비가 앞에 있는 동안 앱 프로세스가 두 번 죽어(22:53, 23:12) 안내 상태(메모리)가 사라지고 도착을 놓쳤다. → 안내 상태와 코스를 `files/guide.json`에 저장하고 다시 뜨면 이어 간다(`SavedGuide`, `GuideSession(store=…)`). 재설치·`am force-stop` 뒤에도 H03이 그대로 나오고 [다음 장소로]로 다음 경유지 경로가 잡히는 것을 확인(`218-11`·`218-12`).
+  - 찾은 문제 2: 주행 중 도착 질문을 Compose `LaunchedEffect`에 걸었더니 내비가 앞에 있으면(앱 화면이 멈춰 있어) 묻지 않았다. → `AppContainer`(앱 단위)에서 묻게 옮김. 기어 D로 도착하자 `VoiceController: 도착 질문(주행 중, 음성으로만)` 로그 확인(`218-9-driving-voice-log.txt`). 이 에뮬레이터에는 TTS 엔진이 없어(`Pleos TTS unavailable`, `Android TTS ready=false`) 소리는 확인하지 못함. 답이 없으면 H03 화면이 그대로 남는 것 확인(`218-10`).
+  - 추가 요청(통제 세션, 사용자 승인 "추가해") '오늘 코스만 이어 가기': 저장 파일에 시작 시각(`startedAtMillis`)을 넣고, 다시 뜰 때 기기 시간대 기준 오늘 시작한 코스가 아니면(또는 시작 시각 없는 옛 파일이면) 이어 가지 않고 안내·알림·도착 감시를 정리하며 서버 `/me/trip`에 '여기서 끝냄'으로 올린다(`resumableToday`, `expiredSnapshot`). 단위 테스트: 같은 날·자정 넘김·시작 시각 없음·저장 파일 왕복.
+  - 기기 날짜를 하루 넘기는 시험은 하지 않음(사용자 빌드 에뮬레이터에서 시스템 시각 변경이 막혀 있고 다른 세션과 공유) → 단위 테스트로 대신.
+  - 확인하지 못한 것: 실차 시동 꺼짐·재시동 때의 이어 가기, 실제 음성 출력(TTS), 로그인한 차에서 폰 웹 홈 카드가 바뀌는 것(서버 테스트 `test_trip.py`로만 확인, 에뮬레이터 앱은 로그인하지 않음), 귀가 안내 중 실제 집 도착(시험 환경에서는 집 좌표가 차 위치와 같아 바로 도착 처리됨).
+  - 참고: 귀가를 고르면 Pleos 내비가 경로 화면을 앞으로 띄운다(`requestRoute` 동작). 앱으로 돌아오면 H04가 보인다.
 
 ## 확인하지 못한 것
-- 서버에 코스 수정(장소 바꾸기·붙이기) API가 있는지.
+- (해결) 서버 코스 수정 API는 `POST /course/schedule`로 이미 있었다.
+- 실차 시동 꺼짐 뒤 이어 가기, TTS 소리, 로그인 상태 웹 반영의 실기기 확인(위 진행 로그 참고).

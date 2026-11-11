@@ -14,11 +14,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import service
 from app.auth.deps import current_user, get_db
-from app.models import CarePlace, Child, ClimatePreset, FeedingLog, OutingMember, User, VisitRecord
+from app.models import CarePlace, Child, ClimatePreset, CurrentTrip, FeedingLog, OutingMember, User, VisitRecord
 
 router = APIRouter(prefix="/me", tags=["sync"])
 
-AREAS = ("presets", "feedings", "visits", "family", "cars")
+AREAS = ("presets", "feedings", "visits", "family", "cars", "trip")
 
 
 class SyncRevisions(BaseModel):
@@ -27,7 +27,8 @@ class SyncRevisions(BaseModel):
     visits: str = Field(..., description="방문 기록: 추가·확인·삭제되면 달라짐")
     family: str = Field(..., description="아이·기본 외출 멤버")
     cars: str = Field(..., description="로그인된 차 목록")
-    all: str = Field(..., description="위 다섯 가지를 합친 표시. 이것이 같으면 아무것도 안 바뀐 것")
+    trip: str = Field(..., description="진행 중 코스(#218): 차가 도착·변경·종료를 올리면 달라짐")
+    all: str = Field(..., description="위 여섯 가지를 합친 표시. 이것이 같으면 아무것도 안 바뀐 것")
 
 
 def _digest(rows: list) -> str:
@@ -45,6 +46,7 @@ async def revisions(db: AsyncSession, user: User) -> SyncRevisions:
     children = (await db.execute(select(Child.id, Child.nickname, Child.birth_month, Child.birth_date, Child.rear_facing_seat, Child.feeding_type, Child.feed_interval_minutes, Child.nap_count).where(Child.user_id == user.id).order_by(Child.id))).all()
     members = (await db.execute(select(OutingMember.id, OutingMember.label, OutingMember.is_driver, OutingMember.is_default).where(OutingMember.user_id == user.id).order_by(OutingMember.id))).all()
     cars = [row.id for row in await service.car_sessions(db, user)]
+    trip = await db.scalar(select(CurrentTrip.payload).where(CurrentTrip.user_id == user.id))
 
     parts = {
         "presets": _digest([list(r) for r in presets]),
@@ -52,6 +54,7 @@ async def revisions(db: AsyncSession, user: User) -> SyncRevisions:
         "visits": _digest([list(r) for r in visits] + [list(r) for r in care_places]),
         "family": _digest([list(r) for r in children] + [list(r) for r in members]),
         "cars": _digest(sorted(str(c) for c in cars)),
+        "trip": _digest(trip or {}),
     }
     return SyncRevisions(**parts, all=_digest([parts[a] for a in AREAS]))
 
