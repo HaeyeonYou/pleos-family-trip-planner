@@ -1,6 +1,6 @@
 # 전체 감사: Figma(11/10) ↔ 실제 앱 (2026-11-11)
 
-- 상태: **완료** · 브랜치 `docs/full-audit-1111` · 세션: full-audit(통제 세션이 시작)
+- 상태: **완료** · 브랜치 `docs/full-audit-1111` · 이슈 #196 · PR #197 · 세션: full-audit(통제 세션이 시작)
 - 결과 문서: [docs/audit/2026-11-11-figma-vs-app.md](../audit/2026-11-11-figma-vs-app.md), 비교 이미지 `docs/screenshots/audit-*.png`
 
 ## 목표와 완료 조건
