@@ -59,7 +59,7 @@ class FakeKakao:
         self.route_fails = route_fails
 
     def by_category(self, code, latitude, longitude, radius_m, size=15):
-        return {CATEGORY_RESTAURANT: self.restaurants, CATEGORY_CAFE: self.cafes}[code]
+        return {CATEGORY_RESTAURANT: self.restaurants, CATEGORY_CAFE: self.cafes}.get(code, [])
 
     def by_keyword(self, query, latitude, longitude, radius_m, size=15):
         return self.play if query == "키즈카페" else []
