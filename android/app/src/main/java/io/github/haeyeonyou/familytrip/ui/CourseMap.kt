@@ -31,15 +31,15 @@ import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.dp
 import io.github.haeyeonyou.familytrip.data.CourseStop
 import io.github.haeyeonyou.familytrip.data.LatLng
-import kotlin.math.hypot
 import kotlin.math.roundToInt
 
 /**
  * 코스 경로 지도 (#231). 실제 지도 타일 없이 시터노트 토큰으로 그린 가상 배경 위에
- * 서버가 준 실제 도로 경로 [path]를 비율대로 그리고(비면 장소 순서대로 직선), 출발지와 장소 번호 핀을 꽂는다.
- * 홈 H01 미리보기, 코스 상세 H02, 코스 진행 H03이 같이 쓴다.
+ * 출발지 → 장소 번호 핀 → 귀가 지점을 순서대로 잇는 부드러운 곡선을 그린다 (Figma H01·H02처럼, 실제 도로 경로는 그리지 않음).
+ * 핀 위치는 위경도 비율을 대략 따르되 겹치지 않게 펼친다 ([CourseMapGeometry]).
+ * 홈 H01 미리보기, 코스 상세 H02, 코스 진행 H03이 같이 쓴다. [path]는 출발 위치(첫 점)를 알아내는 데만 쓴다.
  *
- * [contentPadding]은 경로를 맞출 때 비워 둘 가장자리다. 지도 위에 배지·카드가 덮이는 곳을 비워 경로가 가려지지 않게 한다.
+ * [contentPadding]은 핀을 놓을 때 비워 둘 가장자리다. 지도 위에 배지·카드가 덮이는 곳을 비워 경로가 가려지지 않게 한다.
  */
 @Composable
 fun CourseMap(
@@ -49,47 +49,33 @@ fun CourseMap(
     contentPadding: PaddingValues = PaddingValues(horizontal = 56.dp, vertical = 44.dp),
 ) {
     val s = SitterSurface.current
-    val shape = remember(stops, path) { CourseMapGeometry.shape(stops, path) }
+    val anchors = remember(stops, path) { CourseMapGeometry.anchors(stops, path) }
     BoxWithConstraints(modifier.background(s.tile)) {
         val density = LocalDensity.current
         val dir = LocalLayoutDirection.current
-        val w = constraints.maxWidth.toFloat()
-        val h = constraints.maxHeight.toFloat()
-        val projection = with(density) {
-            CourseMapGeometry.fit(
-                points = shape.line + shape.visits.map { LatLng(it.place.latitude, it.place.longitude) },
-                width = w,
-                height = h,
+        val points = with(density) {
+            val placed = CourseMapGeometry.place(
+                points = anchors.map { it.at },
+                width = constraints.maxWidth.toFloat(),
+                height = constraints.maxHeight.toFloat(),
                 padLeft = contentPadding.calculateLeftPadding(dir).toPx(),
                 padTop = contentPadding.calculateTopPadding().toPx(),
                 padRight = contentPadding.calculateRightPadding(dir).toPx(),
                 padBottom = contentPadding.calculateBottomPadding().toPx(),
             )
+            // 순위 섞기로도 가까운 핀은 조금 더 벌린다.
+            CourseMapGeometry.spread(placed, minGap = 44.dp.toPx())
         }
-        val line = shape.line.map(projection::toScreen)
-        val origin = shape.origin?.let(projection::toScreen)
-        val home = shape.home?.let(projection::toScreen)
-        val ringPx = with(density) { 40.dp.toPx() }
-        // 귀가 지점이 출발지와 겹치면(대개 집 → 집) 표시를 하나로 합친다.
-        val homeSeparate = home != null && (origin == null || hypot(home.x - origin.x, home.y - origin.y) > ringPx)
+        val curve = CourseMapGeometry.smoothCurve(points)
 
         Canvas(Modifier.matchParentSize()) {
             drawGround(s)
-            drawRoute(line, s)
-            origin?.let { drawRing(it, s) }
-            if (homeSeparate) home?.let { drawRing(it, s) }
+            drawRoute(curve, s)
+            anchors.forEachIndexed { i, a -> if (a.number == null) drawRing(points[i], s) }
         }
 
-        // 출발지·귀가 이름표와 번호 핀은 글자가 있어 Compose 요소로 얹는다.
-        // 이름표 자리가 모자라면 앞쪽(장소 → 출발 → 귀가)부터 차지한다.
-        val markers = buildList {
-            shape.visits.forEachIndexed { i, stop ->
-                add(Marker(projection.toScreen(LatLng(stop.place.latitude, stop.place.longitude)), number = i + 1, label = stop.place.name))
-            }
-            origin?.let { add(Marker(it, number = null, label = if (home != null && !homeSeparate) "출발·귀가" else "출발")) }
-            if (homeSeparate) home?.let { add(Marker(it, number = null, label = "귀가")) }
-        }
-        MarkerLayer(markers, Modifier.matchParentSize())
+        // 이름표와 번호 핀은 글자가 있어 Compose 요소로 얹는다.
+        MarkerLayer(anchors.mapIndexed { i, a -> Marker(points[i], a.number, a.label) }, Modifier.matchParentSize())
     }
 }
 
@@ -133,16 +119,15 @@ private fun MarkerLayer(markers: List<Marker>, modifier: Modifier) {
         val ringHalf = 14.dp.roundToPx()
         val w = constraints.maxWidth
         val h = constraints.maxHeight
-        // 핀(고리) 자리. 아주 가까운 장소끼리는 번호가 겹치지 않게 핀을 조금씩 벌린다.
-        val centers = CourseMapGeometry.spread(markers.map { it.at }, minGap = 30.dp.toPx())
-        val pinRects = markers.indices.map { i ->
-            val half = maxOf(placeables[i * 2].width / 2, ringHalf)
-            val c = centers[i]
-            IntRect(c.x.roundToInt() - half, c.y.roundToInt() - half, c.x.roundToInt() + half, c.y.roundToInt() + half)
+        // 핀(고리) 자리. 이름표는 이 자리와 먼저 놓은 이름표를 피해서 놓는다.
+        val pinRects = markers.map { m ->
+            val half = if (m.number != null) 17.dp.roundToPx() else ringHalf
+            IntRect(m.at.x.roundToInt() - half, m.at.y.roundToInt() - half, m.at.x.roundToInt() + half, m.at.y.roundToInt() + half)
         }
         val labelPos = arrayOfNulls<IntOffset>(markers.size)
         val taken = mutableListOf<IntRect>()
-        markers.forEachIndexed { i, _ ->
+        // 자리가 모자라면 장소 이름표가 출발·귀가 이름표보다 먼저 차지한다.
+        markers.indices.sortedBy { if (markers[it].number != null) 0 else 1 }.forEach { i ->
             val label = placeables[i * 2 + 1]
             val pin = pinRects[i]
             val cx = pin.center.x
@@ -201,12 +186,12 @@ private fun DrawScope.drawGround(s: SitterSurface) {
     drawLine(road, Offset(0f, h * 0.80f), Offset(w, h * 0.76f), strokeWidth = thin)
 }
 
-/** 경로선: 바깥 테두리(카드색) 위에 주 색 선. */
-private fun DrawScope.drawRoute(points: List<MapPoint>, s: SitterSurface) {
-    if (points.size < 2) return
+/** 경로선: 순서대로 잇는 부드러운 곡선. 바깥 테두리(카드색) 위에 주 색 선. */
+private fun DrawScope.drawRoute(curve: List<CurveSegment>, s: SitterSurface) {
+    if (curve.isEmpty()) return
     val path = Path().apply {
-        moveTo(points.first().x, points.first().y)
-        points.drop(1).forEach { lineTo(it.x, it.y) }
+        moveTo(curve.first().from.x, curve.first().from.y)
+        curve.forEach { cubicTo(it.c1.x, it.c1.y, it.c2.x, it.c2.y, it.to.x, it.to.y) }
     }
     drawPath(path, s.card, style = Stroke(width = 11.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
     drawPath(path, s.primary, style = Stroke(width = 6.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
