@@ -1,24 +1,28 @@
 package io.github.haeyeonyou.familytrip.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -30,8 +34,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -40,30 +44,36 @@ import io.github.haeyeonyou.familytrip.data.Child
 import io.github.haeyeonyou.familytrip.data.SavedCourse
 import io.github.haeyeonyou.familytrip.data.Visit
 import io.github.haeyeonyou.familytrip.data.WeatherInfo
+import io.github.haeyeonyou.familytrip.grow.GrowVoiceBus
 import io.github.haeyeonyou.familytrip.grow.JellyKind
 import io.github.haeyeonyou.familytrip.grow.JellyStage
 import io.github.haeyeonyou.familytrip.grow.JellyState
+import io.github.haeyeonyou.familytrip.grow.MakeJellyRow
+import io.github.haeyeonyou.familytrip.grow.MakeTag
 import io.github.haeyeonyou.familytrip.grow.Revisit
-import io.github.haeyeonyou.familytrip.grow.GrowVoiceBus
+import io.github.haeyeonyou.familytrip.grow.UnvisitedPick
 import io.github.haeyeonyou.familytrip.grow.agoText
+import io.github.haeyeonyou.familytrip.grow.birthBubble
 import io.github.haeyeonyou.familytrip.grow.experiences
+import io.github.haeyeonyou.familytrip.grow.jellySubtitle
 import io.github.haeyeonyou.familytrip.grow.jellyStates
-import io.github.haeyeonyou.familytrip.grow.jellyType
+import io.github.haeyeonyou.familytrip.grow.kindPlaces
+import io.github.haeyeonyou.familytrip.grow.kindsInMonth
+import io.github.haeyeonyou.familytrip.grow.latestBirth
+import io.github.haeyeonyou.familytrip.grow.makeJellyRows
 import io.github.haeyeonyou.familytrip.grow.monthDeltaText
 import io.github.haeyeonyou.familytrip.grow.monthTile
-import io.github.haeyeonyou.familytrip.grow.newKindsThisMonth
 import io.github.haeyeonyou.familytrip.grow.pendingBirths
-import io.github.haeyeonyou.familytrip.grow.revisitCaption
-import io.github.haeyeonyou.familytrip.grow.revisits
 import io.github.haeyeonyou.familytrip.grow.stageName
-import io.github.haeyeonyou.familytrip.grow.suggestEmpty
-import io.github.haeyeonyou.familytrip.grow.universeHint
+import io.github.haeyeonyou.familytrip.grow.unvisitedTargets
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.YearMonth
 
 /**
- * 그로우 G01 (354:3033, #164): 아이 경험 우주 + 젤리 B안 성장 단계.
- * 다녀온 곳(10분 이상 머문 방문)을 12분류 젤리로 모아 방울 → 몽글 → 탄생으로 키운다. 계산은 `grow/JellyModel.kt`.
+ * 그로우 G01 "경험 젤리"(354:3033, #216): 다녀온 곳(10분 이상 머문 방문)을 12분류 젤리로 모아 방울 → 몽글 → 캐릭터로 키운다.
+ * 가장 많이 간 분야를 가운데 크게, 나머지는 궤도 위에. 오른쪽 위 "월별 보기"는 G03 월별 캘린더(`ExperienceCalendar.kt`).
+ * 계산은 `grow/JellyModel.kt`·`grow/GrowJelly.kt`, 배치는 `ExperienceLayout.kt`.
  * 캐릭터가 태어나면 정차 중에는 축하 시트, 주행 중에는 음성 1회(MainActivity)로 알린다.
  */
 @Composable
@@ -77,47 +87,78 @@ fun ExperienceScreen(
     onOpenCourse: (SavedCourse) -> Unit,
     onRoute: (name: String, latitude: Double, longitude: Double) -> Unit,
     onPlan: () -> Unit,
+    /** 안가봄 줄: 빈 분야 근처 장소 검색 1회 (QF1 ③). 실패하면 null. */
+    searchUnvisited: suspend (targets: List<JellyKind>, visitedNames: Set<String>) -> UnvisitedPick? = { _, _ -> null },
 ) = SitterCanvas {
     val today = remember(visits) { LocalDate.now() }
     val list = remember(visits) { experiences(visits, LocalDateTime.now()) }
     val states = remember(list) { jellyStates(list, today) }
-    val places = remember(list) { growPlaces(list) }
-    val suggested = remember(states) { if (states.any { it.count > 0 }) suggestEmpty(states) else null }
-    val geometry = remember(states, places, suggested) { computeJellyGeometry(states, places, suggested) }
+    val orbit = remember(states) { computeJellyOrbit(states) }
     val child = children.firstOrNull()
     val name = child?.name?.takeIf { it.isNotBlank() }
-    var filter by remember { mutableStateOf<GrowFilter>(GrowFilter.All) }
-    var selectedPlace by remember { mutableStateOf<String?>(null) }
-    var selectedKind by remember { mutableStateOf<JellyKind?>(null) }
-    var showKinds by remember { mutableStateOf(false) }
+    val thisMonth = remember(today) { YearMonth.from(today) }
+    var filter by remember { mutableStateOf(GrowFilter.All) }
+    var sheetKind by remember { mutableStateOf<JellyKind?>(null) }
+    var sheetPlace by remember { mutableStateOf<String?>(null) }
+    var calendar by remember { mutableStateOf<CalendarView?>(null) }
     val driving = LocalDriveMode.current.isDriving
     val births = remember(states, celebrated) { pendingBirths(states, celebrated) }
-    val thisMonth = remember(today) { java.time.YearMonth.from(today) }
 
-    // 음성 명령(#185): "지난달 간 곳 보여줘" → 거르기, "공룡 별 보여줘" → 분류 팝업, "○○ 다시 가자" → 장소 팝업
+    // 안가봄 줄: 빈 분야가 바뀔 때만 1번 찾는다
+    val targets = remember(states) { unvisitedTargets(states) }
+    var pick by remember { mutableStateOf<UnvisitedPick?>(null) }
+    LaunchedEffect(targets) {
+        pick = if (targets.isEmpty()) null else searchUnvisited(targets, list.map { it.visit.placeName }.toSet())
+    }
+
+    // 음성 명령(#185, #216): "지난달 젤리 보여줘" → G03 그 달, "유니콘 젤리 보여줘" → 분야 카드, "○○ 다시 가자" → 그 장소 분야 카드
     val voiceView by GrowVoiceBus.view.collectAsState()
     LaunchedEffect(voiceView) {
         val v = GrowVoiceBus.consume() ?: return@LaunchedEffect
+        if (v.opensCalendar) {
+            calendar = CalendarView.Month(v.period!!.month(today))
+            return@LaunchedEffect
+        }
+        calendar = null
         filter = GrowFilter(kind = v.kind, month = v.period?.month(today))
-        selectedKind = v.kind?.takeIf { v.place == null }
-        selectedPlace = v.place
-        showKinds = false
+        val placeKind = v.place?.let { p -> list.lastOrNull { it.visit.placeName == p }?.kind }
+        sheetKind = placeKind ?: v.kind?.takeIf { v.period == null }
+        sheetPlace = v.place
     }
 
     fun courseWith(placeName: String) = courses.firstOrNull { c -> c.course.stops.any { it.place.name == placeName } }
 
-    SitterVoiceBar(
-        hint = "무엇을 볼까요?  “지난달 간 곳 보여줘”",
-        avatarLabel = name?.take(1),
-        weather = { weather?.let { SitterWeather(it.temperature?.let { t -> "${Math.round(t)}°" } ?: "--", listOf(it.condition, it.region).filter(String::isNotBlank).joinToString(" · ")) } },
-    )
+    val weatherSlot: @Composable () -> Unit = {
+        weather?.let { SitterWeather(it.temperature?.let { t -> "${Math.round(t)}°" } ?: "--", listOf(it.condition, it.region).filter(String::isNotBlank).joinToString(" · ")) }
+    }
+
+    calendar?.let { view ->
+        BackHandler { calendar = null }
+        ExperienceCalendar(
+            list = list,
+            today = today,
+            view = view,
+            avatarLabel = name?.take(1),
+            weather = weatherSlot,
+            onView = { calendar = it },
+            onBack = { calendar = null },
+            onRoute = onRoute,
+        )
+        births.firstOrNull()?.takeIf { !driving }?.let { kind ->
+            BirthSheet(kind, name ?: "우리 아이", onDone = { onCelebrated(listOf(kind)) })
+        }
+        return@SitterCanvas
+    }
+
+    SitterVoiceBar(hint = "무엇을 볼까요?  “유니콘 젤리 보여줘”", avatarLabel = name?.take(1), weather = weatherSlot)
     SitterChipRow {
         SitterChip("전체", filter == GrowFilter.All, onClick = { filter = GrowFilter.All })
-        // 음성으로 고른 분류가 상위 4개 밖이어도 칩으로 보인다
-        val top = states.filter { it.count > 0 }.sortedByDescending { it.count }.take(4).map { it.kind }
+        // 분야 칩은 개수 순 (음성으로 고른 분야가 밖이어도 보인다). 아이 칩은 넣지 않는다 (아이는 음성 줄 아바타).
+        val top = rankByCount(states).take(5).map { it.kind }
         (top + listOfNotNull(filter.kind?.takeIf { it !in top })).forEach { kind ->
             val on = filter.kind == kind
-            SitterChip(kind.chip, on, onClick = { filter = filter.copy(kind = if (on) null else kind) })
+            val count = states.first { it.kind == kind }.count
+            SitterChip("${kind.label} $count", on, onClick = { filter = filter.copy(kind = if (on) null else kind) })
         }
         SitterChip("이번 달", filter.month == thisMonth, onClick = {
             filter = filter.copy(month = if (filter.month == thisMonth) null else thisMonth)
@@ -126,103 +167,60 @@ fun ExperienceScreen(
         filter.month?.takeIf { it != thisMonth }?.let { m ->
             SitterChip(if (m == thisMonth.minusMonths(1)) "지난달" else "${m.monthValue}월", true, onClick = { filter = filter.copy(month = null) })
         }
-        child?.let { c ->
-            Text(
-                listOfNotNull(name, "${c.ageMonths()}개월").joinToString(" · "),
-                style = SitterText.Body1,
-                color = SitterSurface.current.inkSoft,
-                modifier = Modifier.padding(start = 4.dp),
-            )
+    }
+    // 칩 거르기: 고른 분야·달에 경험이 있는 분야만 또렷하게
+    val visible = remember(filter, list) {
+        when {
+            filter == GrowFilter.All -> null
+            filter.month == null -> setOfNotNull(filter.kind)
+            else -> list.filter { YearMonth.from(it.date) == filter.month && (filter.kind == null || it.kind == filter.kind) }.map { it.kind }.toSet()
         }
     }
     SitterWideAndColumn(
         wide = {
-            UniverseCard(
-                title = if (name == null) "우리 아이 경험 우주" else "${name}의 경험 우주",
-                subtitle = "${list.size}개의 경험 · ${places.size}개 장소 · 다녀온 곳이 새 별로 추가돼요",
-                typeLine = jellyType(states)?.line,
-                hint = universeHint(states),
-                modifier = Modifier.fillMaxSize(),
-            ) {
-                JellyUniverseCanvas(
-                    geometry = geometry,
-                    centerLabel = name ?: "우리 아이",
-                    filter = filter,
-                    selectedPlace = selectedPlace,
-                    today = today,
-                    onHit = { hit ->
-                        when (hit) {
-                            is UniverseHit.Place -> {
-                                selectedPlace = geometry.places[hit.index].place.name
-                                selectedKind = null
-                            }
-                            is UniverseHit.Kind -> {
-                                val st = states.first { it.kind == hit.kind }
-                                if (st.count == 0 && hit.kind == suggested) {
-                                    onPlan()
-                                } else {
-                                    selectedKind = hit.kind
-                                    selectedPlace = null
-                                    if (st.count > 0) filter = GrowFilter(kind = hit.kind)
-                                }
-                            }
-                            null -> {
-                                selectedPlace = null
-                                selectedKind = null
-                            }
-                        }
-                    },
-                    modifier = Modifier.fillMaxSize(),
+            val bubble = remember(list) { latestBirth(list)?.let { (k, d) -> k to birthBubble(k, d) } }
+            SitterCard(Modifier.fillMaxSize(), contentPadding = PaddingValues(24.dp)) {
+                Text(if (name == null) "우리 아이 경험 젤리" else "${name}의 경험 젤리", style = SitterText.Title2, color = SitterSurface.current.ink, maxLines = 1)
+                Text(
+                    jellySubtitle(list.size, states),
+                    style = SitterText.Caption,
+                    color = SitterSurface.current.inkMute,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 6.dp),
                 )
-                val popup = Modifier.align(Alignment.BottomStart).padding(8.dp)
-                places.firstOrNull { it.name == selectedPlace }?.let { p ->
-                    PlacePopup(
-                        place = p,
-                        stage = states.first { it.kind == p.kind }.stage,
-                        today = today,
-                        course = courseWith(p.name),
-                        onRoute = onRoute,
-                        onOpenCourse = onOpenCourse,
-                        onClose = { selectedPlace = null },
-                        modifier = popup,
+                Box(Modifier.weight(1f).fillMaxWidth().padding(vertical = 4.dp)) {
+                    JellyOrbitCanvas(
+                        orbit = orbit,
+                        visibleKinds = visible,
+                        bubble = bubble,
+                        onHit = { kind ->
+                            sheetKind = kind
+                            sheetPlace = null
+                        },
+                        modifier = Modifier.fillMaxSize(),
                     )
                 }
-                selectedKind?.let { k ->
-                    KindPopup(states.first { it.kind == k }, onClose = { selectedKind = null }, modifier = popup)
-                }
+                Text(
+                    if (list.isEmpty()) "나들이 장소에 10분 이상 머물면 그 분야 젤리가 생겨요" else "젤리를 누르면 그 분야 카드와 다녀온 코스를 볼 수 있어요",
+                    style = SitterText.Caption,
+                    color = SitterSurface.current.inkMute,
+                    maxLines = 1,
+                )
             }
         },
         third = {
-            Row(Modifier.fillMaxWidth().height(200.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                val month = monthTile(list, today)
-                val fresh = newKindsThisMonth(states, today)
-                StatTile(
-                    label = "이번 달",
-                    value = "${month.places}곳",
-                    caption = monthDeltaText(month.delta),
-                    captionColor = SitterSurface.current.primary,
-                    action = if (filter == GrowFilter(month = thisMonth)) "전체 보기" else "이번 달 보기",
-                    onAction = { filter = if (filter == GrowFilter(month = thisMonth)) GrowFilter.All else GrowFilter(month = thisMonth) },
-                    modifier = Modifier.weight(1f),
-                )
-                StatTile(
-                    label = "새로 해본 분야",
-                    value = "${fresh.size}개",
-                    caption = if (fresh.isEmpty()) "이번 달은 아직 없어요" else fresh.joinToString(" · ") { it.chip },
-                    captionColor = SitterSurface.current.inkMute,
-                    action = "분야별 보기",
-                    onAction = { showKinds = true },
-                    modifier = Modifier.weight(1f),
-                )
-            }
-            Spacer(Modifier.height(16.dp))
-            RevisitCard(
-                rows = remember(list) { revisits(list, today) },
-                states = states,
+            MonthCard(
+                list = list,
                 today = today,
-                courseFor = ::courseWith,
+                onCalendar = { calendar = CalendarView.Month(thisMonth) },
+                modifier = Modifier.fillMaxWidth().height(200.dp),
+            )
+            Spacer(Modifier.height(16.dp))
+            MakeJellyCard(
+                rows = remember(list, states, pick) { makeJellyRows(list, states, pick) },
                 onRoute = onRoute,
-                onOpenCourse = onOpenCourse,
+                onPlan = onPlan,
                 modifier = Modifier.weight(1f).fillMaxWidth(),
             )
             Spacer(Modifier.height(16.dp))
@@ -230,236 +228,239 @@ fun ExperienceScreen(
         },
     )
 
-    if (showKinds) {
-        androidx.activity.compose.BackHandler { showKinds = false }
-        KindsSheet(states, jellyType(states)?.line, onClose = { showKinds = false })
+    sheetKind?.let { k ->
+        BackHandler { sheetKind = null }
+        KindSheet(
+            state = states.first { it.kind == k },
+            places = remember(list, k) { kindPlaces(list, k) },
+            highlight = sheetPlace,
+            today = today,
+            courseFor = ::courseWith,
+            onRoute = onRoute,
+            onOpenCourse = onOpenCourse,
+            onPlan = onPlan,
+            onClose = {
+                sheetKind = null
+                sheetPlace = null
+            },
+        )
     }
     births.firstOrNull()?.takeIf { !driving }?.let { kind ->
         BirthSheet(kind, name ?: "우리 아이", onDone = { onCelebrated(listOf(kind)) })
     }
 }
 
+/** 오른쪽 위 (G-3): 이번 달 N곳 · 지난달 대비 · 월별 보기 › · 이번 달 만난 젤리. */
 @Composable
-private fun UniverseCard(
-    title: String,
-    subtitle: String,
-    typeLine: String?,
-    hint: String,
-    modifier: Modifier = Modifier,
-    graph: @Composable androidx.compose.foundation.layout.BoxScope.() -> Unit,
-) {
+private fun MonthCard(list: List<io.github.haeyeonyou.familytrip.grow.Experience>, today: LocalDate, onCalendar: () -> Unit, modifier: Modifier) {
     val s = SitterSurface.current
-    SitterCard(modifier, contentPadding = androidx.compose.foundation.layout.PaddingValues(24.dp)) {
-        Row(verticalAlignment = Alignment.Top) {
-            Column(Modifier.weight(1f)) {
-                Text(title, style = SitterText.Title2, color = s.ink, maxLines = 1)
-                Text(subtitle, style = SitterText.Caption, color = s.inkMute, maxLines = 1, modifier = Modifier.padding(top = 6.dp))
+    val month = remember(list) { monthTile(list, today) }
+    val met = remember(list) { kindsInMonth(list, YearMonth.from(today)) }
+    val states = remember(list) { jellyStates(list, today).associateBy { it.kind } }
+    SitterCard(modifier, contentPadding = PaddingValues(20.dp)) {
+        Row(Modifier.fillMaxSize()) {
+            Column(Modifier.weight(1f).fillMaxHeight()) {
+                Text("이번 달", style = SitterText.Caption, color = s.inkSoft)
+                Text("${month.places}곳", style = SitterText.Number, color = s.ink)
+                Text(monthDeltaText(month.delta), style = SitterText.Caption, color = s.primary, maxLines = 1)
+                Spacer(Modifier.weight(1f))
+                Row(
+                    Modifier.height(44.dp).clip(SitterShapes.Pill).background(s.tile).clickable(role = Role.Button, onClick = onCalendar)
+                        .padding(start = 16.dp, end = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("월별 보기", style = SitterText.Label, color = s.ink)
+                    SitterIcon(SitterIcons.ChevronRight, s.ink, size = SitterIconSize.Small)
+                }
             }
-            typeLine?.let {
-                Text(
-                    it,
-                    style = SitterText.Label,
-                    color = s.primary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(start = 12.dp).width(300.dp).clip(SitterShapes.Pill).background(s.primarySoft)
-                        .padding(horizontal = 14.dp, vertical = 8.dp),
-                    textAlign = TextAlign.Center,
-                )
+            Column(
+                Modifier.width(176.dp).fillMaxHeight().clip(SitterShapes.Row).background(s.primarySoft).clickable(role = Role.Button, onClick = onCalendar),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    if (met.isEmpty()) {
+                        Text("이번 달은\n아직 없어요", style = SitterText.Caption, color = s.inkMute, textAlign = TextAlign.Center)
+                    } else {
+                        // 가장 많이 만난 젤리를 가운데 크게
+                        val order = listOfNotNull(met.getOrNull(1), met.getOrNull(0), met.getOrNull(2))
+                        Row(verticalAlignment = Alignment.Bottom) {
+                            order.forEach { k ->
+                                val big = k == met[0]
+                                JellyIcon(k, states[k]?.stage?.atLeastDrop() ?: JellyStage.DROP, if (big) 84.dp else 56.dp, Modifier.offset(y = if (big) 0.dp else (-4).dp))
+                            }
+                        }
+                    }
+                }
+                Text("이번 달 만난 젤리", style = SitterText.Caption, color = s.inkSoft, modifier = Modifier.padding(bottom = 10.dp))
             }
         }
-        Box(Modifier.weight(1f).fillMaxWidth().padding(vertical = 8.dp), content = graph)
-        Text(hint, style = SitterText.Caption, color = s.inkMute, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
+internal fun JellyStage.atLeastDrop() = if (this == JellyStage.NONE) JellyStage.DROP else this
+
+/** 오른쪽 아래 (G-4): 경험젤리 만들러 갈까요? 많이 감·적게 감·안가봄. */
 @Composable
-private fun StatTile(
-    label: String,
-    value: String,
-    caption: String,
-    captionColor: Color,
-    action: String,
-    onAction: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
+private fun MakeJellyCard(rows: List<MakeJellyRow>, onRoute: (String, Double, Double) -> Unit, onPlan: () -> Unit, modifier: Modifier) {
     val s = SitterSurface.current
-    SitterCard(modifier.fillMaxHeight(), contentPadding = androidx.compose.foundation.layout.PaddingValues(18.dp)) {
-        Text(label, style = SitterText.Caption, color = s.inkSoft)
-        Text(value, style = SitterText.Number, color = s.ink, modifier = Modifier.padding(top = 2.dp))
-        Text(caption, style = SitterText.Caption, color = captionColor, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        Spacer(Modifier.weight(1f))
-        Box(
-            Modifier.fillMaxWidth().height(44.dp).clip(SitterShapes.Pill).background(s.tile)
-                .clickable(role = Role.Button, onClick = onAction),
-            contentAlignment = Alignment.Center,
-        ) { Text(action, style = SitterText.Label, color = s.ink) }
+    SitterCard(modifier, contentPadding = PaddingValues(start = 12.dp, top = 20.dp, end = 12.dp, bottom = 12.dp)) {
+        Text("경험젤리 만들러 갈까요?", style = SitterText.Title3, color = s.ink, modifier = Modifier.padding(start = 8.dp, bottom = 12.dp))
+        if (rows.isEmpty()) {
+            Text("나들이를 다녀오면 젤리를 키울 곳을 골라 드려요", style = SitterText.Body2, color = s.inkMute, modifier = Modifier.padding(start = 8.dp))
+            return@SitterCard
+        }
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            rows.forEach { r -> MakeRow(r, onRoute, onPlan) }
+        }
     }
 }
 
 @Composable
-private fun RevisitCard(
-    rows: List<Revisit>,
-    states: List<JellyState>,
+private fun MakeRow(r: MakeJellyRow, onRoute: (String, Double, Double) -> Unit, onPlan: () -> Unit) {
+    val s = SitterSurface.current
+    val lat = r.latitude
+    val lon = r.longitude
+    val name = r.placeName
+    val go: () -> Unit = if (name != null && lat != null && lon != null) ({ onRoute(name, lat, lon) }) else onPlan
+    val (tagFill, tagInk) = when (r.tag) {
+        MakeTag.MANY -> Color(0xFF7CB342) to Color.White
+        MakeTag.FEW -> s.primarySoft to s.primary
+        MakeTag.NEW -> s.card to s.inkSoft
+    }
+    Row(
+        Modifier.fillMaxWidth().height(84.dp).clip(SitterShapes.Row)
+            .background(if (r.tag == MakeTag.MANY) Color(0xFFEFF7E3) else s.tile)
+            .clickable(role = Role.Button, onClick = go)
+            .padding(start = 12.dp, end = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(52.dp), contentAlignment = Alignment.Center) {
+            if (r.tag == MakeTag.NEW) {
+                Box(Modifier.size(30.dp).clip(CircleShape).background(Color(r.kind.argb).copy(alpha = 0.35f)))
+            } else {
+                JellyIcon(r.kind, r.stage.atLeastDrop(), 52.dp)
+            }
+        }
+        Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    r.tag.label,
+                    style = SitterText.Caption,
+                    color = tagInk,
+                    maxLines = 1,
+                    modifier = Modifier.clip(SitterShapes.Pill).background(tagFill)
+                        .then(if (r.tag == MakeTag.NEW) Modifier.border(1.dp, s.line, SitterShapes.Pill) else Modifier)
+                        .padding(horizontal = 8.dp, vertical = 2.dp),
+                )
+                Text(
+                    name ?: r.kind.label,
+                    style = SitterText.Body1,
+                    color = s.ink,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(start = 8.dp),
+                )
+            }
+            Text(r.caption, style = SitterText.Caption, color = s.inkMute, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
+        }
+        GradientCircleButton(size = 52.dp, onClick = go) { SitterIcon(SitterIcons.Turn, Color.White) }
+    }
+}
+
+/** 분야 카드 (G-6): 캐릭터·단계·역량 문구 + 다녀온 장소 목록. 빈 분야는 홈 추천으로. */
+@Composable
+private fun BoxScope.KindSheet(
+    state: JellyState,
+    places: List<Revisit>,
+    highlight: String?,
     today: LocalDate,
     courseFor: (String) -> SavedCourse?,
     onRoute: (String, Double, Double) -> Unit,
     onOpenCourse: (SavedCourse) -> Unit,
-    modifier: Modifier = Modifier,
+    onPlan: () -> Unit,
+    onClose: () -> Unit,
 ) {
     val s = SitterSurface.current
-    SitterCard(modifier) {
-        Text("다시 가볼까요?", style = SitterText.Title3, color = s.ink, modifier = Modifier.padding(bottom = 12.dp))
-        if (rows.isEmpty()) {
-            Text("일주일 넘게 지난 나들이가 생기면 다시 갈 곳을 골라 드려요", style = SitterText.Body2, color = s.inkMute)
-            return@SitterCard
-        }
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            rows.forEachIndexed { i, r ->
-                val course = courseFor(r.placeName)
-                val go: (() -> Unit)? = when {
-                    r.latitude != null && r.longitude != null -> ({ onRoute(r.placeName, r.latitude, r.longitude) })
-                    course != null -> ({ onOpenCourse(course) })
-                    else -> null
-                }
-                SitterRow(selected = i == 0, contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 14.dp, top = 10.dp, end = 10.dp, bottom = 10.dp)) {
-                    JellyIcon(r.kind, states.first { it.kind == r.kind }.stage.coerceDrop(), 40.dp)
-                    Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-                        Text(r.placeName, style = SitterText.Body1, color = s.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text(revisitCaption(r, today), style = SitterText.Caption, color = s.inkMute, maxLines = 1)
-                    }
-                    go?.let {
-                        GradientCircleButton(size = 52.dp, onClick = it) { SitterIcon(SitterIcons.Turn, Color.White) }
-                    }
-                }
-            }
-        }
-    }
-}
-
-private fun JellyStage.coerceDrop() = if (this == JellyStage.NONE) JellyStage.DROP else this
-
-@Composable
-private fun PopupFrame(onClose: () -> Unit, modifier: Modifier, content: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit) {
-    val s = SitterSurface.current
-    Row(
-        modifier.width(460.dp).shadow(8.dp, SitterShapes.Row).clip(SitterShapes.Row).background(s.card)
-            .border(1.dp, s.line, SitterShapes.Row).padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        content()
-        Box(
-            Modifier.size(40.dp).clip(CircleShape).clickable(role = Role.Button, onClick = onClose),
-            contentAlignment = Alignment.Center,
-        ) { Text("✕", style = SitterText.Body1, color = s.inkMute) }
-    }
-}
-
-/** 장소 노드 팝업 (Q34 ②): 방문 이력 + 다시 안내 / 코스 보기. */
-@Composable
-private fun PlacePopup(
-    place: GrowPlace,
-    stage: JellyStage,
-    today: LocalDate,
-    course: SavedCourse?,
-    onRoute: (String, Double, Double) -> Unit,
-    onOpenCourse: (SavedCourse) -> Unit,
-    onClose: () -> Unit,
-    modifier: Modifier,
-) = PopupFrame(onClose, modifier) {
-    val s = SitterSurface.current
-    JellyIcon(place.kind, stage.coerceDrop(), 48.dp)
-    Column(Modifier.weight(1f)) {
-        Text(place.name, style = SitterText.Body1, color = s.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        Text("${place.kind.label} · ${place.count}번 · 마지막 ${agoText(place.last, today)}", style = SitterText.Caption, color = s.inkMute, maxLines = 1)
-    }
-    val lat = place.latitude
-    val lon = place.longitude
-    when {
-        lat != null && lon != null -> SitterButton("다시 안내", onClick = { onRoute(place.name, lat, lon) }, icon = SitterIcons.Turn)
-        course != null -> SitterButton("코스 보기", onClick = { onOpenCourse(course) }, kind = SitterButtonKind.Soft)
-    }
-}
-
-/** 분류 노드 팝업: 성장 단계와 다음 단계까지 남은 경험. */
-@Composable
-private fun KindPopup(state: JellyState, onClose: () -> Unit, modifier: Modifier) = PopupFrame(onClose, modifier) {
-    val s = SitterSurface.current
-    JellyIcon(state.kind, state.stage.coerceDrop(), 56.dp)
-    Column(Modifier.weight(1f)) {
-        Text(stageName(state.kind, state.stage), style = SitterText.Body1, color = s.ink, maxLines = 1)
-        Text(growthCaption(state), style = SitterText.Caption, color = s.inkMute, maxLines = 2)
-    }
-}
-
-/** "경험 5개 · 탄생까지 5개" / "탄생 · 보고, 생각하고 …" / "자연·숲 나들이를 하면 별이 생겨요" */
-internal fun growthCaption(state: JellyState): String = when (state.stage) {
-    JellyStage.NONE -> "${state.kind.label} 나들이를 하면 별이 생겨요"
-    JellyStage.DROP -> "${state.kind.label} 경험 ${state.count}개 · 몽글까지 ${JellyStage.PUFF.min - state.count}개"
-    JellyStage.PUFF -> "${state.kind.label} 경험 ${state.count}개 · 탄생까지 ${JellyStage.BORN.min - state.count}개"
-    JellyStage.BORN -> "경험 ${state.count}개 · ${state.kind.power}"
-}
-
-/** 분야별 보기: 12분류 젤리를 한눈에 (6x2). */
-@Composable
-private fun KindsSheet(states: List<JellyState>, typeLine: String?, onClose: () -> Unit) {
-    val s = SitterSurface.current
+    val kind = state.kind
     SitterScrim(onClick = onClose)
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(
-            Modifier.width(1040.dp).clip(SitterShapes.Sheet).background(s.card).pointerInput(Unit) { detectTapGestures { } }.padding(28.dp),
+        Row(
+            Modifier.width(1000.dp).height(560.dp).clip(SitterShapes.Sheet).background(s.card).pointerInput(Unit) { detectTapGestures { } }.padding(28.dp),
+            horizontalArrangement = Arrangement.spacedBy(28.dp),
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("12가지 경험 별", style = SitterText.Title2, color = s.ink)
+            Column(
+                Modifier.width(360.dp).fillMaxHeight().clip(SitterShapes.Card).background(Color(kind.argb).copy(alpha = 0.10f)).padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Box(Modifier.size(200.dp), contentAlignment = Alignment.Center) {
+                    if (state.count > 0) {
+                        JellyIcon(kind, state.stage, 200.dp)
+                    } else {
+                        Box(
+                            Modifier.size(90.dp).clip(CircleShape).border(2.dp, s.line, CircleShape),
+                            contentAlignment = Alignment.Center,
+                        ) { Text("?", style = SitterText.Title1, color = s.inkMute) }
+                    }
+                }
+                Text(kind.label, style = SitterText.Label, color = s.inkSoft, modifier = Modifier.padding(top = 8.dp))
+                Text(if (state.count > 0) stageName(kind, state.stage) else "${kind.character} 젤리", style = SitterText.Title2, color = s.ink)
+                val n = state.count.coerceAtMost(JellyStage.BORN.min)
+                Box(Modifier.padding(top = 14.dp).fillMaxWidth().height(10.dp).clip(SitterShapes.Pill).background(s.line)) {
+                    Box(Modifier.fillMaxHeight().fillMaxWidth(n / JellyStage.BORN.min.toFloat()).clip(SitterShapes.Pill).background(Color(kind.argb)))
+                }
+                Text(
+                    if (state.stage == JellyStage.BORN) "${state.count}번 다녀왔어요" else "$n/${JellyStage.BORN.min} · ${JellyStage.BORN.min - n}번 더 가면 캐릭터가 태어나요",
+                    style = SitterText.Caption,
+                    color = s.inkMute,
+                    modifier = Modifier.padding(top = 6.dp),
+                )
+                Text(kind.power, style = SitterText.Body2, color = s.inkSoft, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 14.dp))
+            }
+            Column(Modifier.weight(1f).fillMaxHeight()) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        typeLine ?: "나들이 장소에 10분 이상 머물면 그 분야 젤리가 자라요",
-                        style = SitterText.Body2,
-                        color = if (typeLine != null) s.primary else s.inkMute,
-                        modifier = Modifier.padding(top = 4.dp),
+                        if (places.isEmpty()) "아직 다녀온 곳이 없어요" else "다녀온 곳 ${places.size}곳",
+                        style = SitterText.Title3,
+                        color = s.ink,
+                        modifier = Modifier.weight(1f),
                     )
+                    SitterButton("닫기", onClick = onClose, kind = SitterButtonKind.Soft)
                 }
-                SitterButton("닫기", onClick = onClose, kind = SitterButtonKind.Soft)
-            }
-            Spacer(Modifier.height(20.dp))
-            states.chunked(6).forEach { row ->
-                Row(Modifier.fillMaxWidth().padding(bottom = 14.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                    row.forEach { st -> KindCell(st, Modifier.weight(1f)) }
+                Spacer(Modifier.height(14.dp))
+                if (places.isEmpty()) {
+                    Text("${kind.label} 나들이를 하면 ${kind.character} 젤리가 생겨요", style = SitterText.Body2, color = s.inkMute)
+                    Spacer(Modifier.height(20.dp))
+                    SitterButton("오늘 코스 찾기", onClick = { onClose(); onPlan() })
+                    return@Column
+                }
+                val ordered = places.sortedByDescending { it.placeName == highlight }
+                Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    ordered.forEach { p ->
+                        val course = courseFor(p.placeName)
+                        SitterRow(selected = p.placeName == highlight, outlined = true, contentPadding = PaddingValues(start = 18.dp, top = 12.dp, end = 12.dp, bottom = 12.dp)) {
+                            Column(Modifier.weight(1f)) {
+                                Text(p.placeName, style = SitterText.Body1, color = s.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text("${p.count}번 · 마지막 ${agoText(p.last, today)}" + if (p.nursingRoom) " · 수유실 있음" else "", style = SitterText.Caption, color = s.inkMute, maxLines = 1)
+                            }
+                            val lat = p.latitude
+                            val lon = p.longitude
+                            if (course != null) {
+                                SitterButton("코스 보기", onClick = { onOpenCourse(course) }, kind = SitterButtonKind.Soft, modifier = Modifier.padding(end = 8.dp))
+                            }
+                            if (lat != null && lon != null) {
+                                SitterButton("다시 안내", onClick = { onRoute(p.placeName, lat, lon) }, icon = SitterIcons.Turn)
+                            }
+                        }
+                    }
                 }
             }
-            Text("방울 1~3회 · 몽글 4~9회 · 탄생 10회 이상 · 유형은 최근 6개월 기준", style = SitterText.Caption, color = s.inkMute)
         }
-    }
-}
-
-@Composable
-private fun KindCell(st: JellyState, modifier: Modifier) {
-    val s = SitterSurface.current
-    Column(
-        modifier.clip(SitterShapes.Row).background(if (st.count > 0) s.tile else s.card).border(1.dp, s.line, SitterShapes.Row).padding(vertical = 14.dp, horizontal = 8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Box(Modifier.size(84.dp), contentAlignment = Alignment.Center) {
-            if (st.count > 0) {
-                JellyIcon(st.kind, st.stage, 84.dp)
-            } else {
-                Box(Modifier.size(18.dp).clip(CircleShape).background(Color(0xFFC9D2DC)))
-            }
-        }
-        Text(st.kind.label, style = SitterText.Label, color = s.ink, maxLines = 1, modifier = Modifier.padding(top = 6.dp))
-        Text(stageName(st.kind, st.stage), style = SitterText.Caption, color = if (st.count > 0) Color(st.kind.argb) else s.inkMute, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        val progress = (st.count.coerceAtMost(JellyStage.BORN.min)).toFloat() / JellyStage.BORN.min
-        Box(Modifier.padding(top = 8.dp).fillMaxWidth().height(6.dp).clip(SitterShapes.Pill).background(s.line)) {
-            Box(Modifier.fillMaxHeight().fillMaxWidth(progress).clip(SitterShapes.Pill).background(Color(st.kind.argb)))
-        }
-        Text("${st.count.coerceAtMost(JellyStage.BORN.min)}/${JellyStage.BORN.min}", style = SitterText.Caption, color = s.inkMute, modifier = Modifier.padding(top = 2.dp))
     }
 }
 
 /** 캐릭터 탄생 시트 (B안 374:7543, 정차 중에만). */
 @Composable
-private fun BirthSheet(kind: JellyKind, childName: String, onDone: () -> Unit) {
+internal fun BirthSheet(kind: JellyKind, childName: String, onDone: () -> Unit) {
     val s = SitterSurface.current
     SitterScrim()
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -471,13 +472,7 @@ private fun BirthSheet(kind: JellyKind, childName: String, onDone: () -> Unit) {
             JellyIcon(kind, JellyStage.BORN, 180.dp, Modifier.padding(vertical = 12.dp))
             Text("${childName}의 ${kind.character} 캐릭터가 태어났어요", style = SitterText.Title2, color = s.ink, textAlign = TextAlign.Center)
             Text(kind.typeName, style = SitterText.Title3, color = Color(kind.argb), modifier = Modifier.padding(top = 8.dp))
-            Text(
-                kind.power,
-                style = SitterText.Body2,
-                color = s.inkSoft,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(top = 8.dp),
-            )
+            Text(kind.power, style = SitterText.Body2, color = s.inkSoft, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 8.dp))
             SitterButton("좋아요", onClick = onDone, size = SitterButtonSize.Large, modifier = Modifier.padding(top = 24.dp).fillMaxWidth())
         }
     }
