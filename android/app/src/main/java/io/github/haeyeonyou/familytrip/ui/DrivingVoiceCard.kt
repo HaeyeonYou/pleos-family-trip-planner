@@ -86,7 +86,7 @@ fun DrivingVoiceCard(
 
 /** 마이크 옆 음성 파형 (Figma D01: 높이가 다른 세로 막대 9개, Primary 그라데이션 느낌을 알파로) */
 @Composable
-private fun VoiceWave(color: Color, modifier: Modifier = Modifier) {
+internal fun VoiceWave(color: Color, modifier: Modifier = Modifier) {
     val heights = listOf(14, 26, 38, 22, 44, 30, 40, 24, 16)
     Row(modifier.height(48.dp), horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
         heights.forEachIndexed { i, h ->

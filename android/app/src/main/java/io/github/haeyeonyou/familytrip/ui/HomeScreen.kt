@@ -62,7 +62,7 @@ data class HomeActions(
 
 /**
  * 홈 H01 (Figma 352:2601). 3열 그리드:
- * 1열 지도 카드 + 탑승 감지 추천 카드 / 2열 오늘의 추천 코스 3개 / 3열 정차 공간·경험 나무 타일 + 최근 방문 코스 + 바로가기 독.
+ * 1열 지도 카드 + 탑승 감지 추천 카드 / 2열 오늘의 추천 코스 3개 / 3열 정차 공간·경험 젤리 타일 + 최근 방문 코스 + 바로가기 독.
  * 코스 행을 누르면 지도가 그 코스 경로로 바뀐다 (`05` Q27 [제안]: 추천 1 = 목록 첫 코스, 선택은 행 탭).
  */
 @Composable
@@ -338,7 +338,7 @@ private fun StopSpaceTile(onClick: () -> Unit, modifier: Modifier) {
     }
 }
 
-/** 경험 나무 요약: 이번 달 방문 장소 수(링)와 분야 수. 기록은 기기 VisitStore에서 읽기만 한다. */
+/** 경험 젤리 요약: 이번 달 방문 장소 수(링)와 분야 수. 기록은 기기 VisitStore에서 읽기만 한다. */
 @Composable
 private fun ExperienceTile(visits: List<Visit>, onOpen: () -> Unit, modifier: Modifier) {
     val s = SitterSurface.current
@@ -360,7 +360,7 @@ private fun ExperienceTile(visits: List<Visit>, onOpen: () -> Unit, modifier: Mo
             }
             Text(if (places == 0) "첫 나들이를 기록해 보세요" else "이번 달 ${places}곳 · ${fields}분야", style = SitterText.Caption, color = s.inkSoft, maxLines = 2)
             Text(
-                "경험 나무 보기",
+                "경험 젤리 보기",
                 style = SitterText.Label,
                 color = s.ink,
                 modifier = Modifier.clip(SitterShapes.Pill).background(s.tile).padding(horizontal = 14.dp, vertical = 8.dp),

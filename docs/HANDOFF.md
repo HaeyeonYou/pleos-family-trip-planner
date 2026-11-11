@@ -183,7 +183,7 @@
 | 서버: 그로우 젤리 12분류 판정·앱/웹 반영 | ✅ 완료 (2026-11-11). 코스 장소·방문 기록에 `jelly`, 앱 `classify` 서버 값 우선, 웹 그로우 12분류. 서버 반영 시 `alembic upgrade head` 필요 | #186 · `feature/186-server-jelly12` | [186-server-jelly12.md](docs/agent-tasks/186-server-jelly12.md) |
 | 전체 감사: Figma(11/10) ↔ 실제 앱 (기능·디자인 부족분) | ✅ 완료(2026-11-11, main `dc6e85c` 기준): 필수 8·좋음 31·나중 21. 상위: 그로우 최신 '경험 젤리' 안, 앱 아이콘, 날씨 아이콘, 첫 실행 알림 띠, 음성 패널. 11/11 오후 Figma 페이지 전체 재조회(6절): G01 경험 젤리·C05·C06 문구·새 G03·H01 반경 안 → 지시서 3개 | #196 · PR #197 · 페이지 재조회 #201 | [2026-11-11-full-audit.md](docs/agent-tasks/2026-11-11-full-audit.md) · [감사 문서](docs/audit/2026-11-11-figma-vs-app.md) |
 | 그로우 G01 경험 젤리 + G03 월별 캘린더 (감사 G-1·G-4 필수) | ⏳ 대기(지시서만, 접수 전 필수) | — | [1111-grow-jelly.md](docs/agent-tasks/1111-grow-jelly.md) |
-| 첫인상 다듬기: 앱 아이콘·날씨 아이콘·알림 띠·음성 패널·"경험 나무" 문구 (감사 O-2·H-1·O-1·D-3·H-2 필수) | ⏳ 대기(지시서만, 접수 전 필수) | — | [1111-shell-polish.md](docs/agent-tasks/1111-shell-polish.md) |
+| 첫인상 다듬기: 앱 아이콘·날씨 아이콘·알림 띠·음성 패널·"경험 나무" 문구 (감사 O-2·H-1·O-1·D-3·H-2 필수) | ✅ 완료(shell-polish 세션) | `feature/214-shell-polish` · 이슈 #214 · PR #220 | [1111-shell-polish.md](docs/agent-tasks/1111-shell-polish.md) |
 | 수유 기록 삭제 후 문구·빈자리 정리 (감사 H-12 필수) | ⏳ 대기(child-mode 끝난 뒤, 삭제 범위 QD1 답 필요) | — | [1111-feeding-cleanup.md](docs/agent-tasks/1111-feeding-cleanup.md) |
 
 - **이어받는 법:** [docs/agent-tasks/next-agent-prompt.md](docs/agent-tasks/next-agent-prompt.md)의 프롬프트를 새 에이전트에 그대로 붙여 넣는다.
