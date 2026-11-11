@@ -43,7 +43,7 @@ import kotlinx.coroutines.launch
 import retrofit2.HttpException
 
 /** 위치를 아직 못 받았을 때 쓰는 출발지 (PT 장소, 강남). */
-private val DEFAULT_ORIGIN = LatLng(37.4979, 127.0276)
+internal val DEFAULT_ORIGIN = LatLng(37.4979, 127.0276)
 
 data class TripUiState(
     val requestText: String = "",
