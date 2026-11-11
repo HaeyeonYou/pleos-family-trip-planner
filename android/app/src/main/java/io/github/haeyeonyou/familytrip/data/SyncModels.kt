@@ -23,6 +23,8 @@ data class VisitIn(
     val mood: String?,
     /** 장소 분류 원문 (코스 장소의 category). 서버가 젤리 12분류를 정하는 근거 (#186) */
     val category: String,
+    /** outing | meal | cafe. 식사·카페도 경험 젤리(맛 탐험)라 함께 올린다 (#234) */
+    val role: String = "outing",
 )
 
 @Serializable
@@ -36,6 +38,7 @@ data class VisitBulkItem(
     val status: String,
     val mood: String?,
     val category: String,
+    val role: String = "outing",
 )
 
 @Serializable
@@ -52,6 +55,8 @@ data class VisitOut(
     val status: String = "confirmed",
     val mood: String? = null,
     val category: String = "",
+    /** outing | meal | cafe. 예전 서버면 없음 (#234) */
+    val role: String = "outing",
     /** 서버가 정한 젤리 12분류 (art, science, … travel = [io.github.haeyeonyou.familytrip.grow.JellyKind] 이름). 예전 서버면 없음 (#186) */
     val jelly: String? = null,
 )

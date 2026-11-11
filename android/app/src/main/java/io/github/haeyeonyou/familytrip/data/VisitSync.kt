@@ -21,6 +21,7 @@ const val STATUS_CONFIRMED = "confirmed"
 private val SERVER_THEMES = setOf("nature", "experience", "exhibition", "play", "pet")
 private const val MAX_BULK = 200
 private const val MAX_CATEGORY = 120
+private val SYNC_ROLES = setOf("outing", "meal", "cafe")
 
 /** 차의 방문 [Visit]과 서버 방문 사이의 변환. */
 object VisitMapper {
@@ -29,8 +30,11 @@ object VisitMapper {
 
     fun idOf(v: Visit): String = v.serverId ?: uuid(v.id)
 
-    /** 서버에 올리는 것은 경험 기록이 되는 나들이 방문뿐이다 (식사·카페는 올리지 않는다). */
-    fun syncs(v: Visit): Boolean = v.role == "outing"
+    /**
+     * 서버에 올리는 방문: 경험 젤리가 되는 나들이·식사·카페 (grow/JellyModel.kt와 같은 범위, #234).
+     * 예전에는 나들이만 올려서 차(3건)와 폰 웹 그로우(1건)의 젤리 수가 달랐다.
+     */
+    fun syncs(v: Visit): Boolean = v.role in SYNC_ROLES
 
     fun stayOf(v: Visit): Int? = v.stayMinutes()?.toInt()?.coerceIn(0, 1440)
 
@@ -46,6 +50,7 @@ object VisitMapper {
         status = known?.status ?: STATUS_CONFIRMED,
         mood = known?.mood,
         category = v.category.take(MAX_CATEGORY),
+        role = v.role,
     )
 
     /** 웹 등 다른 곳에서 확정된 방문을 차에 들인다. 서버에는 시각이 없어 그날 정오로 둔다. */
@@ -54,7 +59,7 @@ object VisitMapper {
         return Visit(
             id = localId,
             placeName = s.placeName,
-            role = "outing",
+            role = s.role.takeIf { it in SYNC_ROLES } ?: "outing",
             theme = s.theme,
             category = s.category,
             jelly = s.jelly,
@@ -217,7 +222,7 @@ class VisitSync(
     }
 }
 
-private fun VisitBulkItem.toIn() = VisitIn(placeKey, placeName, theme, visitedOn, stayedMinutes, status, mood, category)
+private fun VisitBulkItem.toIn() = VisitIn(placeKey, placeName, theme, visitedOn, stayedMinutes, status, mood, category, role)
 private fun VisitBulkItem.toKnown() = KnownVisit(status, mood, stayedMinutes)
 
 val knownVisitsSerializer = MapSerializer(String.serializer(), KnownVisit.serializer())
