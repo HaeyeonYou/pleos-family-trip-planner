@@ -36,7 +36,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import io.github.haeyeonyou.familytrip.care.APPLY_AT_CHOICES
+import io.github.haeyeonyou.familytrip.care.APPLY_DEPARTURE
 import io.github.haeyeonyou.familytrip.care.FAN_CHOICES
+import io.github.haeyeonyou.familytrip.care.applyAtIndex
+import io.github.haeyeonyou.familytrip.care.applyAtOf
+import io.github.haeyeonyou.familytrip.care.departureHint
 import io.github.haeyeonyou.familytrip.care.MODE_SLOTS
 import io.github.haeyeonyou.familytrip.care.VOLUME_CHOICES
 import io.github.haeyeonyou.familytrip.care.changedModes
@@ -52,6 +57,7 @@ import io.github.haeyeonyou.familytrip.data.PresetState
 /**
  * 모드 편집 시트 (C08, 800x766 앱 프레임 (228,60)). [presets]는 한 아이의 모드 3개이고 [childName]이 그 아이다 (QO5, 모드 값은 아이별). 탭 3개(베이비케어 기본 · 낮잠·수면 · 수유 정차) × 목표 온도 · 풍량 · 음량.
  * 탭을 바꿔도 고친 값은 남고, 저장하면 바뀐 모드만 서버(웹앱과 같은 값)에 올린다. 정차 중에만 연다.
+ * 적용 시점(탑승하면 바로 · 출발 시각 · 직접 실행, #168)도 모드마다 고른다. [departureAt]은 고른 코스의 출발 시각("HH:MM", 없으면 null)으로 '출발 시각' 안내에 쓴다.
  */
 @Composable
 fun BoxScope.ModeEditSheet(
@@ -60,11 +66,13 @@ fun BoxScope.ModeEditSheet(
     error: String?,
     onSave: (Map<String, ClimateSettings>) -> Unit,
     childName: String? = null,
+    departureAt: String? = null,
     onDismiss: () -> Unit,
 ) {
     val s = SitterSurface.current
     val slots = MODE_SLOTS.filter { slot -> presets.any { it.slot == slot } }
-    val original = remember(presets) { presets.associate { it.slot to it.settings } }
+    // 적용 시점은 서버 값(없으면 슬롯 기본값)을 넣어 두어, 같은 값을 다시 골라도 바뀐 것으로 보지 않게 한다.
+    val original = remember(presets) { presets.associate { it.slot to it.settings.copy(applyAt = applyAtOf(it)) } }
     var drafts by remember { mutableStateOf(original) }
     var tab by remember { mutableStateOf(initialSlot.takeIf { it in slots } ?: slots.firstOrNull()) }
     val current = tab?.let { drafts[it] }
@@ -121,10 +129,17 @@ fun BoxScope.ModeEditSheet(
                 )
             }
             VolumeSlider(current.mediaVolume, onChange = { v -> edit { it.copy(mediaVolume = v) } }, Modifier.padding(top = 16.dp))
+            val applyAt = presets.firstOrNull { it.slot == tab }?.let { applyAtOf(it.copy(settings = current)) }
             EditLine("적용 시점", Modifier.padding(top = 24.dp)) {
-                // 적용 시점은 서버에 아직 필드가 없어 지금 정해진 시점만 보인다 (지시서 "서버에 필요한 것").
-                val whenLabel = presets.firstOrNull { it.slot == tab }?.whenLabel.orEmpty().ifBlank { "직접 실행" }
-                Segments(options = listOf(whenLabel), selected = 0, onSelect = {}, itemWidth = 164.dp)
+                Segments(
+                    options = APPLY_AT_CHOICES.map { it.second },
+                    selected = applyAt?.let { applyAtIndex(it) } ?: -1,
+                    onSelect = { i -> edit { it.copy(applyAt = APPLY_AT_CHOICES[i].first) } },
+                    itemWidth = 150.dp,
+                )
+            }
+            if (applyAt == APPLY_DEPARTURE) {
+                Text(departureHint(departureAt), style = SitterText.Caption, color = s.inkMute, textAlign = TextAlign.End, modifier = Modifier.padding(top = 8.dp).fillMaxWidth())
             }
         }
         error?.let { Text(it, style = SitterText.Label, color = SitterPalette.Danger, modifier = Modifier.padding(top = 16.dp)) }
