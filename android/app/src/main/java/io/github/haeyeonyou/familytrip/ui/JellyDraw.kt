@@ -31,12 +31,6 @@ import kotlin.math.roundToInt
 /** PNG에서 Figma 프레임(200) 한 변의 픽셀 수 (2배). */
 private const val FRAME_PX = 400f
 
-/**
- * 경험 우주에서 젤리 프레임 한 변(설계 단위). 원본 그림이 단계마다 프레임 안 크기가 달라(방울은 작고 탄생은 꽉 참)
- * 모든 단계를 같은 프레임으로 그리면 Figma 그대로 커진다. 탄생 몸통이 분류 노드 반지름(28)쯤 된다.
- */
-internal const val UNIVERSE_JELLY_FRAME = 76f
-
 internal fun jellyRes(kind: JellyKind, stage: JellyStage): Int {
     val (drop, puff, born) = when (kind) {
     JellyKind.ART -> Triple(R.drawable.jelly_unicorn_drop, R.drawable.jelly_unicorn_puff, R.drawable.jelly_unicorn_born)
@@ -79,16 +73,17 @@ fun JellyIcon(kind: JellyKind, stage: JellyStage, size: Dp, modifier: Modifier =
     }
 }
 
-/** 경험 우주의 젤리: 같은 프레임으로 [c]에 그린다. */
-internal fun DrawScope.drawJelly(image: ImageBitmap, c: Offset) = drawJellyImage(image, c, UNIVERSE_JELLY_FRAME)
+/** 경험 젤리 궤도(#216): 프레임 한 변 [frame]으로 [c]에 그린다. */
+internal fun DrawScope.drawJellyFramed(image: ImageBitmap, c: Offset, frame: Float, alpha: Float = 1f) = drawJellyImage(image, c, frame, alpha)
 
 /** 프레임 한 변이 [frame]이 되게, 프레임 가운데를 [c]에 맞춰 그린다. */
-private fun DrawScope.drawJellyImage(image: ImageBitmap, c: Offset, frame: Float) {
+private fun DrawScope.drawJellyImage(image: ImageBitmap, c: Offset, frame: Float, alpha: Float = 1f) {
     val k = frame / FRAME_PX
     drawImage(
         image,
         dstOffset = IntOffset((c.x - frame / 2f).roundToInt(), (c.y - frame / 2f).roundToInt()),
         dstSize = IntSize((image.width * k).roundToInt().coerceAtLeast(1), (image.height * k).roundToInt().coerceAtLeast(1)),
+        alpha = alpha,
         filterQuality = FilterQuality.High,
     )
 }

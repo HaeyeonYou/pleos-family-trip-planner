@@ -2,6 +2,7 @@ package io.github.haeyeonyou.familytrip.grow
 
 import io.github.haeyeonyou.familytrip.data.Visit
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -96,5 +97,13 @@ class GrowVoiceTest {
         assertNull(revisitOf(list, "에버랜드"))
         assertNull(revisitOf(list, "별마당 도서관")!!.latitude)
         assertEquals("오늘 간 서울숲이에요. 다시 안내할까요?", revisitProposalMessage(r.let { Revisit(it.placeName, it.kind, 1, today, 1.0, 1.0, false) }, today))
+    }
+
+    @Test
+    fun 기간만_말하면_G03_캘린더_분류나_장소가_있으면_G01() {
+        assertTrue(GrowView(period = GrowPeriod.LAST_MONTH).opensCalendar)
+        assertFalse(GrowView(kind = JellyKind.ART, period = GrowPeriod.LAST_MONTH).opensCalendar)
+        assertFalse(GrowView(kind = JellyKind.ART).opensCalendar)
+        assertFalse(GrowView().opensCalendar)
     }
 }

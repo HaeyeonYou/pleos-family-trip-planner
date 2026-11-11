@@ -584,6 +584,12 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onRoute = { name, lat, lon -> container.navi.requestRoute(io.github.haeyeonyou.familytrip.navi.Place(name, lat, lon)) },
                                 onPlan = ::goHome,
+                                // 안가봄 줄: 빈 분야 근처 장소 검색 1회 (#216, QF1 ③)
+                                searchUnvisited = { targets, visited ->
+                                    val loc = container.location.state.value
+                                    val origin = if (loc.latitude != null && loc.longitude != null) io.github.haeyeonyou.familytrip.data.LatLng(loc.latitude, loc.longitude) else io.github.haeyeonyou.familytrip.ui.DEFAULT_ORIGIN
+                                    io.github.haeyeonyou.familytrip.grow.searchUnvisited(container.api, origin, state.profile, targets, visited)
+                                },
                             )
                         }
                         composable(Routes.PROFILE) {
