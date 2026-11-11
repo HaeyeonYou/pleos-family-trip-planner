@@ -13,7 +13,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -40,12 +40,28 @@ class ClimateSettings(BaseModel):
 Slot = Literal["boarding", "nap", "feeding_stop"]
 LEGACY_SLOT: Slot = "boarding"
 
-# 슬롯별 이름·적용 시점 문구와, 아직 보낸 적 없을 때 웹이 보여 줄 기본값
+# 적용 시점 (C08, #168). 출발 시각은 차 앱에서 고른(시작할) 코스의 출발 시각이고, 차 앱이 켜져 있을 때만 켠다(원격 공조 없음).
+ApplyAt = Literal["boarding", "departure", "manual"]
+APPLY_AT: dict[str, str] = {"boarding": "탑승하면 바로", "departure": "출발 시각", "manual": "직접 실행"}
+
+# 슬롯별 이름·적용 시점 기본값(예전 고정 문구 `when`에 맞춤)과, 아직 보낸 적 없을 때 웹이 보여 줄 기본값
 SLOTS: dict[str, dict] = {
-    "boarding": {"label": "탑승 준비", "when": "탑승 시", "defaults": ClimateSettings(name="탑승 준비", temperature=24, fan_speed=2, media_volume=30)},
-    "nap": {"label": "낮잠", "when": "수면 모드와 함께", "defaults": ClimateSettings(name="낮잠", temperature=23, fan_speed=1, media_volume=20)},
-    "feeding_stop": {"label": "수유 정차", "when": "정차 시", "defaults": ClimateSettings(name="수유 정차", temperature=24, fan_speed=1, media_volume=10)},
+    "boarding": {"label": "탑승 준비", "when": "탑승 시", "apply_at": "boarding", "defaults": ClimateSettings(name="탑승 준비", temperature=24, fan_speed=2, media_volume=30)},
+    "nap": {"label": "낮잠", "when": "수면 모드와 함께", "apply_at": "manual", "defaults": ClimateSettings(name="낮잠", temperature=23, fan_speed=1, media_volume=20)},
+    "feeding_stop": {"label": "수유 정차", "when": "정차 시", "apply_at": "manual", "defaults": ClimateSettings(name="수유 정차", temperature=24, fan_speed=1, media_volume=10)},
 }
+
+
+def when_label(slot: str, apply_at: str) -> str:
+    """예전 차 앱·웹이 보여 주는 적용 시점 문구. 슬롯 기본값이면 예전 문구 그대로, 바꿨으면 고른 시점."""
+    meta = SLOTS[slot]
+    return meta["when"] if apply_at == meta["apply_at"] else APPLY_AT[apply_at]
+
+
+class PresetEdit(ClimateSettings):
+    """`PUT /presets/{slot}` 본문: 설정 값 + 적용 시점(선택). 적용 시점을 비우면 지금 값을 그대로 둔다."""
+
+    apply_at: ApplyAt | None = Field(None, description="boarding 탑승하면 바로 / departure 출발 시각 / manual 직접 실행")
 
 
 class PendingPreset(BaseModel):
@@ -63,6 +79,7 @@ class PresetState(BaseModel):
     child_id: uuid.UUID | None = Field(None, description="이 값의 아이. 비면 가족 기본값")
     label: str
     when: str
+    apply_at: ApplyAt = Field("manual", description="적용 시점 (boarding 탑승하면 바로 / departure 출발 시각 / manual 직접 실행)")
     sent: bool
     id: uuid.UUID | None = None
     settings: ClimateSettings
@@ -72,18 +89,32 @@ class PresetState(BaseModel):
 
 
 async def save(
-    db: AsyncSession, user: User, settings: ClimateSettings, slot: str = LEGACY_SLOT, applied: bool = False, child_id: uuid.UUID | None = None
+    db: AsyncSession,
+    user: User,
+    settings: ClimateSettings,
+    slot: str = LEGACY_SLOT,
+    applied: bool = False,
+    child_id: uuid.UUID | None = None,
+    apply_at: str | None = None,
 ) -> None:
-    """사용자(·아이)의 슬롯 프리셋을 새로 보낸 것으로 바꾼다 (차가 다시 받게 applied_at을 비운다). 차에서 직접 고친 것이면 applied=True."""
+    """사용자(·아이)의 슬롯 프리셋을 새로 보낸 것으로 바꾼다 (차가 다시 받게 applied_at을 비운다). 차에서 직접 고친 것이면 applied=True.
+    apply_at이 None이면 저장된 적용 시점을 그대로 둔다 (처음이면 가족 기본값·슬롯 기본값을 따른다)."""
     now = utcnow()
+    values = ClimateSettings.model_validate(settings.model_dump(exclude={"apply_at"})).model_dump()
     stmt = insert(ClimatePreset).values(
-        id=uuid.uuid4(), user_id=user.id, child_id=child_id, slot=slot, settings=settings.model_dump(), sent_at=now, applied_at=now if applied else None
+        id=uuid.uuid4(), user_id=user.id, child_id=child_id, slot=slot, settings=values, apply_at=apply_at, sent_at=now, applied_at=now if applied else None
     )
     await db.execute(
         stmt.on_conflict_do_update(
             constraint="uq_climate_presets_user_child_slot",
             # 새로 보낼 때마다 id를 바꿔, 차가 예전 것을 적용 완료로 표시해도 새 프리셋은 대기로 남게 한다.
-            set_={"id": stmt.excluded.id, "settings": stmt.excluded.settings, "sent_at": stmt.excluded.sent_at, "applied_at": stmt.excluded.applied_at},
+            set_={
+                "id": stmt.excluded.id,
+                "settings": stmt.excluded.settings,
+                "apply_at": func.coalesce(stmt.excluded.apply_at, ClimatePreset.apply_at),
+                "sent_at": stmt.excluded.sent_at,
+                "applied_at": stmt.excluded.applied_at,
+            },
         )
     )
     await db.commit()
@@ -112,12 +143,15 @@ def _states_from(rows: dict[str, ClimatePreset], fallback: dict[str, ClimatePres
     for slot, meta in SLOTS.items():
         row = rows.get(slot)
         base = fallback.get(slot)
+        # 적용 시점도 아이 값 → 가족 기본값 → 슬롯 기본값 순서로 정한다.
+        apply_at = (row.apply_at if row else None) or (base.apply_at if base else None) or meta["apply_at"]
         result.append(
             PresetState(
                 slot=slot,
                 child_id=child_id,
                 label=meta["label"],
-                when=meta["when"],
+                when=when_label(slot, apply_at),
+                apply_at=apply_at,
                 sent=row is not None,
                 id=row.id if row else None,
                 # 아이 자기 값이 없으면 가족 기본값, 그것도 없으면 슬롯 기본값으로 시작한다.
@@ -177,16 +211,16 @@ async def list_child_presets(user: User = Depends(current_user), db: AsyncSessio
 @router.put("/{slot}", response_model=PresetState)
 async def put_preset(
     slot: Slot,
-    settings: ClimateSettings,
+    settings: PresetEdit,
     applied_on_car: bool = False,
     child_id: uuid.UUID | None = None,
     user: User = Depends(current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """슬롯 하나를 저장한다(child_id를 주면 그 아이 값). 차에서 정차 중 직접 고친 것이면 applied_on_car=true
-    (이미 차에 적용된 값이라 대기로 남기지 않는다)."""
+    (이미 차에 적용된 값이라 대기로 남기지 않는다). 본문의 apply_at으로 적용 시점을 바꾼다 (비우면 그대로)."""
     child_id = await own_child(db, user, child_id)
-    await save(db, user, settings, slot, applied=applied_on_car, child_id=child_id)
+    await save(db, user, settings, slot, applied=applied_on_car, child_id=child_id, apply_at=settings.apply_at)
     return next(state for state in await states(db, user, child_id) if state.slot == slot)
 
 
