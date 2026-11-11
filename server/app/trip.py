@@ -24,7 +24,8 @@ router = APIRouter(prefix="/me", tags=["trip"])
 MAX_STOPS = 12
 HHMM = r"^([01]\d|2[0-3]):[0-5]\d$"
 
-Role = Literal["meal", "outing", "cafe", "home"]
+# fuel: 연료가 부족할 때 넣는 주유소·충전소 경유지(#215)
+Role = Literal["meal", "outing", "cafe", "fuel", "home"]
 # visited 도착함 · current 지금 가는 곳(또는 도착해 머무는 곳) · upcoming 아직 · skipped 건너뜀(코스를 일찍 끝냄)
 StopState = Literal["visited", "current", "upcoming", "skipped"]
 
@@ -90,7 +91,7 @@ def web_card(trip: Trip | None, today: date) -> dict | None:
     """폰 웹 홈 카드. 오늘 코스만 보여 준다(어제 것은 지난 일)."""
     if trip is None or trip.started_on != today:
         return None
-    places = [s for s in trip.stops if s.role != "home"]
+    places = [s for s in trip.stops if s.role not in ("home", "fuel")]
     visited = sum(1 for s in places if s.state == "visited")
     current = next((i for i, s in enumerate(places) if s.state == "current"), None)
     home = next((s for s in trip.stops if s.role == "home"), None)

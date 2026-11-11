@@ -60,6 +60,12 @@ def test_car_puts_trip_and_phone_home_shows_changes():
             page = (await mom.get("/m/")).text
             assert "코스를 마쳤어요" in page and "안 감" in page and "귀가</" not in page and "2곳 다녀왔어요" in page
 
+            # 연료 경유지(#215)는 장소 수에 넣지 않는다
+            fueled = _trip()
+            fueled["stops"].insert(1, {"name": "판교주유소", "role": "fuel", "arrive_at": "11:50", "stay_minutes": 10, "state": "upcoming"})
+            assert (await client.put("/me/trip", headers=car, json=fueled)).status_code == 200
+            assert "코스 진행 중 · 2/3 장소" in (await mom.get("/m/")).text
+
             # 다른 계정은 못 본다 · 지난 날짜 코스는 홈에 안 보인다
             assert (await client.get("/me/trip", headers=stranger)).status_code == 204
             await client.put("/me/trip", headers=car, json=_trip(started_on="2020-01-01"))
