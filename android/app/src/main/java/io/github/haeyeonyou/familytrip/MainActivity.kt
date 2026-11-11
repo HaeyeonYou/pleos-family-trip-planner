@@ -647,6 +647,7 @@ class MainActivity : ComponentActivity() {
                                         remove = vm::removeStop,
                                         changeStay = vm::changeStay,
                                         add = vm::addStop,
+                                        pickParking = vm::pickParking,
                                     ),
                                     onSave = vm::saveCourse,
                                     onStartGuide = {
