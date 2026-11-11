@@ -42,6 +42,9 @@ import io.github.haeyeonyou.familytrip.care.FeedingPhase
 import io.github.haeyeonyou.familytrip.care.FeedingStopSession
 import io.github.haeyeonyou.familytrip.care.sleepVoicePercent
 import io.github.haeyeonyou.familytrip.care.childChipLabel
+import io.github.haeyeonyou.familytrip.care.isInfant
+import io.github.haeyeonyou.familytrip.care.presetsForAge
+import io.github.haeyeonyou.familytrip.care.toddlerChipLabel
 import io.github.haeyeonyou.familytrip.care.childOptions
 import io.github.haeyeonyou.familytrip.data.presetsForChild
 import io.github.haeyeonyou.familytrip.care.selectedChildIndex
@@ -99,6 +102,12 @@ data class CareActions(
     val onSaveModes: (edits: Map<String, ClimateSettings>, onDone: (Boolean) -> Unit) -> Unit,
     val onDismissPreset: (slot: String) -> Unit,
     val onEnter: () -> Unit,
+    /** [kind] 후보를 [limit]곳 찾는다 (유아기 가까운 화장실 3곳, #217). */
+    val onFindNearby: (CareKind, Int) -> Unit = { _, _ -> },
+    /** 유아기 공조 직접 조작(C05-T1): 고른 아이의 베이비케어 값을 바꾼다 (켜져 있으면 차에도). */
+    val onAdjustBabyCare: (ClimateSettings) -> Unit = {},
+    /** 유아기 정차 모드 켜기 (수유 기록 없음) */
+    val onStartRestStop: () -> Unit = {},
 )
 
 /**
@@ -118,7 +127,10 @@ fun CareScreen(
     val now = rememberNow()
     val children = state.profile?.children.orEmpty()
     val child = children.getOrNull(selectedChildIndex(children, care.selectedChildId))
-    val chipLabel = childChipLabel(children, care.selectedChildId)
+    // 12개월이 넘으면 유아기 화면 (수유 없음, Figma ⑦ C05-T1, #217)
+    val infant = isInfant(child)
+    val chipLabel = childChipLabel(children, care.selectedChildId).let { if (infant || child == null) it else toddlerChipLabel(it) }
+    LaunchedEffect(infant) { if (!infant) actions.onFindNearby(CareKind.RESTROOM, TODDLER_RESTROOMS) }
     var choosingChild by remember { mutableStateOf(false) }
     // 아이 선택은 정차 중에만 (주행하면 닫는다)
     LaunchedEffect(isParked) { if (!isParked) choosingChild = false }
@@ -129,7 +141,7 @@ fun CareScreen(
 
     SitterCanvas {
         SitterVoiceBar(
-            hint = "“애 잔다” · “수유할게” · “수유실 찾아줘”라고 말해 보세요",
+            hint = if (infant) "“애 잔다” · “수유할게” · “수유실 찾아줘”라고 말해 보세요" else "“애 잔다” · “화장실 찾아줘” · “정차할 곳 찾아줘”라고 말해 보세요",
             avatarLabel = child?.name?.firstOrNull()?.toString(),
             weather = state.weather?.let { w ->
                 {
@@ -142,15 +154,19 @@ fun CareScreen(
         )
         SitterChipRow {
             SitterChip(chipLabel, selected = true, onClick = { if (isParked && children.size > 1) choosingChild = true }, icon = SitterIcons.Baby, trailingIcon = if (children.size > 1) SitterIcons.ChevronDown else null)
-            CareKindChip(CareKind.NURSING, actions)
-            CareKindChip(CareKind.DIAPER, actions)
-            CareKindChip(CareKind.REST, actions)
-            CareKindChip(CareKind.RESTROOM, actions)
-            // 소아과·약국은 서버 종류가 생기기 전까지 준비 중 (D4)
-            SitterChip("소아과", selected = false, onClick = {}, modifier = Modifier.alpha(0.4f), icon = SitterIcons.Clinic)
-            SitterChip("약국", selected = false, onClick = {}, modifier = Modifier.alpha(0.4f), icon = SitterIcons.Pill)
+            if (!infant) {
+                ToddlerChips(actions.onOpenUrgent)
+            } else {
+                CareKindChip(CareKind.NURSING, actions)
+                CareKindChip(CareKind.DIAPER, actions)
+                CareKindChip(CareKind.REST, actions)
+                CareKindChip(CareKind.RESTROOM, actions)
+                // 소아과·약국은 서버 종류가 생기기 전까지 준비 중 (D4)
+                SitterChip("소아과", selected = false, onClick = {}, modifier = Modifier.alpha(0.4f), icon = SitterIcons.Clinic)
+                SitterChip("약국", selected = false, onClick = {}, modifier = Modifier.alpha(0.4f), icon = SitterIcons.Pill)
+            }
         }
-        SitterThreeColumns(
+        if (!infant) ToddlerCareBody(state, care, actions, isParked, onEdit = { editingSlot = it }) else SitterThreeColumns(
             first = { BabyCareColumn(state, care, actions, isParked, onEdit = { editingSlot = it }) },
             second = {
                 FeedingTimerCard(care.feeding, care.feedingStop, now, actions, Modifier.height(410.dp))
@@ -186,7 +202,7 @@ fun CareScreen(
                 onDismiss = { choosingChild = false },
             )
         }
-        if (care.askFeedingStop && care.feedingStop == null) {
+        if (infant && care.askFeedingStop && care.feedingStop == null) {
             FeedingStopAsk(
                 place = care.addedWaypoint?.place?.name,
                 summary = state.presets.firstOrNull { it.slot == "feeding_stop" }?.let { modeSummary(it.settings) } ?: "24°C · 송풍",
@@ -196,7 +212,8 @@ fun CareScreen(
         }
         editingSlot?.let { slot ->
             ModeEditSheet(
-                presets = state.presets,
+                // 유아는 수유 정차 모드가 없다 (#217)
+                presets = presetsForAge(state.presets, infant),
                 childName = child?.name?.takeIf { children.size > 1 },
                 departureAt = state.course?.departureAt,
                 initialSlot = slot,
@@ -221,7 +238,7 @@ private fun CareKindChip(kind: CareKind, actions: CareActions) {
 // ───────────── 1열: 베이비케어 모드 ─────────────
 
 @Composable
-private fun IconCircle(icon: ImageVector, tint: Color, background: Color, size: Int = 48) {
+internal fun IconCircle(icon: ImageVector, tint: Color, background: Color, size: Int = 48) {
     Box(Modifier.size(size.dp).clip(CircleShape).background(background), contentAlignment = Alignment.Center) {
         SitterIcon(icon, tint, size = SitterIconSize.Medium)
     }
@@ -289,7 +306,7 @@ private fun BabyCareColumn(state: TripUiState, care: CareState, actions: CareAct
 }
 
 @Composable
-private fun ModeRow(icon: ImageVector, title: String, summary: String, voice: String, active: Boolean = false, activeLabel: String = "적용 중", onClick: () -> Unit) {
+internal fun ModeRow(icon: ImageVector, title: String, summary: String, voice: String, active: Boolean = false, activeLabel: String = "적용 중", onClick: () -> Unit) {
     val s = SitterSurface.current
     SitterRow(Modifier.fillMaxWidth(), selected = active, outlined = active, onClick = onClick) {
         Column(Modifier.fillMaxWidth()) {
@@ -472,12 +489,17 @@ private fun durationText(minutes: Int): String = when {
 }
 
 @Composable
-private fun FrequentPlacesCard(places: List<FrequentCarePlace>, onGo: (CarePlace) -> Unit, modifier: Modifier) {
+internal fun FrequentPlacesCard(
+    places: List<FrequentCarePlace>,
+    onGo: (CarePlace) -> Unit,
+    modifier: Modifier,
+    emptyText: String = "방문 기록이 쌓이면 자주 가는 수유실·케어 장소를 알려 드려요",
+) {
     val s = SitterSurface.current
     SitterCard(modifier.fillMaxWidth()) {
         Text("자주 가는 케어 장소", style = SitterText.Title3, color = s.ink)
         if (places.isEmpty()) {
-            Text("방문 기록이 쌓이면 자주 가는 수유실·케어 장소를 알려 드려요", style = SitterText.Body2, color = s.inkMute, modifier = Modifier.padding(top = 12.dp))
+            Text(emptyText, style = SitterText.Body2, color = s.inkMute, modifier = Modifier.padding(top = 12.dp))
             return@SitterCard
         }
         val first = places[0]

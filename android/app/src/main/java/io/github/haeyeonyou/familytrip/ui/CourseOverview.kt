@@ -69,12 +69,14 @@ fun CourseOverview(
     weather: WeatherInfo? = null,
     going: Int = 0,
     origin: io.github.haeyeonyou.familytrip.data.LatLng? = null,
+    /** 12개월 이하 아이가 있을 때만 수유 지점·수유 여유를 보인다 (#217). */
+    showFeeding: Boolean = true,
 ) {
     val s = SitterSurface.current
     val outing = course.stops.firstOrNull { it.role == "outing" } ?: course.stops.first()
     val now = rememberNow()
     val nextFeeding = feeding.nextAt?.let { Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalTime() }
-    val point = feedingPoint(course, nextFeeding)
+    val point = if (showFeeding) feedingPoint(course, nextFeeding) else null
     val visits = course.stops.count { it.role != "home" }
     // 오른쪽 패널: null이면 H02 상세, 아니면 H02-1(대체 후보) 또는 장소 추가. 머무름을 바꿔 코스가 새로 와도 패널은 그대로 둔다.
     var panelState by remember { mutableStateOf<CoursePanel?>(null) }
@@ -178,7 +180,7 @@ fun CourseOverview(
                     }
                     CoursePanel.Add -> AddPanel(course, loading, error, message, onAdd = edit.add, onClose = { panelState = null })
                     null -> DetailPanel(
-                        course, outing, feeding, now, loading, error, message, onStartGuide,
+                        course, outing, feeding.takeIf { showFeeding }, now, loading, error, message, onStartGuide,
                         onEdit = { panelState = CoursePanel.Replace(0) },
                         onAlternative = { panelState = CoursePanel.Replace(outingIndex) },
                         onSave = onSave,
@@ -313,7 +315,8 @@ private fun tagLabel(key: String) = when (key) {
 private fun ColumnScope.DetailPanel(
     course: CourseResponse,
     outing: CourseStop,
-    feeding: FeedingRoutine,
+    /** null이면 수유를 보이지 않는다 (12개월 넘은 아이만, #217) */
+    feeding: FeedingRoutine?,
     now: Long,
     loading: Boolean,
     error: String?,
@@ -334,10 +337,14 @@ private fun ColumnScope.DetailPanel(
     ) {
         SitterIcon(SitterIcons.Clock, s.primary, size = SitterIconSize.Medium)
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            val next = feeding.nextAt?.let { " · 다음 수유 ${io.github.haeyeonyou.familytrip.data.clockLabel(it)}" } ?: ""
+            val next = feeding?.nextAt?.let { " · 다음 수유 ${io.github.haeyeonyou.familytrip.data.clockLabel(it)}" } ?: ""
             Text("도착 ${first.arriveAt}$next", style = SitterText.Title3, color = s.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(
-                feedingSlackText(feeding, first.arriveAt, now) ?: "케어에서 수유를 기록하면 도착 때 여유를 알려 드려요",
+                if (feeding == null) {
+                    "${first.place.name} · ${first.driveMinutes}분 이동"
+                } else {
+                    feedingSlackText(feeding, first.arriveAt, now) ?: "케어에서 수유를 기록하면 도착 때 여유를 알려 드려요"
+                },
                 style = SitterText.Caption,
                 color = s.primary,
                 maxLines = 2,

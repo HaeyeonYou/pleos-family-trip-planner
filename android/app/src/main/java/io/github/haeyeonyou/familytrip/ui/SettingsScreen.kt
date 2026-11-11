@@ -89,7 +89,8 @@ fun SettingsScreen(
     val wide = !isNarrowWindow()
     val cards: List<@Composable (Modifier) -> Unit> = listOf(
         { m -> FamilyCard(profile, actions.onEditProfile, m) },
-        { m -> RoutineCard(feeding.intervalMinutes, nap, actions.onInterval, actions.onNap, m) },
+        // 수유 간격은 첫째 아이 값이라 첫째가 12개월 이하일 때만 보인다 (#217)
+        { m -> RoutineCard(feeding.intervalMinutes, nap, actions.onInterval, actions.onNap, m, showFeeding = io.github.haeyeonyou.familytrip.care.isInfant(profile?.children?.firstOrNull())) },
         { m -> PreferenceCard(prefs, actions.onPreference, m) },
         { m -> DataCard(loggedIn = account != null, onWipe = actions.onWipe, modifier = m) },
     )
@@ -202,10 +203,10 @@ private fun FamilyCard(profile: FamilyProfile?, onEdit: () -> Unit, modifier: Mo
 // ② 루틴
 
 @Composable
-private fun RoutineCard(intervalMinutes: Int, nap: NapWindow, onInterval: (Int) -> Unit, onNap: (NapWindow) -> Unit, modifier: Modifier) {
+private fun RoutineCard(intervalMinutes: Int, nap: NapWindow, onInterval: (Int) -> Unit, onNap: (NapWindow) -> Unit, modifier: Modifier, showFeeding: Boolean = true) {
     var napOpen by rememberSaveable { mutableStateOf(false) }
     SettingsCard("루틴", FigmaIcons.Clock, modifier) {
-        SettingRow("수유 간격", last = false) {
+        if (showFeeding) SettingRow("수유 간격", last = false) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 RoundStepButton(FigmaIcons.Minus, "수유 간격 줄이기", enabled = intervalMinutes > IntervalStepper.MIN) { onInterval(IntervalStepper.step(intervalMinutes, -1)) }
                 Text(durationLabel(intervalMinutes.toLong()), fontSize = 20.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.widthIn(min = 64.dp))

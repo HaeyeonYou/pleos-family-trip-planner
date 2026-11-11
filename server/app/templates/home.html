@@ -28,7 +28,9 @@
 </section>
 {% endif %}
 
-{% if feeding.has_last %}
+{% if not feeding.show %}
+{# 12개월 넘은 아이만 있으면 수유 카드를 보이지 않는다 (#217) #}
+{% elif feeding.has_last %}
 <a class="card tint" href="/m/care/feed" style="margin-top:12px">
   <div class="row" style="padding:0;min-height:48px">
     <span class="grow"><span class="name">마지막 수유 {{ feeding.last }} · 다음 {{ feeding.next }}</span><br><span class="meta">{{ feeding.left_text }} · {{ feeding.interval_text }}</span></span>
