@@ -46,6 +46,10 @@ object SitterPalette {
 
     // 하단 구분선·스크림
     val Scrim = Color(0xFF191F28)
+
+    // 코스 미리보기 지도 장식 (Figma H01 공원 원·물길 띠, #239)
+    val MapPark = Color(0xFFD5EBD9)
+    val MapWater = Color(0xFFCFE0F2)
 }
 
 /**
