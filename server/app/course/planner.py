@@ -53,8 +53,9 @@ SUGGESTIONS = 3  # 홈에 보여 줄 추천 코스 수
 MAX_INTEREST_SEARCHES = 3  # 관심사 키워드 검색은 앞의 3개까지 (카카오 호출 수)
 DETOUR_RATIO_RANGE = (0.5, 2.0)  # 실제 길찾기/추정 시간 비율 보정의 한계 (이상치 방지)
 
-STAY_MINUTES = {StopRole.MEAL: 60, StopRole.OUTING: 120, StopRole.CAFE: 40, StopRole.FUEL: fuel.FUEL_STAY_MINUTES}
-INFANT_OUTING_MINUTES = 90  # 만 2세 이하는 나들이를 짧게
+PLACE_STAY_MINUTES = 60  # 장소마다 기본 60분 (Figma H02-2, 사용자 결정 2026-11-12). 코스 상세에서 ±30분씩 바꾼다
+STAY_MINUTES = {StopRole.MEAL: PLACE_STAY_MINUTES, StopRole.OUTING: PLACE_STAY_MINUTES, StopRole.CAFE: PLACE_STAY_MINUTES,
+                StopRole.FUEL: fuel.FUEL_STAY_MINUTES}
 
 
 class TourSource(Protocol):
@@ -737,8 +738,6 @@ def _stays(stops: list[tuple[StopRole, Place]], ev: bool) -> list[int | None]:
 
 
 def _stay_minutes(role: StopRole, cond: TripConditions) -> int:
-    if role == StopRole.OUTING and cond.has_infant():
-        return INFANT_OUTING_MINUTES
     return STAY_MINUTES[role]
 
 

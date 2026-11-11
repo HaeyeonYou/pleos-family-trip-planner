@@ -119,8 +119,8 @@ fun CourseOverview(
             SitterCard(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 20.dp, top = 20.dp, end = 20.dp, bottom = 12.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("코스 타임라인", style = SitterText.Title3, color = s.ink, modifier = Modifier.weight(1f))
-                    // Figma H02-2는 "· 장소마다 기본 60분"이 더 있지만, 머무는 시간 규칙(역할별)이 달라 사용자 결정 전까지 쓰지 않는다 (지시서 임시 결정 6)
-                    Text("↻ 교체 · ✕ 삭제 · ↕ 순서 변경", style = SitterText.Caption, color = s.inkMute)
+                    // Figma H02-2 머리글. 머무는 시간은 서버가 장소마다 60분으로 잡는다(사용자 결정 2026-11-12)
+                    Text("↻ 교체 · ✕ 삭제 · ↕ 순서 변경 · 장소마다 기본 60분", style = SitterText.Caption, color = s.inkMute)
                 }
                 Column(Modifier.padding(top = 12.dp).verticalScroll(rememberScrollState())) {
                     TimelineRow(course.departureAt.ifBlank { "--:--" }, "출발", hollow = true)
@@ -432,7 +432,7 @@ private fun ColumnScope.DetailPanel(
         SitterIcon(SitterIcons.Clock, s.primary, size = SitterIconSize.Medium)
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             val next = feeding?.nextAt?.let { " · 다음 수유 ${io.github.haeyeonyou.familytrip.data.clockLabel(it)}" } ?: ""
-            // H02-2: "도착 10:40 · 3곳 · 장소마다 60분" — 머무는 시간은 장소마다 달라(역할별 기본값) 뒤 문구는 쓰지 않는다
+            // H02-2: "도착 10:40 · 3곳 · 장소마다 60분" — 뒤 문구는 기본값 머리글에 두고, 여기는 사용자가 바꿀 수 있어 쓰지 않는다
             val places = course.stops.count { it.role != "home" && it.role != "fuel" }
             Text("도착 ${first.arriveAt} · ${places}곳$next", style = SitterText.Title3, color = s.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(
