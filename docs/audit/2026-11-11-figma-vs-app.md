@@ -216,11 +216,11 @@
 
 | # | 항목 | Figma | 지금 앱 | 구분 | 심각도 | 관련 파일 | 작업 단위 |
 |---|---|---|---|---|---|---|---|
-| F-1 | G01 경험 젤리 화면(=G-1·G-4, X-2) | 큰 젤리 궤도·빈 분야 "?"·선 없음 + "경험젤리 만들러 갈까요?" 3줄 | 이전 "경험 우주"(가운데 아이 원 + 선 + 작은 젤리, "다시 가볼까요?") | 디자인·기능 | **필수** | `ui/ExperienceScreen.kt`, `ui/ExperienceUniverse.kt`, `ui/ExperienceLayout.kt`, `ui/JellyDraw.kt`, `grow/JellyModel.kt` | 1111-grow-jelly |
-| F-2 | G01 칩에 분야 개수, 아이 칩 없음(=G-2) | "전시·미술 12 · 자연·숲 7 …" | 개수 없음, "서아 · 14개월" 칩 | 디자인 | 좋음 | `ExperienceScreen.kt` | 1111-grow-jelly |
-| F-3 | G01 오른쪽 위 "월별 보기 ›" + 이번 달 만난 젤리(=G-3) | 카드 1개 | "이번 달 보기"·"분야별 보기" 카드 2개 | 디자인·기능 | 좋음 | `ExperienceScreen.kt` | 1111-grow-jelly |
-| F-4 | G03 월별 캘린더(=X-1) | 달력 + 날짜별 젤리 + 탄생 배지 + 월 칩 + 11월 요약 + 이번 달 자란 젤리 | 없음 | 기능 | 좋음 | 새 `ui/ExperienceCalendar.kt`(가칭), `grow/GrowVoice.kt`("지난달 젤리 보여줘") | 1111-grow-jelly |
-| F-5 | 음성 줄 예시 "유니콘 젤리 보여줘"(G01)·"지난달 젤리 보여줘"(G03)(=G-5) | 새 예시 | "지난달 간 곳 보여줘" | 디자인 | 나중 | `ExperienceScreen.kt` | 1111-grow-jelly |
+| F-1 | G01 경험 젤리 화면(=G-1·G-4, X-2) | 큰 젤리 궤도·빈 분야 "?"·선 없음 + "경험젤리 만들러 갈까요?" 3줄 | 이전 "경험 우주"(가운데 아이 원 + 선 + 작은 젤리, "다시 가볼까요?") | 디자인·기능 | **필수** | `ui/ExperienceScreen.kt`, `ui/ExperienceUniverse.kt`, `ui/ExperienceLayout.kt`, `ui/JellyDraw.kt`, `grow/JellyModel.kt` | 1111-grow-jelly · 반영 PR #222 |
+| F-2 | G01 칩에 분야 개수, 아이 칩 없음(=G-2) | "전시·미술 12 · 자연·숲 7 …" | 개수 없음, "서아 · 14개월" 칩 | 디자인 | 좋음 | `ExperienceScreen.kt` | 1111-grow-jelly · 반영 PR #222 |
+| F-3 | G01 오른쪽 위 "월별 보기 ›" + 이번 달 만난 젤리(=G-3) | 카드 1개 | "이번 달 보기"·"분야별 보기" 카드 2개 | 디자인·기능 | 좋음 | `ExperienceScreen.kt` | 1111-grow-jelly · 반영 PR #222 |
+| F-4 | G03 월별 캘린더(=X-1) | 달력 + 날짜별 젤리 + 탄생 배지 + 월 칩 + 11월 요약 + 이번 달 자란 젤리 | 없음 | 기능 | 좋음 | 새 `ui/ExperienceCalendar.kt`(가칭), `grow/GrowVoice.kt`("지난달 젤리 보여줘") | 1111-grow-jelly · 반영 PR #222 |
+| F-5 | 음성 줄 예시 "유니콘 젤리 보여줘"(G01)·"지난달 젤리 보여줘"(G03)(=G-5) | 새 예시 | "지난달 간 곳 보여줘" | 디자인 | 나중 | `ExperienceScreen.kt` | 1111-grow-jelly · 반영 PR #222 |
 | F-6 | "경험 나무" 문구 정리(=H-2) | 경험 젤리 | 홈 타일 "경험 나무 보기", H02 귀가 줄, O01 GROW 카드 | 디자인 | **필수** | `HomeScreen.kt:363`, `CourseOverview.kt:147`, `onboarding/OnboardingScreen.kt:356` | 1111-shell-polish |
 | F-7 | C05·C06 "베이비케어 공조 모드" | 두 장만 "공조" | "베이비케어 모드" | 디자인 | 나중(QF4 결정 뒤) | `ui/CareScreen.kt` | 1111-feeding-cleanup |
 

@@ -27,7 +27,10 @@ enum class GrowPeriod(val api: String, val label: String) {
 fun jellyKindOf(api: String?): JellyKind? = JellyKind.entries.firstOrNull { it.name.lowercase() == api }
 
 /** 음성으로 연 그로우 보기. 모두 null이면 전체. [place]가 있으면 그 장소 팝업을 띄운다. */
-data class GrowView(val kind: JellyKind? = null, val period: GrowPeriod? = null, val place: String? = null)
+data class GrowView(val kind: JellyKind? = null, val period: GrowPeriod? = null, val place: String? = null) {
+    /** 기간만 말했으면("지난달 젤리 보여줘") G03 월별 캘린더를 그 달로 연다 (#216). 분류·장소가 있으면 G01에서 거른다. */
+    val opensCalendar: Boolean get() = period != null && kind == null && place == null
+}
 
 /**
  * 음성 → 그로우 화면 통로. 음성 컨트롤러가 [show]하고, 그로우 화면이 [consume]해서 거르기·선택에 반영한다.
