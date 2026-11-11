@@ -119,10 +119,22 @@ def _car_views(sessions) -> list[dict]:
 _KIND_FOR_FEEDING_TYPE = {"breast": "breast", "formula": "formula", "mixed": "formula", "solid": "solid", "toddler": "solid"}
 
 
-async def _feeding_card(db: AsyncSession, user: User) -> dict:
-    """홈·케어의 수유 카드. 기록이 없으면 정직한 빈 상태."""
-    status = await feedings.status_for(db, user)
+async def _feeding_card(db: AsyncSession, user: User, children: list | None = None, selected=None) -> dict:
+    """
+    홈·케어의 수유 카드. 기록이 없으면 정직한 빈 상태.
+    12개월 이하 아이에게만 보인다 (#217): 고른 아이가 있으면 그 아이, 없으면(홈) 12개월 이하 아이가 한 명이라도 있을 때 그 첫 아이 기준.
+    """
+    if children is None:
+        children = await family.list_children(db, user)
+    if selected is not None:
+        target = selected if family.is_infant(selected) else None
+    else:
+        target = next((c for c in children if family.is_infant(c)), None)
+    if children and target is None:
+        return {"show": False}
+    status = await feedings.status_for(db, user, target.id if target else None)
     card = {
+        "show": True,
         "has_last": status.last_fed_at is not None,
         "interval_text": f"{status.interval_minutes / 60:g}시간 간격",
         "nickname": status.nickname,
@@ -198,15 +210,19 @@ async def care_page(
         return _login_redirect("/m/care")
     children = await family.list_children(db, user)
     selected = _pick_child(children, child)
+    states = await presets.states(db, user, selected.id if selected else None)
+    if selected is not None and not family.is_infant(selected):
+        # 12개월 넘은 아이는 수유 정차 모드가 없다 (#217, 차 앱 C08과 같은 규칙)
+        states = [st for st in states if st.slot != "feeding_stop"]
     context = {
         "notice": "수유 시각을 기록했어요." if notice == "fed" else "",
         "title": "케어",
         "tab": "care",
-        "feeding": await _feeding_card(db, user),
+        "feeding": await _feeding_card(db, user, children, selected),
         # 케어 모드 값은 아이별(#192). 아이 탭으로 고른다.
         "mode_children": [{"id": str(c.id), "name": c.nickname, "selected": c is selected} for c in children],
         "mode_child": selected,
-        "presets": _preset_cards(await presets.states(db, user, selected.id if selected else None)),
+        "presets": _preset_cards(states),
     }
     return templates.TemplateResponse(request, "care.html", context)
 

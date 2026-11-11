@@ -36,6 +36,7 @@ fun childOptions(
     server: List<ServerChild>,
     selected: String?,
     modeOf: (Child) -> String? = { null },
+    today: java.time.LocalDate = java.time.LocalDate.now(),
     routineOf: (String?) -> FeedingRoutine,
 ): List<ChildOption> {
     val selectedIndex = selectedChildIndex(children, selected)
@@ -44,7 +45,9 @@ fun childOptions(
         val info = server.firstOrNull { it.id == child.serverId } ?: server.getOrNull(i)?.takeIf { child.serverId == null && i == 0 }
         val routine = routineOf(key)
         val line = buildList {
-            if (noFeeding(info?.feedingType)) {
+            if (!isInfant(child, today)) {
+                add("유아기")
+            } else if (noFeeding(info?.feedingType)) {
                 add("수유 없음")
             } else {
                 add("${durationLabel(routine.intervalMinutes.toLong())} 간격")

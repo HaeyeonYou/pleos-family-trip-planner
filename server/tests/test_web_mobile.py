@@ -4,6 +4,7 @@ import re
 import uuid
 from datetime import date, timedelta
 
+from app import family
 from app.auth import web_app as web
 from tests.test_auth import phone, run, signup
 from tests.test_presets import PRESET_FORM
@@ -211,7 +212,8 @@ def test_care_page_feeding_timer_and_records():
             care = (await mom.get("/m/care")).text
             assert "아직 수유 기록이 없어요" in care and "지금 수유했어요" in care and "시간 선택" in care
 
-            await mom.post("/m/my/children/new", data={"nickname": "서아", "birth_month": "2025-09", "feeding_type": "formula", "feed_interval_minutes": "180", "nap_count": "2"})
+            # 수유 카드는 12개월 이하 아이에게만 (#217): 6개월 아이
+            await mom.post("/m/my/children/new", data={"nickname": "서아", "birth_month": months_ago(6), "feeding_type": "formula", "feed_interval_minutes": "180", "nap_count": "2"})
             res = await mom.post("/m/care/feed", data={"mode": "now"})
             assert res.status_code == 303 and res.headers["location"] == "/m/care?notice=fed"
             care = (await mom.get("/m/care?notice=fed")).text
@@ -232,6 +234,55 @@ def test_care_page_feeding_timer_and_records():
             fid = api[0]["id"]
             await mom.post(f"/m/care/feed/{fid}/delete")
             assert len((await mom.get("/me/feedings")).json()) == 1
+
+    run(scenario)
+
+
+def months_ago(n: int) -> str:
+    """오늘(KST)부터 n개월 전 달 "YYYY-MM"."""
+    today = family.today_kst()
+    y, m = divmod(today.year * 12 + today.month - 1 - n, 12)
+    return f"{y}-{m + 1:02d}"
+
+
+def test_is_infant_boundary_is_twelve_months():
+    class C:
+        def __init__(self, birth_month, birth_date=None):
+            self.birth_month, self.birth_date = birth_month, birth_date
+
+    today = date(2026, 11, 11)
+    assert family.INFANT_MAX_MONTHS == 12
+    assert family.is_infant(None, today)
+    assert family.is_infant(C(date(2025, 11, 1)), today)  # 12개월
+    assert not family.is_infant(C(date(2025, 10, 1)), today)  # 13개월
+    # 태어난 날을 알면 생일 전날까지 한 달 덜 센다: 2025-10-12생은 11-11에 12개월, 11-12부터 13개월
+    assert family.is_infant(C(date(2025, 10, 1), date(2025, 10, 12)), today)
+    assert not family.is_infant(C(date(2025, 10, 1), date(2025, 10, 12)), date(2026, 11, 12))
+
+
+def test_toddler_hides_feeding_on_the_web():
+    """12개월 넘은 아이만 있으면 홈·케어에 수유 카드와 수유 정차 모드가 없다. 아기가 함께면 홈에 보인다 (#217)."""
+
+    async def scenario(client):
+        async with phone(client) as mom:
+            await signup(mom, "mom_toddler")
+            await mom.post("/m/my/children/new", data={"nickname": "하준", "birth_month": months_ago(20), "nap_count": "1"})
+            home = (await mom.get("/m/")).text
+            care = (await mom.get("/m/care")).text
+            assert "수유 시각을 기록해 보세요" not in home and "마지막 수유" not in home
+            assert "아직 수유 기록이 없어요" not in care and "지금 수유했어요" not in care
+            assert "탑승 준비" in care and "낮잠" in care and "수유 정차" not in care
+
+            await mom.post("/m/my/children/new", data={"nickname": "서아", "birth_month": months_ago(5), "nap_count": "3"})
+            assert "수유 시각을 기록해 보세요" in (await mom.get("/m/")).text
+            children = (await mom.get("/me/family")).json()["children"]
+            baby = next(c for c in children if c["nickname"] == "서아")
+            toddler = next(c for c in children if c["nickname"] == "하준")
+            assert "지금 수유했어요" in (await mom.get(f"/m/care?child={baby['id']}")).text
+            assert "수유 정차" in (await mom.get(f"/m/care?child={baby['id']}")).text
+            assert "지금 수유했어요" not in (await mom.get(f"/m/care?child={toddler['id']}")).text
+            # 서버 수유 API는 그대로 (#217: 지우지 않음)
+            assert (await mom.get("/me/feedings")).status_code == 200
 
     run(scenario)
 

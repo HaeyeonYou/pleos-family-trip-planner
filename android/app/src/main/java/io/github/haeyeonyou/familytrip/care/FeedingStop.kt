@@ -13,8 +13,11 @@ import io.github.haeyeonyou.familytrip.data.clockLabel
  * - 시작은 카드·음성 "수유할게" + 케어에서 넣은 경유지에 도착해 정차하면 묻기 (Q08 ①+②). 몰래 자동 적용은 하지 않는다.
  */
 
-/** 진행 중인 수유 정차. [climateApplied]는 차 공조에 모드 값을 넣었는지. */
-data class FeedingStopSession(val startedAt: Long, val climateApplied: Boolean = false)
+/**
+ * 진행 중인 수유 정차. [climateApplied]는 차 공조에 모드 값을 넣었는지.
+ * [feeding]이 false면 12개월이 넘은 아이의 '정차 모드'(Figma C05-T1 "쉬었다 갈게")라 같은 공조 값만 쓰고 수유로 기록하지 않는다 (#217).
+ */
+data class FeedingStopSession(val startedAt: Long, val climateApplied: Boolean = false, val feeding: Boolean = true)
 
 /** 출발로 자동 종료될 때 이보다 짧으면 수유로 기록하지 않는다 (켜자마자 출발한 경우). */
 const val FEEDING_STOP_MIN_RECORD_MINUTES = 3L
@@ -47,10 +50,11 @@ fun feedingStopProgress(session: FeedingStopSession, now: Long): Float =
 
 /** 끝날 때 수유로 기록할지. 손으로 끝내면 항상, 출발로 끝나면 [FEEDING_STOP_MIN_RECORD_MINUTES] 이상일 때만. */
 fun shouldRecordFeeding(session: FeedingStopSession, now: Long, auto: Boolean): Boolean =
-    !auto || feedingStopMinutes(session, now) >= FEEDING_STOP_MIN_RECORD_MINUTES
+    session.feeding && (!auto || feedingStopMinutes(session, now) >= FEEDING_STOP_MIN_RECORD_MINUTES)
 
 /** 끝난 뒤 한 줄 안내. */
 fun feedingStopEndMessage(session: FeedingStopSession, recorded: Boolean, auto: Boolean): String {
+    if (!session.feeding) return if (auto) "출발해서 정차 모드를 끝냈어요" else "정차 모드를 끝냈어요"
     val head = if (auto) "출발해서 수유 정차 모드를 끝냈어요" else "수유 정차 모드를 끝냈어요"
     return if (recorded) "$head · ${clockLabel(session.startedAt)} 수유로 기록했어요" else "$head · 짧아서 수유로 기록하지 않았어요"
 }
