@@ -47,7 +47,7 @@
   <div class="card">
     <ul class="list">
       {% for p in presets %}
-      <li><a class="row" href="/m/preset?slot={{ p.slot }}"><span class="icon" aria-hidden="true">{{ icon({"boarding": "car", "nap": "moon", "feeding_stop": "bottle"}[p.slot], 22) }}</span><span class="grow"><span class="name">{{ p.label }}</span><br><span class="meta">{{ p.summary }}</span></span><span class="chip {{ p.tone }}">{{ p.status }}</span></a></li>
+      <li><a class="row" href="/m/preset?slot={{ p.slot }}{{ '&child=' ~ p.child if p.child }}"><span class="icon" aria-hidden="true">{{ icon({"boarding": "car", "nap": "moon", "feeding_stop": "bottle"}[p.slot], 22) }}</span><span class="grow"><span class="name">{{ p.label }}</span><br><span class="meta">{{ p.summary }}</span></span><span class="chip {{ p.tone }}">{{ p.status }}</span></a></li>
       {% endfor %}
     </ul>
   </div>

@@ -19,6 +19,7 @@
       <span class="chev" aria-hidden="true">&gt;</span>
     </div>
   </a>
+  {% if child_modes[c.id | string] %}<a class="row small" href="/m/care?child={{ c.id }}" style="min-height:0;padding:2px 4px 10px"><span class="muted small grow">케어 모드(탑승 준비) {{ child_modes[c.id | string] }}</span><span class="chev" aria-hidden="true">&gt;</span></a>{% endif %}
   {% else %}
   <div class="card tint"><p class="muted small">아직 등록한 아이가 없어요. 아이 정보를 넣으면 월령과 수유 간격에 맞춰 다음 수유 시각을 알려 드려요.</p></div>
   {% endfor %}

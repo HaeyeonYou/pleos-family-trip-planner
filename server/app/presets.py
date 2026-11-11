@@ -1,7 +1,8 @@
 """공조 프리셋: 폰(웹)에서 정해 '차로 보내기' → 차 앱이 시작할 때 받아 확인·적용.
 
 시동이 꺼진 차는 원격 제어할 수 없으므로(Pleos 앱은 인포테인먼트가 켜져야 동작) 미리 보내 두는 방식이다.
-프리셋은 슬롯 3개(탑승 준비·낮잠·수유 정차)다. 슬롯을 모르는 예전 차 앱은 `GET /presets/pending`으로
+프리셋은 슬롯 3개(탑승 준비·낮잠·수유 정차)이고 아이마다 따로 둔다(QO5, #192). `child_id`가 없는 값은 가족 기본값으로,
+아이를 모르는 예전 차 앱이 쓰고, 아직 자기 값이 없는 아이는 이 값(없으면 슬롯 기본값)으로 시작한다. 슬롯을 모르는 예전 차 앱은 `GET /presets/pending`으로
 아직 적용하지 않은 것 중 가장 최근에 보낸 하나를 받는다 (어느 슬롯이든 — 웹에서 보냈는데 차가 못 받는 일이 없게).
 """
 
@@ -18,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.deps import current_user, get_db
 from app.db import utcnow
-from app.models import ClimatePreset, User
+from app.models import Child, ClimatePreset, User
 
 
 class ClimateSettings(BaseModel):
@@ -59,6 +60,7 @@ class PresetState(BaseModel):
     """슬롯 하나의 현재 상태. 보낸 적이 없으면 sent=False에 기본 설정을 준다."""
 
     slot: Slot
+    child_id: uuid.UUID | None = Field(None, description="이 값의 아이. 비면 가족 기본값")
     label: str
     when: str
     sent: bool
@@ -69,15 +71,17 @@ class PresetState(BaseModel):
     pending: bool = Field(False, description="보냈는데 아직 차에서 적용하지 않음")
 
 
-async def save(db: AsyncSession, user: User, settings: ClimateSettings, slot: str = LEGACY_SLOT, applied: bool = False) -> None:
-    """사용자의 슬롯 프리셋을 새로 보낸 것으로 바꾼다 (차가 다시 받게 applied_at을 비운다). 차에서 직접 고친 것이면 applied=True."""
+async def save(
+    db: AsyncSession, user: User, settings: ClimateSettings, slot: str = LEGACY_SLOT, applied: bool = False, child_id: uuid.UUID | None = None
+) -> None:
+    """사용자(·아이)의 슬롯 프리셋을 새로 보낸 것으로 바꾼다 (차가 다시 받게 applied_at을 비운다). 차에서 직접 고친 것이면 applied=True."""
     now = utcnow()
     stmt = insert(ClimatePreset).values(
-        id=uuid.uuid4(), user_id=user.id, slot=slot, settings=settings.model_dump(), sent_at=now, applied_at=now if applied else None
+        id=uuid.uuid4(), user_id=user.id, child_id=child_id, slot=slot, settings=settings.model_dump(), sent_at=now, applied_at=now if applied else None
     )
     await db.execute(
         stmt.on_conflict_do_update(
-            index_elements=[ClimatePreset.user_id, ClimatePreset.slot],
+            constraint="uq_climate_presets_user_child_slot",
             # 새로 보낼 때마다 id를 바꿔, 차가 예전 것을 적용 완료로 표시해도 새 프리셋은 대기로 남게 한다.
             set_={"id": stmt.excluded.id, "settings": stmt.excluded.settings, "sent_at": stmt.excluded.sent_at, "applied_at": stmt.excluded.applied_at},
         )
@@ -85,24 +89,39 @@ async def save(db: AsyncSession, user: User, settings: ClimateSettings, slot: st
     await db.commit()
 
 
-async def current(db: AsyncSession, user: User, slot: str = LEGACY_SLOT) -> ClimatePreset | None:
-    return await db.scalar(select(ClimatePreset).where(ClimatePreset.user_id == user.id, ClimatePreset.slot == slot))
+async def current(db: AsyncSession, user: User, slot: str = LEGACY_SLOT, child_id: uuid.UUID | None = None) -> ClimatePreset | None:
+    return await db.scalar(
+        select(ClimatePreset).where(
+            ClimatePreset.user_id == user.id, ClimatePreset.slot == slot, ClimatePreset.child_id.is_not_distinct_from(child_id)
+        )
+    )
 
 
-async def states(db: AsyncSession, user: User) -> list[PresetState]:
-    """슬롯 3개의 상태. 보낸 적 없는 슬롯은 기본 설정으로 채운다."""
-    rows = {p.slot: p for p in await db.scalars(select(ClimatePreset).where(ClimatePreset.user_id == user.id))}
+async def own_child(db: AsyncSession, user: User, child_id: uuid.UUID | None) -> uuid.UUID | None:
+    """child_id가 이 사용자의 아이인지 확인한다. 아니면 404."""
+    if child_id is None:
+        return None
+    child = await db.get(Child, child_id)
+    if child is None or child.user_id != user.id:
+        raise HTTPException(404, "아이를 찾지 못했어요")
+    return child_id
+
+
+def _states_from(rows: dict[str, ClimatePreset], fallback: dict[str, ClimatePreset], child_id: uuid.UUID | None) -> list[PresetState]:
     result = []
     for slot, meta in SLOTS.items():
         row = rows.get(slot)
+        base = fallback.get(slot)
         result.append(
             PresetState(
                 slot=slot,
+                child_id=child_id,
                 label=meta["label"],
                 when=meta["when"],
                 sent=row is not None,
                 id=row.id if row else None,
-                settings=ClimateSettings(**row.settings) if row else meta["defaults"],
+                # 아이 자기 값이 없으면 가족 기본값, 그것도 없으면 슬롯 기본값으로 시작한다.
+                settings=ClimateSettings(**row.settings) if row else ClimateSettings(**base.settings) if base else meta["defaults"],
                 sent_at=row.sent_at if row else None,
                 applied_at=row.applied_at if row else None,
                 pending=row is not None and row.applied_at is None,
@@ -111,13 +130,48 @@ async def states(db: AsyncSession, user: User) -> list[PresetState]:
     return result
 
 
+async def states(db: AsyncSession, user: User, child_id: uuid.UUID | None = None) -> list[PresetState]:
+    """한 아이(child_id 없으면 가족 기본값)의 슬롯 3개 상태. 보낸 적 없는 슬롯은 가족 기본값·슬롯 기본값으로 채운다."""
+    rows = list(await db.scalars(select(ClimatePreset).where(ClimatePreset.user_id == user.id)))
+    family = {p.slot: p for p in rows if p.child_id is None}
+    if child_id is None:
+        return _states_from(family, {}, None)
+    return _states_from({p.slot: p for p in rows if p.child_id == child_id}, family, child_id)
+
+
+class ChildPresets(BaseModel):
+    """아이 한 명(또는 가족 기본값)의 모드 3개."""
+
+    child_id: uuid.UUID | None = Field(None, description="비면 가족 기본값")
+    nickname: str | None = None
+    presets: list[PresetState]
+
+
+async def all_states(db: AsyncSession, user: User) -> list[ChildPresets]:
+    """가족 기본값과 아이마다의 모드 3개. 아이 순서는 가족 정보(`/me/family`)와 같다."""
+    rows = list(await db.scalars(select(ClimatePreset).where(ClimatePreset.user_id == user.id)))
+    family = {p.slot: p for p in rows if p.child_id is None}
+    children = list(await db.scalars(select(Child).where(Child.user_id == user.id).order_by(Child.created_at, Child.id)))  # family.list_children 순서
+    result = [ChildPresets(child_id=None, presets=_states_from(family, {}, None))]
+    for c in children:
+        own = {p.slot: p for p in rows if p.child_id == c.id}
+        result.append(ChildPresets(child_id=c.id, nickname=c.nickname, presets=_states_from(own, family, c.id)))
+    return result
+
+
 router = APIRouter(prefix="/presets", tags=["presets"])
 
 
 @router.get("", response_model=list[PresetState])
-async def list_presets(user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
-    """슬롯 3개(탑승 준비·낮잠·수유 정차)의 현재 설정과 적용 상태. 차 앱 새 버전과 폰 웹이 쓴다."""
-    return await states(db, user)
+async def list_presets(child_id: uuid.UUID | None = None, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    """슬롯 3개(탑승 준비·낮잠·수유 정차)의 현재 설정과 적용 상태. child_id를 주면 그 아이 값, 없으면 가족 기본값."""
+    return await states(db, user, await own_child(db, user, child_id))
+
+
+@router.get("/children", response_model=list[ChildPresets])
+async def list_child_presets(user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    """가족 기본값(맨 앞)과 아이마다의 모드 3개를 한 번에. 차 앱이 아이 선택(C07)·온보딩(O05)에 쓴다."""
+    return await all_states(db, user)
 
 
 @router.put("/{slot}", response_model=PresetState)
@@ -125,12 +179,15 @@ async def put_preset(
     slot: Slot,
     settings: ClimateSettings,
     applied_on_car: bool = False,
+    child_id: uuid.UUID | None = None,
     user: User = Depends(current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """슬롯 하나를 저장한다. 차에서 정차 중 직접 고친 것이면 applied_on_car=true (이미 차에 적용된 값이라 대기로 남기지 않는다)."""
-    await save(db, user, settings, slot, applied=applied_on_car)
-    return next(state for state in await states(db, user) if state.slot == slot)
+    """슬롯 하나를 저장한다(child_id를 주면 그 아이 값). 차에서 정차 중 직접 고친 것이면 applied_on_car=true
+    (이미 차에 적용된 값이라 대기로 남기지 않는다)."""
+    child_id = await own_child(db, user, child_id)
+    await save(db, user, settings, slot, applied=applied_on_car, child_id=child_id)
+    return next(state for state in await states(db, user, child_id) if state.slot == slot)
 
 
 @router.get("/pending", response_model=PendingPreset, responses={204: {"description": "받을 프리셋 없음"}})
