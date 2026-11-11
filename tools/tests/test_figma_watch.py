@@ -21,11 +21,11 @@ def _box(x, y, w, h):
 def make_section():
     """섹션 > H01 화면(텍스트·버튼) + C05 화면 + 노트, Figma REST 응답 모양."""
     return {
-        "id": "351:2611", "name": fw.SECTION_NAME, "type": "SECTION",
+        "id": "351:2611", "name": "11/10 · Pleos 공통 UI + 지수ver", "type": "SECTION",
         "absoluteBoundingBox": _box(0, 0, 5000, 3000),
         "children": [
             {
-                "id": "352:2601", "name": "H01 홈", "type": "FRAME",
+                "id": "352:2601", "name": "H01 · 홈", "type": "FRAME",
                 "absoluteBoundingBox": _box(100, 200, 1920, 1080),
                 "fills": [{"type": "SOLID", "color": {"r": 1, "g": 1, "b": 1, "a": 1}}],
                 "children": [
@@ -42,7 +42,7 @@ def make_section():
                 ],
             },
             {
-                "id": "355:4702", "name": "C05 케어", "type": "FRAME",
+                "id": "355:4702", "name": "C05 · 케어", "type": "FRAME",
                 "absoluteBoundingBox": _box(2200, 200, 1920, 1080),
                 "children": [
                     {"id": "355:4710", "name": "남은 시간", "type": "TEXT", "characters": "15분 후 수유",
@@ -50,10 +50,92 @@ def make_section():
                      "style": {"fontFamily": "Asta Sans", "fontWeight": 600, "fontSize": 24}},
                 ],
             },
-            {"id": "357:1716", "name": "노트", "type": "TEXT", "characters": "메모",
+            {"id": "357:1716", "name": "메모", "type": "TEXT", "characters": "메모",
              "absoluteBoundingBox": _box(100, 50, 200, 20), "style": {}},
         ],
     }
+
+
+def make_page():
+    """페이지 > 원본 섹션 + 피드백 섹션(같은 이름 화면 복사본, H01 두 장) + 섹션 밖 O01·슬라이드."""
+    sec = make_section()
+    fb = {
+        "id": "369:11525", "name": "피드백 반영", "type": "SECTION",
+        "absoluteBoundingBox": _box(0, 4000, 5000, 3000),
+        "children": [
+            {"id": "369:12016", "name": "H01 · 홈", "type": "FRAME", "absoluteBoundingBox": _box(100, 4200, 1920, 1080),
+             "children": [{"id": "369:12100", "name": "제목", "type": "TEXT", "characters": "오늘의 추천 코스",
+                           "absoluteBoundingBox": _box(124, 4224, 300, 40), "style": {}}]},
+            {"id": "369:19634", "name": "H01 · 홈", "type": "FRAME", "absoluteBoundingBox": _box(2200, 4200, 1920, 1080),
+             "children": []},
+            {"id": "369:15758", "name": "Note · C05", "type": "TEXT", "characters": "노트",
+             "absoluteBoundingBox": _box(0, 4100, 100, 20), "style": {}},
+        ],
+    }
+    return {
+        "id": "130:5", "name": "종합 정리", "type": "CANVAS",
+        "children": [
+            {"id": "165:389", "name": "01 Title", "type": "FRAME", "absoluteBoundingBox": _box(0, -2000, 1920, 1080),
+             "children": []},
+            sec, fb,
+            {"id": "369:20599", "name": "O01 · 온보딩 — 시작", "type": "FRAME",
+             "absoluteBoundingBox": _box(6000, 0, 1920, 1080), "children": []},
+            {"id": "374:6875", "name": "G01-B · 그로우 B안", "type": "FRAME",
+             "absoluteBoundingBox": _box(6000, 2000, 1920, 1080), "children": []},
+        ],
+    }
+
+
+class PageTest(unittest.TestCase):
+    def test_screens_are_children_of_page_and_every_section(self):
+        snap = fw.normalize(make_page())
+        sc = snap["screens"]
+        self.assertEqual(snap["root"], "130:5")
+        self.assertNotIn("351:2611", sc)  # 섹션 자신은 화면이 아니다
+        self.assertEqual(sc["352:2601"], {"name": "H01 · 홈", "code": "H01", "section": "351:2611"})
+        self.assertEqual(sc["369:20599"]["section"], "")
+        self.assertEqual(sc["165:389"]["code"], "slide")
+        self.assertEqual(sc["369:15758"]["code"], "C05")  # 노트는 해당 화면 코드
+        self.assertEqual(snap["nodes"]["369:12100"]["screen"], "369:12016")
+        self.assertEqual((snap["nodes"]["369:12100"]["x"], snap["nodes"]["369:12100"]["y"]), (24, 24))
+
+    def test_same_name_screens_in_two_sections_stay_apart(self):
+        snap = fw.normalize(make_page())
+        self.assertEqual(fw.screen_key(snap, "352:2601"), "H01@351:2611")
+        self.assertEqual(fw.screen_key(snap, "369:12016"), "H01@369:11525")
+        self.assertEqual(fw.screen_key(snap, "369:19634"), "H01@369:11525")
+        self.assertIn("`369:19634`", fw._screen_label(snap, "369:19634"))
+        self.assertEqual(fw.screen_key(snap, "369:20599"), "O01")
+        self.assertEqual(fw.screen_key(snap, "165:389"), "165:389")
+
+    def test_feedback_copy_change_routes_by_code(self):
+        page = make_page()
+        old = fw.normalize(page)
+        new_page = copy.deepcopy(page)
+        new_page["children"][2]["children"][0]["children"][0]["characters"] = "오늘 코스"
+        new_page["children"][0]["children"].append({"id": "165:400", "name": "x", "type": "TEXT", "characters": "a", "style": {}})
+        new_page["children"][3]["children"].append({"id": "369:20610", "name": "y", "type": "TEXT", "characters": "b", "style": {}})
+        new_page["children"][4]["children"].append({"id": "374:6900", "name": "z", "type": "RECTANGLE"})
+        new = fw.normalize(new_page)
+        d = fw.diff(old, new)
+        self.assertEqual(set(d["groups"]), {"369:12016", "165:389", "369:20599", "374:6875"})
+        # 슬라이드·O01은 담당 세션이 없다 → 통제 세션만 (sessions 에 없음)
+        self.assertEqual(fw.sessions_for(d["groups"], new, old),
+                         {"1111-shell-polish": ["H01@369:11525"], "1111-grow-jelly": ["G01-B"]})
+
+    def test_screen_codes(self):
+        for name, code in [("H02-1 · 코스 상세", "H02-1"), ("O04-1 · 온보딩", "O04-1"), ("S02 아이 정보 · 기본", "S02"),
+                           ("S02-1 아이 정보", "S02-1"), ("G02-B · 그로우", "G02-B"), ("Lib · 공통 UI 셸", "Lib"),
+                           ("Tile · 다음 수유", "Tile"), ("Note · K7-2 · 급한 케어", "K7-2"), ("HF 01 홈", ""),
+                           ("Group 1", ""), ("17 04 사용자 여정 지도", "slide"), ("image 1", "")]:
+            self.assertEqual(fw.screen_code(name), code, name)
+        self.assertEqual(fw.sessions_of_code("C05"), ("child-mode", "1111-feeding-cleanup"))
+        self.assertEqual(fw.sessions_of_code("G03"), ("1111-grow-jelly",))
+        self.assertEqual(fw.sessions_of_code("D01"), ("1111-shell-polish",))
+        self.assertEqual(fw.sessions_of_code("O02"), ())
+        self.assertEqual(fw.sessions_of_code("slide"), ())
+        for sess in ("1111-grow-jelly", "child-mode", "1111-feeding-cleanup", "1111-shell-polish"):
+            self.assertTrue((fw.REPO / fw.SESSION_TASK_FILES[sess]).exists(), sess)
 
 
 class NormalizeTest(unittest.TestCase):
@@ -70,7 +152,7 @@ class NormalizeTest(unittest.TestCase):
         self.assertEqual(btn["layout"], "horizontal gap8 pad12/16/12/16")
         self.assertEqual(btn["radius"], 16)
 
-    def test_screens_get_codes_from_known_ids(self):
+    def test_screens_get_codes_from_names(self):
         snap = fw.normalize(make_section())
         self.assertEqual(snap["screens"]["352:2601"]["code"], "H01")
         self.assertEqual(snap["screens"]["355:4702"]["code"], "C05")
@@ -119,7 +201,8 @@ class DiffTest(unittest.TestCase):
         self.assertEqual(list(d["groups"]), ["355:4702"])
         line = d["groups"]["355:4702"][0]
         self.assertIn("문구 15분 후 수유 → 10분 후 수유", line)
-        self.assertEqual(fw.sessions_for(d["groups"], d["colors"]), {"care-c01": ["C05"]})
+        self.assertEqual(fw.sessions_for(d["groups"], new, self.old),
+                         {"child-mode": ["C05@351:2611"], "1111-feeding-cleanup": ["C05@351:2611"]})
 
     def test_added_removed_and_size_change(self):
         def mutate(s):
@@ -135,25 +218,24 @@ class DiffTest(unittest.TestCase):
         self.assertIn("너비 392 → 400", home)
         self.assertIn("삭제: TEXT `남은 시간`", "\n".join(d["groups"]["355:4702"]))
 
-    def test_new_color_goes_to_every_session(self):
+    def test_new_color_goes_only_to_control_summary(self):
         def mutate(s):
             s["children"][0]["fills"][0]["color"] = {"r": 0.302, "g": 0.333, "b": 0.941, "a": 1}
         d = fw.diff(self.old, self._new(mutate))
         self.assertEqual(d["colors"]["added"], ["#4D55F0"])
         self.assertEqual(d["colors"]["removed"], ["#FFFFFF"])
-        sess = fw.sessions_for(d["groups"], d["colors"])
-        self.assertEqual(sess["home-h01-h02"], ["H01", "공통"])
-        self.assertEqual(sess["drive-voice-d01"], ["공통"])
+        self.assertEqual(fw.sessions_for(d["groups"], self._new(mutate), self.old),
+                         {"1111-shell-polish": ["H01@351:2611"]})
 
     def test_whole_screen_added_reported_once(self):
         def mutate(s):
-            s["children"].append({"id": "356:6661", "name": "D01 주행", "type": "FRAME",
+            s["children"].append({"id": "356:6661", "name": "D01 · 주행", "type": "FRAME",
                                   "absoluteBoundingBox": _box(0, 2000, 1920, 1080),
                                   "children": [{"id": "356:6700", "name": "x", "type": "TEXT",
                                                 "characters": "a", "style": {}}]})
         d = fw.diff(self.old, self._new(mutate))
-        self.assertEqual(d["groups"]["356:6661"], ["**화면 추가**: `D01 주행` (`356:6661`)"])
-        self.assertEqual(fw.sessions_for(d["groups"], d["colors"]), {"drive-voice-d01": ["D01"]})
+        self.assertEqual(d["groups"]["356:6661"], ["**화면 추가**: `D01 · 주행` (`356:6661`)"])
+        self.assertEqual(fw.sessions_for(d["groups"], self._new(mutate), self.old), {"1111-shell-polish": ["D01@351:2611"]})
 
     def test_changelog_entry_truncates_long_groups(self):
         def mutate(s):
@@ -164,7 +246,7 @@ class DiffTest(unittest.TestCase):
         text = fw.render_changelog_entry(fw.diff(self.old, new), self.old, new, "2026-11-10 12:00")
         self.assertIn("추가 45 · 삭제 0 · 변경 0", text)
         self.assertIn("… 외 5건", text)
-        self.assertIn("### H01 · H01 홈", text)
+        self.assertIn("### H01@351:2611 · H01 · 홈 (`352:2601`)", text)
 
 
 class ChangelogAndStateTest(unittest.TestCase):
@@ -201,7 +283,7 @@ class ChangelogAndStateTest(unittest.TestCase):
         self.assertIn("no_token", p.call_args[0][0])
 
     def test_check_flow_baseline_unchanged_changed(self):
-        sec = make_section()
+        sec = make_page()
         calls = []
 
         def fake_get(path, token, params=None):
@@ -209,7 +291,7 @@ class ChangelogAndStateTest(unittest.TestCase):
             if path.endswith("/meta"):
                 return {"file": {"version": fake_get.version, "last_touched_at": "t"}}
             return {"version": fake_get.version, "lastModified": "t",
-                    "nodes": {fw.SECTION_ID: {"document": fake_get.doc}}}
+                    "nodes": {fw.ROOT_ID: {"document": fake_get.doc}}}
         fake_get.version, fake_get.doc = "1", sec
         with tempfile.TemporaryDirectory() as d:
             w = Path(d)
@@ -222,13 +304,13 @@ class ChangelogAndStateTest(unittest.TestCase):
                 self.assertIn('"unchanged"', p.call_args[0][0])
                 fake_get.version = "2"
                 fake_get.doc = copy.deepcopy(sec)
-                fake_get.doc["children"][1]["children"][0]["characters"] = "곧 수유"
+                fake_get.doc["children"][1]["children"][1]["children"][0]["characters"] = "곧 수유"
                 self.assertEqual(fw.main(["check"]), 0)
                 out = json.loads(p.call_args[0][0])
                 changelog = (w / "CHANGELOG.md").read_text(encoding="utf-8")
                 state = json.loads((w / "state.json").read_text(encoding="utf-8"))
         self.assertEqual(out["status"], "changed")
-        self.assertEqual(out["sessions"], {"care-c01": ["C05"]})
+        self.assertEqual(out["sessions"], {"child-mode": ["C05@351:2611"], "1111-feeding-cleanup": ["C05@351:2611"]})
         self.assertIn("문구 15분 후 수유 → 곧 수유", changelog)
         self.assertEqual(sum(1 for c in calls if c.endswith("/nodes")), 2)  # unchanged 회차엔 트리 조회 없음
         self.assertEqual(state["version"], "2")
