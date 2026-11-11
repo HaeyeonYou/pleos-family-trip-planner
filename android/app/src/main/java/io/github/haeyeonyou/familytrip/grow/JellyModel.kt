@@ -281,3 +281,40 @@ fun birthSpeech(childName: String, kinds: List<JellyKind>): String {
 /** 방문 기록에서 아직 축하하지 않은 탄생. */
 fun birthsIn(visits: List<Visit>, celebrated: Set<String>, now: LocalDateTime = LocalDateTime.now()): List<JellyKind> =
     pendingBirths(jellyStates(experiences(visits, now), now.toLocalDate()), celebrated)
+
+// ───────────────────────── 다른 화면에서 쓰는 같은 숫자 (#234) ─────────────────────────
+// H04 코스 종료, 홈 젤리 타일, G01·G03, 음성 "젤리" 응답이 모두 [experiences] 하나로 센다.
+
+/**
+ * 코스 하나에서 생긴 경험 (H04). 코스를 시작한 뒤([since]) 도착한 방문 중 이번 코스에서 다녀온 장소([placeNames])만.
+ * [since]가 없으면(옛 저장 파일) 오늘 도착한 방문만 본다.
+ */
+fun courseExperiences(visits: List<Visit>, placeNames: Set<String>, since: LocalDateTime?, now: LocalDateTime = LocalDateTime.now()): List<Experience> =
+    experiences(courseVisits(visits, placeNames, since, now), now)
+
+/** 이번 코스의 방문 기록 (H04). */
+fun courseVisits(visits: List<Visit>, placeNames: Set<String>, since: LocalDateTime?, now: LocalDateTime = LocalDateTime.now()): List<Visit> =
+    visits.filter { v ->
+        val arrived = runCatching { LocalDateTime.parse(v.arrivedAt) }.getOrNull() ?: return@filter false
+        v.placeName in placeNames && if (since != null) !arrived.isBefore(since) else arrived.toLocalDate() == now.toLocalDate()
+    }
+
+/** 실제로 머문 분 (떠나지 않았으면 지금까지). H04 목록에 계획이 아니라 실제 머문 시간을 보인다. */
+fun stayedMinutes(v: Visit, now: LocalDateTime = LocalDateTime.now()): Long? {
+    val arrived = runCatching { LocalDateTime.parse(v.arrivedAt) }.getOrNull() ?: return null
+    val end = v.departedAt?.let { runCatching { LocalDateTime.parse(it) }.getOrNull() } ?: now
+    return ChronoUnit.MINUTES.between(arrived, end).coerceAtLeast(0)
+}
+
+/** H04 젤리 요약 두 줄. 실제로 생긴 경험 수만 쓴다. */
+fun courseJellyLines(count: Int): Pair<String, String> =
+    if (count == 0) "이번 코스에서는 자란 젤리가 없어요" to "나들이·식사·카페에 ${MIN_STAY_MINUTES}분 이상 머문 곳이 젤리가 돼요"
+    else "경험 젤리 ${count}개가 자랐어요" to "그로우에서 오늘 다녀온 곳을 다시 볼 수 있어요"
+
+/** 홈 젤리 타일: 이번 달 경험한 서로 다른 장소 수(G01 "이번 달 N곳"과 같은 값)와 분야(12분류) 수. */
+class HomeJellyTile(val places: Int, val kinds: Int)
+
+fun homeJellyTile(list: List<Experience>, today: LocalDate): HomeJellyTile {
+    val month = YearMonth.from(today)
+    return HomeJellyTile(monthTile(list, today).places, list.filter { YearMonth.from(it.date) == month }.map { it.kind }.distinct().size)
+}

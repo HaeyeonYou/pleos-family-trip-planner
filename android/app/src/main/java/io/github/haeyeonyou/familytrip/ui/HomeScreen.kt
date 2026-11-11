@@ -36,6 +36,8 @@ import io.github.haeyeonyou.familytrip.data.WeatherInfo
 import io.github.haeyeonyou.familytrip.data.ageLabel
 import io.github.haeyeonyou.familytrip.vehicle.courseMeters
 import io.github.haeyeonyou.familytrip.vehicle.fuelLevel
+import io.github.haeyeonyou.familytrip.grow.experiences
+import io.github.haeyeonyou.familytrip.grow.homeJellyTile
 import java.time.LocalDateTime
 import java.time.format.TextStyle
 import java.util.Locale
@@ -354,14 +356,14 @@ private fun ChildInfoCard(onOpen: () -> Unit) {
     }
 }
 
-/** 경험 젤리 요약: 이번 달 방문 장소 수(링)와 분야 수. 기록은 기기 VisitStore에서 읽기만 한다. */
+/** 경험 젤리 요약: 이번 달 경험한 장소 수(링)와 분야 수. 기록은 기기 VisitStore에서 읽기만 한다. */
 @Composable
 private fun ExperienceTile(visits: List<Visit>, onOpen: () -> Unit, modifier: Modifier) {
     val s = SitterSurface.current
-    val month = LocalDateTime.now().let { it.year to it.monthValue }
-    val thisMonth = visits.filter { it.role == "outing" && (it.date.year to it.date.monthValue) == month }
-    val places = thisMonth.map { it.placeName }.distinct().size
-    val fields = thisMonth.mapNotNull { it.theme }.distinct().size
+    // G01 "이번 달 N곳"과 같은 규칙·같은 출처 (#234): 10분 이상 머문 나들이·식사·카페 방문
+    val tile = remember(visits) { LocalDateTime.now().let { now -> homeJellyTile(experiences(visits, now), now.toLocalDate()) } }
+    val places = tile.places
+    val fields = tile.kinds
     SitterCard(modifier.clickable(onClick = onOpen), contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp)) {
         Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.SpaceBetween) {
             Box(Modifier.size(80.dp), contentAlignment = Alignment.Center) {
@@ -374,7 +376,7 @@ private fun ExperienceTile(visits: List<Visit>, onOpen: () -> Unit, modifier: Mo
                 )
                 Text("$places", style = SitterText.Number, color = s.ink)
             }
-            Text(if (places == 0) "첫 나들이를 기록해 보세요" else "이번 달 ${places}곳 · ${fields}분야", style = SitterText.Caption, color = s.inkSoft, maxLines = 2)
+            Text(if (places > 0) "이번 달 ${places}곳 · ${fields}분야" else if (visits.isEmpty()) "첫 나들이를 기록해 보세요" else "10분 이상 머문 곳이 젤리가 돼요", style = SitterText.Caption, color = s.inkSoft, maxLines = 2)
             Text(
                 "경험 젤리 보기",
                 style = SitterText.Label,
