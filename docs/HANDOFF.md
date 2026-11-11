@@ -180,5 +180,6 @@
 | 케어 모드 값 아이별 (QO5: 서버 `child_id`·웹, 앱 O05·C07·C08·공조) | ✅ 완료(2026-11-11): 서버·웹 아이별 프리셋, 앱 O05 카드별 값·바꾸기, C07·C08·공조가 고른 아이 값, 에뮬레이터 아이 2명 확인. 서버 반영 시 `alembic upgrade head`. #168 적용 시점은 결정 대기 | #192 · PR #193, #194 | [192-child-care-mode.md](docs/agent-tasks/192-child-care-mode.md) |
 | 서버: 대체 후보 우회 시간·거리, 재계산 뒤 나들이 후보 | ✅ 완료 (2026-11-10), 앱 반영은 home-finish 몫 | #160 · `feature/160-server-detour` | [160-server-detour.md](docs/agent-tasks/160-server-detour.md) |
 | 서버: 그로우 젤리 12분류 판정·앱/웹 반영 | ✅ 완료 (2026-11-11). 코스 장소·방문 기록에 `jelly`, 앱 `classify` 서버 값 우선, 웹 그로우 12분류. 서버 반영 시 `alembic upgrade head` 필요 | #186 · `feature/186-server-jelly12` | [186-server-jelly12.md](docs/agent-tasks/186-server-jelly12.md) |
+| 전체 감사: Figma(11/10) ↔ 실제 앱 (기능·디자인 부족분) | ✅ 완료(2026-11-11, main `dc6e85c` 기준): 필수 8·좋음 31·나중 21. 상위: 그로우 최신 '경험 젤리' 안, 앱 아이콘, 날씨 아이콘, 첫 실행 알림 띠, 음성 패널 | `docs/full-audit-1111` | [2026-11-11-full-audit.md](docs/agent-tasks/2026-11-11-full-audit.md) · [감사 문서](docs/audit/2026-11-11-figma-vs-app.md) |
 
 - **이어받는 법:** [docs/agent-tasks/next-agent-prompt.md](docs/agent-tasks/next-agent-prompt.md)의 프롬프트를 새 에이전트에 그대로 붙여 넣는다.
