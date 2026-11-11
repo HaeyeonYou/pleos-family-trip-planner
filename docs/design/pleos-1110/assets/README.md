@@ -36,6 +36,7 @@ Figma 파일 `xeLwkzhH8tnsazQdOriGU2`, 페이지 `종합 정리`(130:5), 섹션 
 | concept/shell-light-driving.png | 351:2903 | 공통 UI 셸 · Light · 주행 (속도 62, 기어 D) |
 | concept/palette.png | 358:5057 | Palette · 시터노트 (Naver cue 계열) 1200x140 |
 | concept/logo-mark.png | 358:5049 | Logo · Mark (120x120) |
+| concept/logo-mark.svg | 358:5049 | Logo · Mark SVG (글자 윤곽선, 2026-11-11 REST 조회). 앱 아이콘 `res/drawable/ic_launcher_*.xml`의 원본 |
 | concept/logo-full.png | 358:5051 | Logo · 시터노트 (Full) 443x145 |
 | concept/components.png | 361:5000 | Components · 오토레이아웃 (Tag, Button, Course Item, Timeline Row, Place Row, Voice Button) 3193x222 |
 

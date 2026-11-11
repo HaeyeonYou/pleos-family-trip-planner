@@ -22,6 +22,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
@@ -55,6 +56,7 @@ import io.github.haeyeonyou.familytrip.ui.HomeScreen
 import io.github.haeyeonyou.familytrip.ui.InputScreen
 import io.github.haeyeonyou.familytrip.ui.LoginScreen
 import io.github.haeyeonyou.familytrip.ui.NotificationOffBanner
+import io.github.haeyeonyou.familytrip.ui.notificationBannerVisible
 import io.github.haeyeonyou.familytrip.ui.ProfileScreen
 import io.github.haeyeonyou.familytrip.ui.TripViewModel
 import io.github.haeyeonyou.familytrip.ui.VoicePanel
@@ -266,9 +268,6 @@ class MainActivity : ComponentActivity() {
             FamilyTripTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
                   Column {
-                    NotificationOffBanner(!notificationsAllowed.value) {
-                        notificationRequest.launch(Manifest.permission.POST_NOTIFICATIONS)
-                    }
                     val vm: TripViewModel = viewModel(factory = factory)
                     val state by vm.state.collectAsStateWithLifecycle()
                     val vehicle by vm.vehicle.collectAsStateWithLifecycle()
@@ -645,6 +644,12 @@ class MainActivity : ComponentActivity() {
                         alert = delayAlert.takeUnless { vehicle.isParked && route == Routes.CARE },
                         onAddWaypoint = container.delayAlert::addWaypoint,
                         onKeepGoing = container.delayAlert::keepGoing,
+                    )
+                    // 첫 실행 온보딩 동안은 띄우지 않고, 앱 프레임을 줄이지 않게 위쪽(음성 바 안내 문구 자리)에 떠 있게 그린다 (O-1).
+                    NotificationOffBanner(
+                        visible = notificationBannerVisible(notificationsAllowed.value, onboarding = (route ?: start) == Routes.ONBOARDING || route == Routes.ONBOARDING_CHILDREN),
+                        onAllow = { notificationRequest.launch(Manifest.permission.POST_NOTIFICATIONS) },
+                        modifier = Modifier.align(Alignment.TopCenter),
                     )
                     VoicePanel(
                         state = voice,
