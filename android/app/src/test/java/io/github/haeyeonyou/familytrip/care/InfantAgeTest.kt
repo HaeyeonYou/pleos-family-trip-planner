@@ -85,8 +85,18 @@ class InfantAgeTest {
         val kids = listOf(Child(2026, 5, name = "서아"), Child(2025, 1, name = "하준", serverId = "c2"))
         val rows = childOptions(kids, listOf(ServerChild(id = "c2", nickname = "하준", birthMonth = "2025-01")), null, routineOf = { FeedingRoutine() }, today = today)
         assertTrue(rows[0].line.contains("간격"))
-        assertTrue(rows[1].line.startsWith("유아기"))
+        assertFalse(rows[1].line.contains("유아기")) // 유아기는 이름 옆 배지로 (C07, #247)
         assertFalse(rows[1].line.contains("수유"))
+        assertEquals(listOf("영아기", "유아기"), rows.map { it.stage })
+    }
+
+    @Test
+    fun `월령 배지는 수유와 같은 12개월 경계`() {
+        val d = java.time.LocalDate.of(2026, 11, 12)
+        assertEquals("영아기", ageStageLabel(Child(2025, 11, name = "열두달", birthDay = 12), d)) // 딱 12개월
+        assertEquals("유아기", ageStageLabel(Child(2025, 10, name = "열석달", birthDay = 12), d)) // 13개월
+        assertEquals("유아기", ageStageLabel(Child(2025, 9, name = "서아"), d)) // Figma의 14개월도 유아기 (임시 결정 2번)
+        assertEquals("영아기", ageStageLabel(Child(2026, 9, name = "아기"), d))
     }
 
     @Test
