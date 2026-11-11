@@ -1,6 +1,6 @@
 # 작업 지시·기록: 코스 지도를 가상 배경 + 경로선으로 바꾸기
 
-- 상태: **완료** · 세션명 `course-map-virtual` · 이슈 #231 · 브랜치 `feature/231-course-map-virtual` · PR #232, 곡선 변경 이슈 #233 · `feature/233-course-map-smooth` · PR #234
+- 상태: **완료** · 세션명 `course-map-virtual` · 이슈 #231 · 브랜치 `feature/231-course-map-virtual` · PR #232, 곡선 변경 이슈 #233 · `feature/233-course-map-smooth` · PR #235
 - 공통 방식·파일 소유 규칙: [1110-screen-sessions-plan.md](1110-screen-sessions-plan.md)
 
 ## 1. 목표와 완료 조건
@@ -32,7 +32,7 @@
 |---|---|---|
 | 2026-11-12 | 지시 파일 작성(메인 세션) | 세션 시작 → 이슈·브랜치 |
 | 2026-11-12 | 이슈 #231. `CourseMap.kt`를 가상 지도로 교체: `SitterSurface` 색(타일 바탕·카드색 길·primarySoft 공원·Cyan 물길) 위에 `course.path` 경로선(카드색 테두리 + primary), 출발지 고리(path 첫 점, 귀가 지점과 겹치면 "출발·귀가"), 번호 핀 + 이름표. 좌표 계산은 `CourseMapGeometry.kt`(cos(위도) 보정 등축 맞춤·여백·path 대체·가까운 핀 벌리기)로 떼고 단위 테스트 9개. 이름표는 아래→위→오른쪽→왼쪽 중 안 겹치는 자리, 없으면 생략(번호는 남음). `CourseMapLayer.kt`는 새 `CourseMap`에 흡수해 지움. 홈은 배지·탑승 카드 자리를 `contentPadding`으로 비움(아래 300dp). 카카오맵 SDK init·의존성·maven 저장소·`KAKAO_NATIVE_APP_KEY` 제거(앱에 외부 키 없음). 전체 단위 테스트 349개 통과, `.map` 접미사 앱으로 세 화면 캡처(`docs/screenshots/231-course-map-*.png`) | PR #232 병합 |
-| 2026-11-12 | 사용자 추가 결정 반영(메인 세션 전달): `CourseMapGeometry`를 `anchors`(출발 → 번호 장소 → 귀가, 출발·귀가가 200m 안이면 합침) · `place`(축마다 실제 비율과 순위 간격을 반씩 섞어 몰린 장소를 펼침, 순서 유지) · `spread`(44dp 안 핀 벌리기) · `smoothCurve`(Catmull-Rom → 베지어, 모든 핀을 지남)로 바꿈. 도로 경로 그리기·path 대체 테스트 삭제, 새 단위 테스트 9개. 캡처 3장 다시 찍음 | PR #234 병합 |
+| 2026-11-12 | 사용자 추가 결정 반영(메인 세션 전달): `CourseMapGeometry`를 `anchors`(출발 → 번호 장소 → 귀가, 출발·귀가가 200m 안이면 합침) · `place`(축마다 실제 비율과 순위 간격을 반씩 섞어 몰린 장소를 펼침, 순서 유지) · `spread`(44dp 안 핀 벌리기) · `smoothCurve`(Catmull-Rom → 베지어, 모든 핀을 지남)로 바꿈. 도로 경로 그리기·path 대체 테스트 삭제, 새 단위 테스트 9개. 캡처 3장 다시 찍음 | PR #235 병합 |
 
 ## 6. 확인하지 못한 것
 - 다크(수면) 톤에서 지도 색은 캡처하지 않았다(토큰만 `SitterSurface`를 따름).
