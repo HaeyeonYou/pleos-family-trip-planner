@@ -1,46 +1,58 @@
 package io.github.haeyeonyou.familytrip.ui
 
+import io.github.haeyeonyou.familytrip.data.CoursePlace
 import io.github.haeyeonyou.familytrip.data.CourseStop
 import io.github.haeyeonyou.familytrip.data.LatLng
 import kotlin.math.cos
 import kotlin.math.hypot
-import kotlin.math.min
 
 /** 지도 카드 안의 화면 좌표 (px, 왼쪽 위 원점). */
 data class MapPoint(val x: Float, val y: Float)
 
-/** 지도에 그릴 내용: 경로선 꼭짓점, 번호 핀을 꽂을 장소, 출발지·귀가 지점. */
-data class CourseMapShape(
-    val line: List<LatLng>,
-    val visits: List<CourseStop>,
-    val origin: LatLng?,
-    val home: LatLng?,
-)
+/** 곡선 한 토막: [from]에서 [to]까지, 조절점 [c1]·[c2]인 3차 베지어. */
+data class CurveSegment(val from: MapPoint, val c1: MapPoint, val c2: MapPoint, val to: MapPoint)
+
+/** 지도에 꽂을 지점 하나. [number]가 있으면 장소 번호 핀, 없으면 출발·귀가 고리. */
+data class MapAnchor(val at: LatLng, val number: Int?, val label: String)
 
 /**
- * 가상 코스 지도(#231)의 좌표 계산. 화면 그리기와 떼어 단위 테스트한다.
- * 실제 지도 타일 없이 위경도를 카드 크기에 맞춰 비율 그대로(찌그러뜨리지 않고) 옮긴다.
+ * 가상 코스 지도(#231)의 배치 계산. 화면 그리기와 떼어 단위 테스트한다.
+ *
+ * 사용자 결정(2026-11-12 추가): 경로선은 실제 도로 경로처럼 그리지 않고, Figma 디자인처럼
+ * 출발지 → 장소들 → 귀가 지점의 **순서만 맞게** 부드러운 곡선으로 잇는다. 핀 위치는 위경도 비율을
+ * 대략 따르되 한곳에 몰리지 않게 순서 간격과 섞어 펼친다.
  */
 object CourseMapGeometry {
 
+    /** 출발지와 귀가 지점이 이 거리(m)보다 가까우면 같은 곳으로 보고 표시를 하나로 합친다. */
+    private const val SAME_PLACE_M = 200.0
+
+    /** 실제 위경도 비율과 순위(고른 간격)를 섞는 비율. 0이면 실제 비율 그대로, 1이면 고른 간격. */
+    private const val RANK_BLEND = 0.5f
+
     /**
-     * 경로선은 서버가 준 실제 도로 경로 [path]를 쓴다. 두 점이 안 되면 출발지(있으면)→장소 순서→귀가 지점을 직선으로 잇는다.
-     * 출발지는 실제 경로의 첫 점이다 (코스 응답에는 출발지가 따로 없다). path가 없으면 알 수 없어 표시하지 않는다.
+     * 지도에 꽂을 지점을 경로 순서대로 고른다.
+     * 출발지는 코스 응답에 따로 없어 서버 경로의 첫 점([path] 첫 점, 위치로만 쓴다)을 쓴다. 없으면 생략한다.
+     * 귀가 지점이 출발지와 같은 곳이면 출발 고리 하나("출발·귀가")로 합치고 선은 마지막 장소에서 끝낸다.
      */
-    fun shape(stops: List<CourseStop>, path: List<LatLng>): CourseMapShape {
+    fun anchors(stops: List<CourseStop>, path: List<LatLng>): List<MapAnchor> {
         val visits = stops.filter { it.role != "home" && it.place.hasCoordinates() }
-        val home = stops.lastOrNull { it.role == "home" && it.place.hasCoordinates() }?.let { LatLng(it.place.latitude, it.place.longitude) }
-        val road = path.filter { it.hasCoordinates() }
-        if (road.size >= 2) return CourseMapShape(road, visits, origin = road.first(), home = home)
-        val straight = visits.map { LatLng(it.place.latitude, it.place.longitude) } + listOfNotNull(home)
-        return CourseMapShape(straight, visits, origin = null, home = home)
+        val home = stops.lastOrNull { it.role == "home" && it.place.hasCoordinates() }?.place?.let { LatLng(it.latitude, it.longitude) }
+        val origin = path.firstOrNull { it.hasCoordinates() }
+        val sameAsOrigin = origin != null && home != null && distanceMeters(origin, home) < SAME_PLACE_M
+        return buildList {
+            origin?.let { add(MapAnchor(it, number = null, label = if (sameAsOrigin) "출발·귀가" else "출발")) }
+            visits.forEachIndexed { i, s -> add(MapAnchor(LatLng(s.place.latitude, s.place.longitude), number = i + 1, label = s.place.name)) }
+            if (home != null && !sameAsOrigin) add(MapAnchor(home, number = null, label = "귀가"))
+        }
     }
 
     /**
-     * [points]가 모두 들어가도록 [width]×[height] 안, 사방 여백(px)을 뺀 영역에 맞추는 변환을 만든다.
-     * 경도는 위도에 따라 실제 거리가 줄어드므로 cos(중심 위도)를 곱해 가로·세로 축척을 같게 한다(북쪽이 위).
+     * 지점들을 [width]×[height]에서 사방 여백(px)을 뺀 영역에 배치한다. 북쪽이 위, 동쪽이 오른쪽.
+     * 축마다 실제 비율(경도는 cos(위도) 보정)과 순위 간격을 반씩 섞어, 가까이 몰린 장소도 서로 떨어져 보이게 한다.
+     * 두 점의 동서·남북 순서는 그대로 유지된다.
      */
-    fun fit(
+    fun place(
         points: List<LatLng>,
         width: Float,
         height: Float,
@@ -48,35 +60,31 @@ object CourseMapGeometry {
         padTop: Float = 0f,
         padRight: Float = 0f,
         padBottom: Float = 0f,
-    ): MapProjection {
+    ): List<MapPoint> {
+        if (points.isEmpty()) return emptyList()
         val boxW = (width - padLeft - padRight).coerceAtLeast(1f)
         val boxH = (height - padTop - padBottom).coerceAtLeast(1f)
-        if (points.isEmpty()) return MapProjection(0.0, 0.0, 1.0, 0.0, padLeft + boxW / 2, padTop + boxH / 2)
-        val minLat = points.minOf { it.latitude }
-        val maxLat = points.maxOf { it.latitude }
-        val minLng = points.minOf { it.longitude }
-        val maxLng = points.maxOf { it.longitude }
-        val lngFactor = cos(Math.toRadians((minLat + maxLat) / 2)).coerceAtLeast(0.01)
-        val spanX = (maxLng - minLng) * lngFactor
-        val spanY = maxLat - minLat
-        // 점이 하나뿐이거나 한 줄로만 늘어선 경우 0으로 나누지 않게 남은 축은 무시한다.
-        val scale = when {
-            spanX < EPS && spanY < EPS -> 1.0
-            spanX < EPS -> boxH / spanY
-            spanY < EPS -> boxW / spanX
-            else -> min(boxW / spanX, boxH / spanY)
+        val midLat = (points.minOf { it.latitude } + points.maxOf { it.latitude }) / 2
+        val lngFactor = cos(Math.toRadians(midLat))
+        val fx = spreadAxis(points.map { it.longitude * lngFactor })
+        // 화면 y는 아래로 커지므로 위도를 뒤집는다.
+        val fy = spreadAxis(points.map { -it.latitude })
+        return points.indices.map { i -> MapPoint(padLeft + fx[i] * boxW, padTop + fy[i] * boxH) }
+    }
+
+    /** 한 축의 값을 0..1로: 실제 비율과 순위 간격을 섞는다. 값이 모두 같으면 가운데(0.5). */
+    internal fun spreadAxis(values: List<Double>): List<Float> {
+        val min = values.min()
+        val span = values.max() - min
+        if (span < 1e-12) return values.map { 0.5f }
+        val sorted = values.sorted()
+        val last = (values.size - 1).coerceAtLeast(1)
+        return values.map { v ->
+            val actual = ((v - min) / span).toFloat()
+            // 같은 값은 같은 순위(첫·끝 위치의 평균)를 받아 순서가 뒤집히지 않는다.
+            val rank = (sorted.indexOfFirst { it == v } + sorted.indexOfLast { it == v }) / 2f / last
+            actual * (1 - RANK_BLEND) + rank * RANK_BLEND
         }
-        // 맞춘 그림을 여백 안 영역 한가운데에 둔다.
-        val centerX = padLeft + boxW / 2
-        val centerY = padTop + boxH / 2
-        return MapProjection(
-            centerLat = (minLat + maxLat) / 2,
-            centerLng = (minLng + maxLng) / 2,
-            scale = scale,
-            lngFactor = lngFactor,
-            centerX = centerX,
-            centerY = centerY,
-        )
     }
 
     /**
@@ -100,24 +108,33 @@ object CourseMapGeometry {
         return out
     }
 
-    private const val EPS = 1e-9
-}
+    /**
+     * 지점을 순서대로 지나는 부드러운 곡선 (Catmull-Rom → 3차 베지어). 모든 지점을 정확히 지난다.
+     * [tension]이 작을수록 직선에 가깝다 (1/6이 표준 Catmull-Rom).
+     */
+    fun smoothCurve(points: List<MapPoint>, tension: Float = 1f / 6f): List<CurveSegment> {
+        if (points.size < 2) return emptyList()
+        return points.indices.toList().zipWithNext().map { (i, j) ->
+            val p0 = points[(i - 1).coerceAtLeast(0)]
+            val p1 = points[i]
+            val p2 = points[j]
+            val p3 = points[(j + 1).coerceAtMost(points.lastIndex)]
+            CurveSegment(
+                from = p1,
+                c1 = MapPoint(p1.x + (p2.x - p0.x) * tension, p1.y + (p2.y - p0.y) * tension),
+                c2 = MapPoint(p2.x - (p3.x - p1.x) * tension, p2.y - (p3.y - p1.y) * tension),
+                to = p2,
+            )
+        }
+    }
 
-/** 위경도 → 화면 좌표 변환 ([CourseMapGeometry.fit]이 만든다). */
-data class MapProjection(
-    val centerLat: Double,
-    val centerLng: Double,
-    val scale: Double,
-    val lngFactor: Double,
-    val centerX: Float,
-    val centerY: Float,
-) {
-    fun toScreen(p: LatLng): MapPoint = MapPoint(
-        x = (centerX + (p.longitude - centerLng) * lngFactor * scale).toFloat(),
-        y = (centerY - (p.latitude - centerLat) * scale).toFloat(),
-    )
+    private fun distanceMeters(a: LatLng, b: LatLng): Double {
+        val dy = (a.latitude - b.latitude) * 111_320.0
+        val dx = (a.longitude - b.longitude) * 111_320.0 * cos(Math.toRadians((a.latitude + b.latitude) / 2))
+        return hypot(dx, dy)
+    }
 }
 
 /** 좌표가 없는 장소(0,0)는 그리지 않는다. 옛 저장본·수동 입력 장소가 이렇게 올 수 있다. */
 private fun LatLng.hasCoordinates() = !(latitude == 0.0 && longitude == 0.0)
-private fun io.github.haeyeonyou.familytrip.data.CoursePlace.hasCoordinates() = !(latitude == 0.0 && longitude == 0.0)
+private fun CoursePlace.hasCoordinates() = !(latitude == 0.0 && longitude == 0.0)
