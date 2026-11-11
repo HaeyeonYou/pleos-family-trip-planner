@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
 """Figma 11/10 디자인 변경 감시 (이슈 #157).
 
-Figma REST API(개인 액세스 토큰, 읽기 전용)로 섹션 `351:2611`을 조회해
+Figma REST API(개인 액세스 토큰, 읽기 전용)로 페이지 `종합 정리`(`130:5`) 전체를 조회해
 정규화 스냅샷을 만들고, 직전 스냅샷과 비교해 변경 기록을 남긴다.
 
 호출 순서 (싼 것부터):
   1) GET /v1/files/:key/meta      (Tier 3)  → version 이 같으면 끝
      실패(403 등)하면 GET /v1/files/:key/versions (Tier 2)로 대신 확인
-  2) GET /v1/files/:key/nodes?ids=351:2611&geometry=omit  (Tier 1, 바뀐 경우만)
+  2) GET /v1/files/:key/nodes?ids=130:5&geometry=omit  (Tier 1, 바뀐 경우만)
+
+화면 단위: 페이지 최상위 노드와 모든 SECTION의 자식. 같은 이름 화면이 여러 섹션에 있으므로
+(피드백 섹션 `369:11525`는 원본 섹션 `351:2611`의 복사본) 화면은 노드 id로 구분하고,
+기록에는 `코드@섹션id`(예: `H01@369:11525`)로 쓴다. 화면 코드는 이름에서 읽는다.
 
 토큰: 환경 변수 FIGMA_TOKEN, 없으면 레포 루트 `.env`의 FIGMA_TOKEN.
 토큰 값은 어디에도 출력하지 않는다.
@@ -38,8 +42,8 @@ from pathlib import Path
 from typing import Any
 
 FILE_KEY = "xeLwkzhH8tnsazQdOriGU2"
-SECTION_ID = "351:2611"
-SECTION_NAME = "11/10 · Pleos 공통 UI + 지수ver"
+ROOT_ID = "130:5"
+ROOT_NAME = "종합 정리"
 API = "https://api.figma.com/v1"
 
 REPO = Path(__file__).resolve().parent.parent
@@ -51,31 +55,41 @@ CHANGELOG = WATCH_DIR / "CHANGELOG.md"
 # Tier 1(View/Collab 좌석은 월 20회까지) 보호용 월 상한. 넘으면 --force 없이는 조회하지 않는다.
 DEFAULT_TIER1_MONTHLY_CAP = 15
 
-# 화면 프레임 노드 id → (화면 코드, 담당 세션, 지시 파일). 출처: docs/design/pleos-1110/02-screen-summaries.md
-SCREENS: dict[str, tuple[str, str]] = {
-    "352:2601": ("H01", "home-h01-h02"),
-    "353:2745": ("H02", "home-h01-h02"),
-    "353:3066": ("H02-1", "home-h01-h02"),
-    "354:3033": ("G01", ""),
-    "355:3177": ("C01", "care-c01"),
-    "355:3567": ("C02", "care-c01"),
-    "355:3942": ("C03", "care-c01"),
-    "355:4322": ("C04", "care-c01"),
-    "355:4702": ("C05", "care-c01"),
-    "355:5094": ("C06", "care-c01"),
-    "356:4041": ("C07", "care-c01"),
-    "356:4452": ("C08", "care-c01"),
-    "356:4897": ("C09", "care-c01"),
-    "356:5359": ("C10", "care-c01"),
-    "356:5796": ("C11", "care-c01"),
-    "356:6254": ("C12", "care-c01"),
-    "356:6661": ("D01", "drive-voice-d01"),
-}
+# 이름 앞의 화면 코드: H01, H02-1, C05, D01, G03, G01-B, O04-1, S02-1, K7-2, HF03 … 또는 Lib·Type·Tile.
+# "Note · C05"는 C05 화면의 노트로 본다. "S02 아이 정보"처럼 가운뎃점 없이 이어져도 된다.
+_CODE_RE = re.compile(r"^(?:Note\s*·\s*)?([A-Z]{1,2}\d{1,2}(?:-(?:\d+|B))?|Lib|Type|Tile)(?=\s|$|·)")
+# 발표 슬라이드("01 Title", "17 04 사용자 여정 지도" …): 기록은 하되 세션 알림은 없다.
+_SLIDE_RE = re.compile(r"^\d{2} ")
+
+# 화면 코드 → 담당 세션. 위에서부터 처음 맞는 줄을 쓴다. 맞는 줄이 없으면(O·S02·옛 K·HF 등) 통제 세션만 받는다.
+# 출처: 감사 지시서 docs/agent-tasks/2026-11-11-full-audit.md (이슈 #201) "figma-watch 감시 범위" 절.
+SESSION_RULES: list[tuple[str, tuple[str, ...]]] = [
+    (r"G\d{2}(?:-B)?", ("1111-grow-jelly",)),
+    (r"C\d{2}", ("child-mode", "1111-feeding-cleanup")),
+    (r"H\d{2}(?:-\d+)?|D\d{2}|Lib|Type|Tile", ("1111-shell-polish",)),
+]
 SESSION_TASK_FILES = {
-    "home-h01-h02": "docs/agent-tasks/home-h01-h02.md",
-    "care-c01": "docs/agent-tasks/care-c01.md",
-    "drive-voice-d01": "docs/agent-tasks/drive-voice-d01.md",
+    "1111-grow-jelly": "docs/agent-tasks/1111-grow-jelly.md",
+    "child-mode": "docs/agent-tasks/192-child-care-mode.md",
+    "1111-feeding-cleanup": "docs/agent-tasks/1111-feeding-cleanup.md",
+    "1111-shell-polish": "docs/agent-tasks/1111-shell-polish.md",
 }
+
+
+def screen_code(name: str) -> str:
+    if _SLIDE_RE.match(name or ""):
+        return "slide"
+    m = _CODE_RE.match(name or "")
+    return m.group(1) if m else ""
+
+
+def sessions_of_code(code: str) -> tuple[str, ...]:
+    for pat, sess in SESSION_RULES:
+        if code and re.fullmatch(pat, code):
+            return sess
+    return ()
+
+
 MAX_LINES_PER_GROUP = 40
 
 
@@ -148,31 +162,36 @@ def _node_record(n: dict, origin: tuple[float, float] | None) -> dict:
     return rec
 
 
-def normalize(section: dict) -> dict:
-    """섹션 노드(document) → {"section": ..., "screens": {...}, "nodes": {id: rec}}.
+def normalize(root: dict) -> dict:
+    """페이지(또는 섹션) 노드 → {"root": id, "screens": {...}, "nodes": {id: rec}}.
 
-    rec 에는 parent, screen(최상위 자식 id), 화면 프레임 기준 상대 좌표가 들어간다.
+    화면 = 루트의 자식 중 SECTION이 아닌 것 + 모든 SECTION(중첩 포함)의 자식 중 SECTION이 아닌 것.
+    screens[id] = {"name", "code", "section"(속한 섹션 id, 페이지 최상위면 "")}.
+    rec 에는 parent, screen(화면 id), 화면 기준 상대 좌표가 들어간다. 루트·섹션 노드 자신은 screen 이 없다.
     """
     nodes: dict[str, dict] = {}
     screens: dict[str, dict] = {}
 
-    def walk(n: dict, parent: str | None, screen: str | None, origin: tuple[float, float] | None) -> None:
+    def walk(n: dict, parent: str | None, screen: str | None, origin: tuple[float, float] | None,
+             container: str | None) -> None:
         rec = _node_record(n, origin)
         rec["parent"] = parent
         if screen:
             rec["screen"] = screen
         nodes[n["id"]] = rec
+        is_container = screen is None and (n["id"] == root["id"] or n.get("type") == "SECTION")
         for c in n.get("children") or []:
-            if n["id"] == section["id"]:  # 최상위 자식 = 화면(또는 노트·컨셉)
+            if is_container and c.get("type") != "SECTION":
                 box = c.get("absoluteBoundingBox") or {}
-                child_origin = (box.get("x", 0), box.get("y", 0))
-                screens[c["id"]] = {"name": c.get("name", ""), "code": SCREENS.get(c["id"], ("", ""))[0]}
-                walk(c, n["id"], c["id"], child_origin)
+                section = "" if n["id"] == root["id"] and root.get("type") != "SECTION" else n["id"]
+                screens[c["id"]] = {"name": c.get("name", ""), "code": screen_code(c.get("name", "")),
+                                    "section": section}
+                walk(c, n["id"], c["id"], (box.get("x", 0), box.get("y", 0)), None)
             else:
-                walk(c, n["id"], screen, origin)
+                walk(c, n["id"], screen, origin, None)
 
-    walk(section, None, None, None)
-    return {"file": FILE_KEY, "section": section["id"], "screens": screens, "nodes": nodes}
+    walk(root, None, None, None, None)
+    return {"file": FILE_KEY, "root": root["id"], "screens": screens, "nodes": nodes}
 
 
 def dump_snapshot(snap: dict, meta: dict) -> str:
@@ -220,12 +239,20 @@ def _fmt(v: Any) -> str:
     return s if len(s) <= 60 else s[:57] + "…"
 
 
+def screen_key(snap: dict, sid: str) -> str:
+    """`코드@섹션id`(섹션 밖이면 `코드`). 코드가 없으면 노드 id."""
+    info = snap["screens"].get(sid, {})
+    code = info.get("code", "")
+    if not code or code == "slide":
+        return sid
+    return f"{code}@{info['section']}" if info.get("section") else code
+
+
 def _screen_label(snap: dict, sid: str | None) -> str:
     if not sid:
-        return "섹션 공통"
+        return "페이지·섹션 공통"
     info = snap["screens"].get(sid, {})
-    code = info.get("code") or SCREENS.get(sid, ("", ""))[0]
-    return f"{code} · {info.get('name', '')}" if code else info.get("name", sid)
+    return f"{screen_key(snap, sid)} · {info.get('name', '')} (`{sid}`)"
 
 
 def diff(old: dict, new: dict) -> dict:
@@ -280,19 +307,16 @@ def diff(old: dict, new: dict) -> dict:
     }
 
 
-def sessions_for(groups: dict[str, list[str]], colors: dict) -> dict[str, list[str]]:
-    """변경 화면 → 세션별 화면 코드 목록. 섹션 공통·새 색은 모든 세션에 간다."""
+def sessions_for(groups: dict[str, list[str]], snap: dict, old: dict | None = None) -> dict[str, list[str]]:
+    """변경 화면 → {세션: [화면 키]}. 공통 변경·색·담당 없는 화면은 여기 넣지 않는다(통제 세션이 전체를 받음)."""
     out: dict[str, list[str]] = {}
-    shared = "" in groups or colors["added"] or colors["removed"]
     for sid in groups:
         if not sid:
             continue
-        code, sess = SCREENS.get(sid, ("", ""))
-        if sess:
-            out.setdefault(sess, []).append(code)
-    if shared:
-        for sess in SESSION_TASK_FILES:
-            out.setdefault(sess, []).append("공통")
+        src = snap if sid in snap["screens"] else (old or snap)
+        code = src["screens"].get(sid, {}).get("code", "")
+        for sess in sessions_of_code(code):
+            out.setdefault(sess, []).append(screen_key(src, sid))
     return {k: sorted(set(v)) for k, v in out.items()}
 
 
@@ -305,8 +329,8 @@ def render_changelog_entry(d: dict, old: dict, new: dict, when: str) -> str:
         f"- Figma 버전: `{om.get('version', '?')}` ({om.get('lastModified', '?')}) → `{nm.get('version', '?')}` ({nm.get('lastModified', '?')})",
     ]
     if d["colors"]["added"] or d["colors"]["removed"]:
-        lines.append(f"- 섹션 전체 색: 새로 쓰임 {_fmt(d['colors']['added']) or '없음'} / 더 이상 안 쓰임 {_fmt(d['colors']['removed']) or '없음'}")
-    sess = sessions_for(d["groups"], d["colors"])
+        lines.append(f"- 페이지 전체 색: 새로 쓰임 {_fmt(d['colors']['added']) or '없음'} / 더 이상 안 쓰임 {_fmt(d['colors']['removed']) or '없음'}")
+    sess = sessions_for(d["groups"], new, old)
     if sess:
         lines.append("- 관련 세션: " + ", ".join(f"`{s}`({', '.join(v)})" for s, v in sorted(sess.items())))
     lines.append("- 변경된 화면의 기준 PNG(`assets/screens/`)는 아직 옛 그림이다. 구현 전에 이 기록을 우선한다.")
@@ -325,7 +349,7 @@ def render_changelog_entry(d: dict, old: dict, new: dict, when: str) -> str:
 
 CHANGELOG_HEAD = """# Figma 11/10 디자인 변경 기록
 
-감시 대상: 파일 `{key}` · 페이지 `종합 정리` · 섹션 `{name}` (`{sid}`).
+감시 대상: 파일 `{key}` · 페이지 `{name}`(`{sid}`) 전체.
 도구: `tools/figma_watch.py` (이슈 #157, 지시 파일 `docs/agent-tasks/157-figma-watch.md`).
 최신 기록이 위에 온다. 스냅샷은 `snapshot.json`(노드 한 줄씩), 마지막 확인 버전은 `state.json`.
 
@@ -335,7 +359,7 @@ CHANGELOG_HEAD = """# Figma 11/10 디자인 변경 기록
 
 def prepend_changelog(entry: str) -> None:
     text = CHANGELOG.read_text(encoding="utf-8") if CHANGELOG.exists() else CHANGELOG_HEAD.format(
-        key=FILE_KEY, name=SECTION_NAME, sid=SECTION_ID)
+        key=FILE_KEY, name=ROOT_NAME, sid=ROOT_ID)
     marker = "<!-- entries -->\n"
     if marker not in text:
         text += "\n" + marker
@@ -404,12 +428,12 @@ def fetch_version(token: str) -> dict:
         return {"version": str(top.get("id")), "lastModified": top.get("created_at"), "via": "versions"}
 
 
-def fetch_section(token: str) -> tuple[dict, dict]:
-    r = api_get(f"/files/{FILE_KEY}/nodes", token, {"ids": SECTION_ID, "geometry": "omit"})
-    node = (r.get("nodes") or {}).get(SECTION_ID) or {}
+def fetch_root(token: str) -> tuple[dict, dict]:
+    r = api_get(f"/files/{FILE_KEY}/nodes", token, {"ids": ROOT_ID, "geometry": "omit"})
+    node = (r.get("nodes") or {}).get(ROOT_ID) or {}
     doc = node.get("document")
     if not doc:
-        raise ApiError(404, f"섹션 {SECTION_ID}을 찾지 못함")
+        raise ApiError(404, f"페이지 {ROOT_ID}을 찾지 못함")
     return doc, {"version": str(r.get("version")), "lastModified": r.get("lastModified")}
 
 
@@ -463,7 +487,7 @@ def cmd_check(args: argparse.Namespace, baseline_only: bool = False) -> int:
         emit(status="tier1_cap", message=f"이번 달 트리 조회 {args.tier1_cap}회 상한 도달 (--force로 무시)", version=ver["version"])
         return 3
     try:
-        doc, meta = fetch_section(token)
+        doc, meta = fetch_root(token)
     except ApiError as e:
         emit(status="rate_limited" if e.code == 429 else "api_error", code=e.code, headers=e.headers, step="nodes",
              message=str(e)[:200])
@@ -484,10 +508,10 @@ def cmd_check(args: argparse.Namespace, baseline_only: bool = False) -> int:
             prepend_changelog(render_changelog_entry(d, old, new, f"{now:%Y-%m-%d %H:%M}"))
             SNAPSHOT.write_text(dump_snapshot(new, new["meta"]), encoding="utf-8")
             status = "changed"
-            result.update(counts=d["counts"], sessions=sessions_for(d["groups"], d["colors"]),
+            result.update(counts=d["counts"], sessions=sessions_for(d["groups"], new, old),
                           screens=sorted(_screen_label(new if s in new["screens"] else old, s or None) for s in d["groups"]))
         else:
-            status = "section_unchanged"  # 파일 다른 곳만 바뀜
+            status = "section_unchanged"  # 파일의 다른 페이지만 바뀜 (상태 이름은 주기 작업과 맞추려고 유지)
     state.update(version=meta["version"], lastModified=meta["lastModified"], checkedAt=now.isoformat(timespec="minutes"))
     save_state(state)
     emit(status=status, **result)
@@ -499,13 +523,13 @@ def cmd_diff(args: argparse.Namespace) -> int:
     d = diff(old, new)
     print(render_changelog_entry(d, old, new, "비교"))
     emit(status="changed" if d["groups"] else "section_unchanged", counts=d["counts"],
-         sessions=sessions_for(d["groups"], d["colors"]))
+         sessions=sessions_for(d["groups"], new, old))
     return 0
 
 
 def cmd_normalize(args: argparse.Namespace) -> int:
     raw = json.loads(Path(args.raw).read_text(encoding="utf-8"))
-    doc = raw.get("nodes", {}).get(SECTION_ID, {}).get("document", raw)
+    doc = raw.get("nodes", {}).get(ROOT_ID, {}).get("document", raw)
     snap = normalize(doc)
     meta = {"version": str(raw.get("version")), "lastModified": raw.get("lastModified")}
     Path(args.out).write_text(dump_snapshot(snap, meta), encoding="utf-8")
