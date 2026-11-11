@@ -45,7 +45,7 @@ object SitterGrid {
     const val GAP = 16
     const val COLUMN_COUNT = 3
 
-    /** 1·2열을 합친 폭 (코스 타임라인·경험 나무). 392 * 2 + 16 */
+    /** 1·2열을 합친 폭 (코스 타임라인·경험 젤리). 392 * 2 + 16 */
     const val DOUBLE_W = COLUMN_W * 2 + GAP
 
     const val SEARCH_Y = 24
@@ -105,7 +105,7 @@ fun SitterThreeColumns(
     }
 }
 
-/** 1·2열을 합친 넓은 열(800) + 3열 (코스 타임라인·경험 나무 화면). */
+/** 1·2열을 합친 넓은 열(800) + 3열 (코스 타임라인·경험 젤리 화면). */
 @Composable
 fun SitterWideAndColumn(
     wide: @Composable ColumnScope.() -> Unit,
@@ -175,7 +175,21 @@ fun SitterWeather(temperature: String, description: String, modifier: Modifier =
             Text(temperature, style = SitterText.Title1, color = s.ink)
             Text(description, style = SitterText.Caption, color = s.inkMute, textAlign = TextAlign.End)
         }
-        SitterIcon(SitterIcons.Sun, Color(0xFFF59E0B))
+        WeatherIcon(weatherKindOf(description))
+    }
+}
+
+/** 날씨 아이콘 34. 해는 노랑, 구름은 회색, 비는 파랑, 눈은 하늘색. */
+@Composable
+private fun WeatherIcon(kind: WeatherKind) {
+    val s = SitterSurface.current
+    val sun = Color(0xFFF59E0B)
+    when (kind) {
+        WeatherKind.SUN -> SitterIcon(SitterIcons.Sun, sun)
+        WeatherKind.PARTLY_CLOUDY -> SitterIcon(SitterIcons.CloudSun, s.inkSoft, size = 34.dp)
+        WeatherKind.CLOUD -> SitterIcon(SitterIcons.Cloud, s.inkSoft, size = 34.dp)
+        WeatherKind.RAIN -> SitterIcon(SitterIcons.CloudRain, SitterPalette.Blue, size = 34.dp)
+        WeatherKind.SNOW -> SitterIcon(SitterIcons.CloudSnow, SitterPalette.Cyan, size = 34.dp)
     }
 }
 

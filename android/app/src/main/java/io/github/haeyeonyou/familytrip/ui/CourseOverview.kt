@@ -144,7 +144,7 @@ fun CourseOverview(
                             canMoveDown = index < visits - 1,
                         ) {
                             if (home) {
-                                Text("오늘 경험이 경험 나무에 기록돼요", style = SitterText.Caption, color = s.inkMute)
+                                Text("오늘 경험이 경험 젤리에 기록돼요", style = SitterText.Caption, color = s.inkMute)
                             } else {
                                 Text(stopLine(stop), style = SitterText.Caption, color = s.inkMute, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 AmenityTags(stop)
