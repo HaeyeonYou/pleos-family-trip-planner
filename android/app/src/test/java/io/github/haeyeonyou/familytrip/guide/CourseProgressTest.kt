@@ -213,4 +213,11 @@ class CourseProgressTest {
         val old = json.encodeToString(SavedGuide.serializer(), SavedGuide(state.copy(startedAtMillis = null))).replace(",\"startedAtMillis\":null", "")
         assertNull(json.decodeFromString(SavedGuide.serializer(), old).state.startedAtMillis)
     }
+
+    @Test
+    fun `주유 경유지는 다녀온 장소·젤리에 넣지 않는다`() {
+        val fuel = stop("fuel", place("판교주유소", 37.40, 127.10), "11:50", "12:00", 10, 5)
+        val withFuel = guide(2).copy(stops = stops.take(1) + fuel + stops.drop(1), visited = setOf(0, 1, 2))
+        assertEquals(listOf("올데이 브런치", "덕수궁"), visitedStops(withFuel).map { it.place.name })
+    }
 }

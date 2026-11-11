@@ -113,9 +113,9 @@ fun remainingStops(state: GuideState): List<RemainingStop> {
     return state.stops.drop(index + 1).map { RemainingStop(it.arriveAt, if (it.role == "home") "귀가" else it.place.name, if (it.role == "home") 0 else it.stayMinutes) }
 }
 
-/** H04 다녀온 장소 (도착한 곳만, 코스 순서). */
+/** H04 다녀온 장소 (도착한 곳만, 코스 순서). 주유·충전(#215)은 장소가 아니라 뺀다. */
 fun visitedStops(state: GuideState): List<CourseStop> =
-    state.stops.filterIndexed { i, stop -> i in state.visited && stop.role != "home" }
+    state.stops.filterIndexed { i, stop -> i in state.visited && stop.role != "home" && stop.role != "fuel" }
 
 /** H04 "덕수궁 나들이 코스 · 10:00 – 14:40 · 3곳". 귀가를 고르지 않았으면 끝은 마지막으로 다녀온 곳을 떠난 시각. */
 fun finishedSummary(state: GuideState): String {
