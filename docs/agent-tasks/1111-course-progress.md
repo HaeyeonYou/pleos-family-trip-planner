@@ -1,6 +1,6 @@
 # 코스 진행 H03·H03-1·H04 새 셸 (2026-11-11 지시서)
 
-- 상태: **대기**(실행 세션은 통제 세션이 시작) · 접수 전 필수: **예**
+- 상태: **진행 중** (이슈 #218, 브랜치 `feature/218-course-progress`) · 접수 전 필수: **예**
 - 근거: [`docs/audit/2026-11-11-figma-delta-after-audit.md`](../audit/2026-11-11-figma-delta-after-audit.md) P-1~P-3. Figma 18:20 변경(`watch/CHANGELOG.md`)에서 새로 생긴 화면이다.
 - 다른 지시서와 파일 겹침: `1111-shell-polish`(`MainActivity.kt`, `VoicePanel.kt`), `1111-feeding-cleanup`(`CourseOverview.kt`). 시작 전에 열린 PR과 작업 트리를 확인한다.
 
@@ -47,6 +47,12 @@
 
 ## 진행 로그
 - 2026-11-11: 지시서 작성(figma-watch 세션, Figma 18:20 변경 기준).
+- 2026-11-11 23시 (course-progress 세션, #218):
+  - 서버: 코스 수정 API는 원래 있었다(`POST /course/schedule`, 장소 바꾸기·붙이기에 그대로 씀). 웹에 보여 줄 "진행 중 코스"가 없어서 새로 만듦: `PUT/GET/DELETE /me/trip`(`server/app/trip.py`, 표 `current_trips`, 마이그레이션 `a6c2e9f41d58`), `/me/sync`에 `trip` 영역, 폰 웹 홈 첫 카드가 오늘 코스(진행 상태·다녀옴/지금/안 감)로 바뀜, `DELETE /me/visits`가 함께 지움. 좌표는 받지 않음. 테스트 `tests/test_trip.py`.
+  - 앱: `guide/CourseProgress.kt`(단계 판정·출발/지연·진행 줄·남은 일정·한 곳 더 후보·서버 스냅숏·음성 답 분류), `GuideSession` 종료 시점 변경(`goHome`=귀가 고른 순간 종료 + 집 안내, `endHere`=안내 취소, `replaceStops`=다시 계산한 코스 반영, `visited`=도착한 곳만), `data/TripSync.kt`(로그인 시 변경마다 업로드), `ui/GuideScreen.kt` 새 셸(H03·H03-1·H04 + 가는 중 화면), `TripViewModel` `swapNextDuringGuide`·`addExtraDuringGuide`(기존 `/course/schedule`), `VoiceController.askArrival`(주행 중 도착 질문)·`VoiceHost.answerArrival`, `MainActivity` GUIDE 인자. `CourseOverview.kt`는 `CandidateCard`를 `internal`로만 바꿈.
+  - 결정(이 세션): QC2 [여기서 코스 끝내기]는 왼쪽 카드 오른쪽 아래 텍스트 버튼(제안대로). 귀가를 고르면 내비를 앞으로 띄우지 않고 H04를 보인다(안내는 내비가 뒤에서 이어 감, H04 파란 카드를 누르면 내비). 음성 "바꿔줘"·"한 곳 더"는 오른쪽 후보 패널을 열고 고르기는 화면에서. "여기서 끝내자"도 음성으로 받음. 주행 중 도착 질문은 기어를 모를 때(UNKNOWN)는 묻지 않음.
+  - 기록: `recordArrival`은 원래도 도착 때만 기록했다. 이제 같은 장소를 두 번 기록하지 않도록 `visited`로 막고, 건너뛴·바꾼 곳은 도착이 없으니 기록되지 않는다.
+  - 단위 테스트 `guide/CourseProgressTest.kt`(11개), 전체 303개 통과. 서버 `test_trip.py`·`test_sync.py` 통과.
 
 ## 확인하지 못한 것
 - 서버에 코스 수정(장소 바꾸기·붙이기) API가 있는지.
