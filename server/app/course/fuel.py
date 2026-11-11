@@ -7,8 +7,9 @@
 import math
 from dataclasses import dataclass
 
-# QP2 "부족" 기준 [제안, 디자이너 답 대기 2026-11-11]: 코스 총 거리(귀가 포함) × 1.3보다 주행 가능 거리가 짧으면 부족.
-# 답이 오면 이 값 하나(앱은 FuelRange.kt의 FUEL_MARGIN)만 바꾼다.
+# QP2 "부족" 기준 (디자이너 답, 2026-11-11): 주행 가능 거리 80km 미만이면 부족. 앱 FuelRange.kt의 LOW_RANGE_METERS와 같다.
+LOW_RANGE_M = 80_000
+# 디자이너 메모 "연료가 코스를 다 못 돌 정도면": 코스 총 거리(귀가 포함) × 1.3보다 짧아도 부족. 앱 FUEL_MARGIN과 같다.
 FUEL_MARGIN = 1.3
 
 CATEGORY_FUEL = "OL7"  # 카카오 장소 분류: 주유소·충전소
@@ -42,10 +43,10 @@ class StationPick:
 
 
 def needs_refuel(course_m: float, range_m: float | None, margin: float = FUEL_MARGIN) -> bool:
-    """코스(귀가 포함)를 여유 있게 돌기에 주행 가능 거리가 모자란지. 값을 모르면 판정하지 않는다(False)."""
+    """주행 가능 거리가 80km 미만이거나 코스(귀가 포함) × margin보다 짧은지. 값을 모르면 판정하지 않는다(False)."""
     if range_m is None or range_m <= 0 or course_m <= 0:
         return False
-    return range_m < course_m * margin
+    return range_m < max(LOW_RANGE_M, course_m * margin)
 
 
 def is_station(category: str, name: str, ev: bool) -> bool:

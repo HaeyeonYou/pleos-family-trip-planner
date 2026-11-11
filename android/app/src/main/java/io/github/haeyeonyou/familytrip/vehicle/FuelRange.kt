@@ -10,13 +10,13 @@ import kotlin.math.roundToInt
  */
 object FuelRange {
     /**
-     * QP2 "부족" 기준 [제안, 디자이너 답 대기 2026-11-11]: 코스 총 거리(귀가 포함) × 1.3보다 주행 가능 거리가 짧으면 부족.
-     * 답이 오면 이 값(서버는 fuel.py의 FUEL_MARGIN)만 바꾼다.
+     * QP2 "부족" 기준 (디자이너 답, 2026-11-11): 주행 가능 거리 80km 미만이면 부족.
+     * 서버는 fuel.py의 LOW_RANGE_M. 바꿀 때는 두 값을 함께 바꾼다.
      */
-    const val FUEL_MARGIN = 1.3
+    const val LOW_RANGE_METERS = 80_000
 
-    /** 코스가 없을 때: 이보다 짧으면 부족 (QP2 제안 50km) */
-    const val NO_COURSE_LOW_METERS = 50_000
+    /** 디자이너 메모 "연료가 코스를 다 못 돌 정도면": 코스 총 거리(귀가 포함) × 1.3보다 짧아도 부족. 서버 FUEL_MARGIN과 같다. */
+    const val FUEL_MARGIN = 1.3
 }
 
 enum class FuelLevel { ENOUGH, LOW }
@@ -26,11 +26,12 @@ fun courseMeters(course: CourseResponse): Int = course.stops.sumOf { it.driveDis
 
 /**
  * 충분/부족. 주행 가능 거리를 모르면 null(판정하지 않는다, 가짜 값 없음).
- * [courseMeters]가 null이면 코스가 없는 것으로 보고 [FuelRange.NO_COURSE_LOW_METERS]와 비교한다.
+ * 80km 미만([FuelRange.LOW_RANGE_METERS])이거나, 코스가 있으면 코스 총 거리 × [margin]보다 짧을 때 부족.
  */
 fun fuelLevel(rangeMeters: Float?, courseMeters: Int?, margin: Double = FuelRange.FUEL_MARGIN): FuelLevel? {
     if (rangeMeters == null || rangeMeters < 0f || rangeMeters.isNaN()) return null
-    val need = if (courseMeters != null && courseMeters > 0) courseMeters * margin else FuelRange.NO_COURSE_LOW_METERS.toDouble()
+    val courseNeed = if (courseMeters != null && courseMeters > 0) courseMeters * margin else 0.0
+    val need = maxOf(FuelRange.LOW_RANGE_METERS.toDouble(), courseNeed)
     return if (rangeMeters < need) FuelLevel.LOW else FuelLevel.ENOUGH
 }
 
