@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
@@ -320,17 +321,19 @@ private fun ParkingRow(stop: CourseStop, chosen: StopParking, open: Boolean, onT
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             SitterIcon(SitterIcons.Parking, s.inkSoft, size = SitterIconSize.Small)
-            Text(chosen.name, style = SitterText.Body2, color = s.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+            // 이름은 최대 너비까지, 남는 자리에 요금·도보 (Figma: "건물 지하 B2  식사 시 2시간 무료 · 도보 1분")
+            Text(chosen.name, style = SitterText.Body2, color = s.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 240.dp))
             if (open && recommended) {
                 Text(
                     "추천", style = SitterText.Caption, color = s.primary,
                     modifier = Modifier.clip(SitterShapes.Pill).background(s.primarySoft).padding(horizontal = 8.dp, vertical = 2.dp),
                 )
             }
-            if (!open) {
-                Text(parkingRowDetail(chosen), style = SitterText.Caption, color = s.inkMute, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+            if (open) {
+                Spacer(Modifier.weight(1f))
+            } else {
+                Text(parkingRowDetail(chosen), style = SitterText.Caption, color = s.inkMute, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
             }
-            Spacer(Modifier.weight(1f))
             val toggle = if (open) "접기" else parkingOthersLabel(stop)
             toggle?.let { Text(it, style = SitterText.Caption, color = s.primary, maxLines = 1) }
             SitterIcon(if (open) SitterIcons.ChevronUp else SitterIcons.ChevronDown, s.primary, size = SitterIconSize.Small)
