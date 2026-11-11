@@ -375,7 +375,7 @@ private fun ExperienceTile(visits: List<Visit>, onOpen: () -> Unit, modifier: Mo
                 )
                 Text("$places", style = SitterText.Number, color = s.ink)
             }
-            Text(if (places == 0) "첫 나들이를 기록해 보세요" else "이번 달 ${places}곳 · ${fields}분야", style = SitterText.Caption, color = s.inkSoft, maxLines = 2)
+            Text(if (places > 0) "이번 달 ${places}곳 · ${fields}분야" else if (visits.isEmpty()) "첫 나들이를 기록해 보세요" else "10분 이상 머문 곳이 젤리가 돼요", style = SitterText.Caption, color = s.inkSoft, maxLines = 2)
             Text(
                 "경험 젤리 보기",
                 style = SitterText.Label,
