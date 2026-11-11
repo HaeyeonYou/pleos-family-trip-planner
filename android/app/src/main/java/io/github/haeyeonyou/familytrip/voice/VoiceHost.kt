@@ -43,4 +43,10 @@ interface VoiceHost {
 
     /** [placeName]이 들어간 저장 코스를 연다. 없으면 false. */
     fun openCourseWith(placeName: String): Boolean = false
+
+    /**
+     * 코스 진행 도착 화면(H03·H03-1, #218)의 답 ("다음 장소 가자"·"바꿔줘"·"집에 가자"·"한 곳 더").
+     * 지금 도착 화면이 아니거나 답이 아니면 null, 처리했으면 읽어 줄 한 문장.
+     */
+    fun answerArrival(text: String): String? = null
 }

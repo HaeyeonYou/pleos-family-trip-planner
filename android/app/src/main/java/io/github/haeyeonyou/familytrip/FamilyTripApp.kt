@@ -28,6 +28,7 @@ import io.github.haeyeonyou.familytrip.vehicle.VehicleRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.map
 
 /**
  * 앱 전체에서 하나씩 쓰는 의존성. 차량·내비 연결은 프로세스가 살아 있는 동안 유지한다.
@@ -51,6 +52,10 @@ class AppContainer(private val app: Application) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val notifier = GuideNotifier(app)
     val guide = GuideSession(app, navi, location, notifier, visits, scope)
+    /** 진행 중 코스를 계정에 올려 폰 웹 홈에 바로 보이게 한다 (#218, 로그인했을 때만). */
+    private val tripSync = io.github.haeyeonyou.familytrip.data.TripSync({ account.token != null }, { api.putTrip(it) }).also {
+        it.start(guide.state.map { g -> io.github.haeyeonyou.familytrip.guide.tripSnapshot(g, java.time.LocalDate.now()) }, scope)
+    }
     /** 차 앱 ↔ 서버 동기화 (로그인했을 때만 동작). 도착 기록 같은 차의 변경을 바로 올린다. */
     val serverSync = ServerSync(app, api, account, visits, profile, feeding, scope).also { it.start() }
     val care = CareController(app, vehicle, navi, location, api, guide, notifier, feeding, serverSync, visits, scope).also { c ->

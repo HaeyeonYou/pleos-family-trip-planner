@@ -9,11 +9,26 @@
 </div>
 {% endblock %}
 {% block body %}
+{% if trip %}
+<section class="card strong" aria-labelledby="trip-title">
+  <p class="meta">{{ trip.status }}</p>
+  <h2 id="trip-title" style="font-size:18px">{{ trip.title }}</h2>
+  <p class="sub">{{ trip.span }}{% if trip.visited %} · {{ trip.visited }}곳 다녀왔어요{% endif %}</p>
+  <ol class="timeline">
+    {% for s in trip.stops %}
+    <li><b>{{ s.time }}</b> {{ s.name }}{% if s.stay %} <span class="meta">· {{ s.stay }}분</span>{% endif %}
+      {% if s.state == "visited" %} <span class="chip ok">다녀옴</span>{% elif s.state == "current" %} <span class="chip">지금</span>{% elif s.state == "skipped" %} <span class="chip gray">안 감</span>{% endif %}</li>
+    {% endfor %}
+  </ol>
+  <p class="muted small" style="margin-top:8px">차에서 바꾼 일정이 바로 반영돼요</p>
+</section>
+{% else %}
 <section class="card strong" aria-labelledby="schedule-title">
   <h2 id="schedule-title" style="font-size:18px">이번 주 외출 일정이 없어요</h2>
   <p class="sub">폰에서 일정을 만드는 기능은 아직 준비 중이에요. 대신 가족에게 맞는 코스를 미리 받아 볼 수 있어요.</p>
   <a class="btn" href="/m/course">추천 코스 받기</a>
 </section>
+{% endif %}
 
 {% if pending_visits %}
 <a class="card" href="/m/grow/visit/{{ pending_visits[0].id }}" style="margin-top:12px">

@@ -575,7 +575,7 @@ private fun ColumnScope.AddPanel(
 }
 
 @Composable
-private fun CandidateCard(r: Replacement, selected: Boolean, onSelect: () -> Unit) {
+internal fun CandidateCard(r: Replacement, selected: Boolean, onSelect: () -> Unit) {
     val s = SitterSurface.current
     Column(
         Modifier
