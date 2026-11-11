@@ -44,7 +44,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-val ROLE_LABELS = mapOf("meal" to "식사", "outing" to "나들이", "cafe" to "카페", "home" to "귀가")
+val ROLE_LABELS = mapOf("meal" to "식사", "outing" to "나들이", "cafe" to "카페", "fuel" to "주유", "home" to "귀가")
 val THEME_LABELS = mapOf(
     "nature" to "자연",
     "experience" to "체험",

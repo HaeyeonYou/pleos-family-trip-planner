@@ -79,6 +79,7 @@ class StopRole(str, Enum):
     MEAL = "meal"      # 식사
     OUTING = "outing"  # 나들이
     CAFE = "cafe"      # 카페
+    FUEL = "fuel"      # 주유·충전 (주행 가능 거리가 모자랄 때 서버가 넣는다, #215)
     HOME = "home"      # 귀가
 
 
@@ -183,6 +184,10 @@ class CourseRequest(BaseModel):
         default_factory=list, max_length=200, description="이미 보여 준 나들이 장소 키. '다른 코스 보기'에서 뺀다"
     )
     seed: int | None = Field(None, description="후보 가중 선택의 시드. 같은 조건·시드면 같은 결과. 없으면 매번 다르게")
+    range_m: int | None = Field(
+        None, ge=0, description="차의 주행 가능 거리(m). 코스(귀가 포함) × 여유율보다 짧으면 첫 경유지로 주유소·충전소를 넣는다. 모르면 없음"
+    )
+    ev: bool = Field(False, description="전기차면 충전소를, 아니면 주유소를 찾는다")
 
 
 class ScheduleStop(BaseModel):
@@ -200,6 +205,21 @@ class ScheduleRequest(BaseModel):
     departure_time: str | None = Field(None, pattern=r"^\d{2}:\d{2}$", description="출발 시각 HH:MM. 없으면 지금")
     stops: list[ScheduleStop] = Field(..., min_length=1, description="귀가를 뺀 방문 순서")
     suggest_nearby: bool = Field(False, description="나들이 장소 근처 식사·카페 후보를 새로 찾고, 나들이 후보도 다시 골라 alternatives로 준다")
+
+
+class FuelRequest(BaseModel):
+    """홈 연료 타일의 [주유소 찾기] (#215)."""
+
+    origin: LatLng
+    toward: LatLng | None = Field(None, description="다음에 갈 곳. 있으면 그쪽 길에서 덜 돌아가는 곳을 고른다")
+    ev: bool = False
+
+
+class FuelStation(BaseModel):
+    place: Place
+    distance_m: int = Field(..., description="출발지에서 도로 거리 어림(m)")
+    drive_minutes: int
+    on_route: bool = Field(..., description="다음 지점 가는 길에서 500m 안쪽으로 돌아가면 true (\"경로 위\")")
 
 
 class CourseResponse(BaseModel):
