@@ -1,6 +1,6 @@
 # 192: 케어 모드 값(공조 프리셋) 아이별
 
-- 상태: ✅ 완료 (2026-11-11) · 이슈 #192 · 브랜치 `feature/192-child-care-mode` · PR #193(서버), 앱 PR은 아래 로그
+- 상태: ✅ 완료 (2026-11-11) · 이슈 #192 · 브랜치 `feature/192-child-care-mode` · PR #193(서버), #194(앱)
 - 관련: QO5 결정(`1110-onboarding-o01.md` 7절, `docs/design/pleos-1110/05-gaps-and-open-questions.md` H절), D4 폐기(`06-dev-plan.md`), 케어 C07·C08(`care-c01.md`, PR #169·#174), 온보딩 O05(PR #187·#190), 적용 시점 #168
 - Figma: `docs/design/pleos-1110/assets/screens/C07-care-child-select.png`, `C08-care-mode-edit.png`, `O05-onboarding-child-confirm.png`
 
