@@ -25,9 +25,14 @@ fun applyAtOf(preset: PresetState): String =
 /** C08 적용 시점 칸 번호. */
 fun applyAtIndex(applyAt: String): Int = APPLY_AT_CHOICES.indexOfFirst { it.first == applyAt }.coerceAtLeast(0)
 
-/** [trigger](탑승·출발 시각)에 켤 모드들. 슬롯 순서(베이비케어 → 수면 → 수유 정차)라 공조는 뒤의 것이 이긴다 (수유 정차 > 수면 > 베이비케어). */
-fun autoSlots(presets: List<PresetState>, trigger: String): List<String> =
-    PRESET_SLOTS.filter { slot -> presets.firstOrNull { it.slot == slot }?.let { applyAtOf(it) == trigger } == true }
+/**
+ * [trigger](탑승·출발 시각)에 켤 모드들. 슬롯 순서(베이비케어 → 수면 → 수유 정차)라 공조는 뒤의 것이 이긴다 (수유 정차 > 수면 > 베이비케어).
+ * 12개월이 넘은 아이([infant] false)는 수유 정차 모드가 없어, 예전에 저장했거나 웹에서 바꾼 값이 있어도 켜지 않는다 (#217).
+ */
+fun autoSlots(presets: List<PresetState>, trigger: String, infant: Boolean = true): List<String> =
+    PRESET_SLOTS.filter { slot ->
+        (infant || slot != "feeding_stop") && presets.firstOrNull { it.slot == slot }?.let { applyAtOf(it) == trigger } == true
+    }
 
 /** 코스 출발 시각("HH:MM")의 오늘 시각(ms). 비었거나 읽을 수 없으면 null. */
 fun departureMillis(departureAt: String?, now: Long, zone: ZoneId = ZoneId.systemDefault()): Long? {

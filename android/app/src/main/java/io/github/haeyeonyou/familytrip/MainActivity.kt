@@ -525,6 +525,13 @@ class MainActivity : ComponentActivity() {
                                         care.refreshFrequent()
                                         scope.launch { CareKind.cards.forEach { care.findNearby(it) } }
                                     },
+                                    // 유아기 화면 (#217): 가까운 화장실, 공조 직접 조작, 정차 모드
+                                    onFindNearby = { kind, limit -> scope.launch { care.findNearby(kind, limit) } },
+                                    onAdjustBabyCare = { settings ->
+                                        scope.launch { care.adjustBabyCare(settings) }
+                                        vm.savePresetEdits(mapOf("boarding" to settings)) { }
+                                    },
+                                    onStartRestStop = { care.startFeedingStop(feeding = false) },
                                 ),
                             )
                         }
@@ -599,6 +606,7 @@ class MainActivity : ComponentActivity() {
                                     error = state.error,
                                     message = state.message,
                                     feeding = state.feeding,
+                                    showFeeding = io.github.haeyeonyou.familytrip.care.anyInfant(state.profile?.children.orEmpty()),
                                     edit = CourseEditActions(
                                         swap = vm::swapPlace,
                                         move = vm::moveStop,

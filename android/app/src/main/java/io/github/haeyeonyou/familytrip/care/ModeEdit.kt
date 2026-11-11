@@ -47,3 +47,12 @@ fun volumeChoiceIndex(volume: Int?): Int? = volume?.let { v -> VOLUME_CHOICES.in
 /** 바뀐 모드만 (저장할 것). */
 fun changedModes(original: Map<String, ClimateSettings>, drafts: Map<String, ClimateSettings>): Map<String, ClimateSettings> =
     drafts.filter { (slot, draft) -> original[slot] != draft }
+
+/** 유아기 케어 화면(C05-T1)의 앱 음량 3칸 중 가까운 칸: 최소(≤20) · 낮게(≤40) · 보통. 값이 없으면 고른 칸 없음. */
+fun toddlerVolumeIndex(volume: Int?): Int? = volume?.let { v ->
+    when {
+        v <= 20 -> 0
+        v <= 40 -> 1
+        else -> 2
+    }
+}

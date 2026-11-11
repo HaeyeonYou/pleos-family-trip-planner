@@ -63,6 +63,17 @@ def age_months(birth_month: date, today: date | None = None, birth_date: date | 
     return max(0, months)
 
 
+# 수유 표시를 아이 월령으로 나눈다 (QD1, #217). 차 앱 `care/InfantAge.kt`의 INFANT_MAX_MONTHS와 같은 값.
+INFANT_MAX_MONTHS = 12
+
+
+def is_infant(child, today: date | None = None) -> bool:
+    """수유 내용을 보일 아이인지: 생후 12개월 이하. 아이 정보가 없으면(None) 지금처럼 보인다."""
+    if child is None:
+        return True
+    return age_months(child.birth_month, today, birth_date=child.birth_date) <= INFANT_MAX_MONTHS
+
+
 def _check_born(born: date, unit: str) -> None:
     today = today_kst()
     limit = today if unit == "date" else today.replace(day=1)

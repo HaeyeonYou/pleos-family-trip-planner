@@ -25,13 +25,14 @@ class ChildSelectTest {
     }
 
     @Test
-    fun `행 설명은 간격·다음 수유·낮잠, 유아식이면 수유 없음`() {
-        val options = childOptions(listOf(seoa, doyun), server, null) { key ->
+    fun `행 설명은 간격·다음 수유·낮잠, 12개월 넘으면 유아기`() {
+        // 2026-03-01: 서아(2025-09) 6개월, 도윤(2023-09) 유아기 (#217)
+        val options = childOptions(listOf(seoa, doyun), server, null, routineOf = { key ->
             if (key == null) FeedingRoutine(lastFedAt = null, intervalMinutes = 180) else FeedingRoutine()
-        }
+        }, today = java.time.LocalDate.of(2026, 3, 1))
         assertEquals("3시간 간격 · 수유 기록 없음 · 낮잠 2회", options[0].line)
         assertTrue(options[0].selected)
-        assertEquals("수유 없음 · 낮잠 1회", options[1].line)
+        assertEquals("유아기 · 낮잠 1회", options[1].line)
         assertFalse(options[1].selected)
     }
 

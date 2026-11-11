@@ -2,6 +2,7 @@
 {% from "_icons.html" import icon %}
 {% block body %}
 {% if notice %}<p class="form-ok" role="status">{{ notice }}</p>{% endif %}
+{% if feeding.show %}
 <section class="card strong" style="margin-top:20px" aria-labelledby="feed-title">
   <div class="row" style="padding:0;min-height:0"><span class="chip warn">수유</span><span class="grow"></span><span class="muted small">{{ feeding.interval_text }}</span></div>
   {% if feeding.has_last %}
@@ -17,6 +18,7 @@
     <a class="btn ghost" style="margin-top:14px" href="/m/care/feed">시간 선택</a>
   </div>
 </section>
+{% endif %}
 
 <section class="section" aria-labelledby="preset-title">
   <div class="section-head"><h2 id="preset-title">케어 모드</h2><span class="muted small">{% if mode_child %}{{ mode_child.nickname }}{% else %}{{ presets | length }}개{% endif %}</span></div>
