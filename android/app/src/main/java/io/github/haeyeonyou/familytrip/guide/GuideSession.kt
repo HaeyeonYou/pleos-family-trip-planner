@@ -100,10 +100,10 @@ class GuideSession(
         }
     }
 
-    /** 도착한 장소를 방문 기록에 남긴다 (경험 지도, #11). 귀가는 기록하지 않는다. */
+    /** 도착한 장소를 방문 기록에 남긴다 (경험 지도, #11). 귀가와 주유·충전(#215)은 기록하지 않는다. */
     private fun recordArrival() {
         val stop = _state.value.current ?: return
-        if (stop.role != "home") visits.arrive(stop.place, stop.role)
+        if (stop.role != "home" && stop.role != "fuel") visits.arrive(stop.place, stop.role)
     }
 
     private fun guideTo(index: Int) {

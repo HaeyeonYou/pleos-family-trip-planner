@@ -13,13 +13,15 @@ from typing import Protocol
 from zoneinfo import ZoneInfo
 
 from app import interests
-from app.course import classify, jelly, parking_rank, ranking
+from app.course import classify, fuel, jelly, parking_rank, ranking
 from app.schemas import (
     Alternative,
     Amenity,
     CourseOption,
     CourseRequest,
     CourseResponse,
+    FuelRequest,
+    FuelStation,
     LatLng,
     Place,
     ScheduleRequest,
@@ -51,7 +53,7 @@ SUGGESTIONS = 3  # 홈에 보여 줄 추천 코스 수
 MAX_INTEREST_SEARCHES = 3  # 관심사 키워드 검색은 앞의 3개까지 (카카오 호출 수)
 DETOUR_RATIO_RANGE = (0.5, 2.0)  # 실제 길찾기/추정 시간 비율 보정의 한계 (이상치 방지)
 
-STAY_MINUTES = {StopRole.MEAL: 60, StopRole.OUTING: 120, StopRole.CAFE: 40}
+STAY_MINUTES = {StopRole.MEAL: 60, StopRole.OUTING: 120, StopRole.CAFE: 40, StopRole.FUEL: fuel.FUEL_STAY_MINUTES}
 INFANT_OUTING_MINUTES = 90  # 만 2세 이하는 나들이를 짧게
 
 
@@ -192,11 +194,12 @@ class CoursePlanner:
 
         departure = self._departure(req.departure_time)
         course = self._schedule(origin, home, stops, departure, cond)
+        stops, course = self._with_fuel(req, stops, course, departure, warnings)
 
         if cond.return_by_hour is not None and self._late(course, departure, cond.return_by_hour):
             if any(role == StopRole.CAFE for role, _ in stops):
                 stops = [s for s in stops if s[0] != StopRole.CAFE]
-                course = self._schedule(origin, home, stops, departure, cond)
+                course = self._schedule(origin, home, stops, departure, cond, _stays(stops, req.ev))
                 warnings.append(f"{cond.return_by_hour}시 귀가를 맞추려고 카페를 뺐어요")
             if self._late(course, departure, cond.return_by_hour):
                 warnings.append(f"{cond.return_by_hour}시까지 귀가하기 어려워요 (예상 {course.return_at})")
@@ -209,6 +212,67 @@ class CoursePlanner:
         course.warnings = warnings
         log.info("코스: %s", describe(course))
         return course
+
+    def _with_fuel(
+        self,
+        req: CourseRequest,
+        stops: list[tuple[StopRole, Place]],
+        course: CourseResponse,
+        departure: datetime,
+        warnings: list[str],
+    ) -> tuple[list[tuple[StopRole, Place]], CourseResponse]:
+        """주행 가능 거리가 코스(귀가 포함) × 여유율보다 짧으면 출발지 근처 주유소·충전소를 첫 경유지로 넣는다 (QP1).
+
+        다음 지점 가는 길에서 가장 덜 돌아가는 곳을 고른다. 못 찾거나 검색이 실패하면 경고만 남기고 코스는 그대로 준다.
+        """
+        course_m = sum(s.drive_distance_m for s in course.stops)
+        if not stops or not fuel.needs_refuel(course_m, req.range_m):
+            return stops, course
+        kind = "충전소" if req.ev else "주유소"
+        range_km = round((req.range_m or 0) / 1000)
+        first = stops[0][1]
+        pick = self._fuel_pick(req.origin, LatLng(latitude=first.latitude, longitude=first.longitude), req.ev)
+        if pick is None:
+            warnings.append(f"주행 가능 거리 {range_km}km로는 코스 {round(course_m / 1000)}km가 빠듯해요. 출발 전에 {kind}에 들러 주세요")
+            return stops, course
+        stops = [(StopRole.FUEL, pick.place)] + stops
+        course = self._schedule(req.origin, req.home or req.origin, stops, departure, req.conditions, _stays(stops, req.ev))
+        warnings.append(f"주행 가능 거리 {range_km}km로는 코스 {round(course_m / 1000)}km가 빠듯해 첫 경유지로 {kind}를 넣었어요")
+        log.info("연료 부족(%dkm < %dkm × %.1f) → %s 넣음: %s", range_km, round(course_m / 1000), fuel.FUEL_MARGIN, kind, pick.place.name)
+        return stops, course
+
+    def fuel_station(self, req: FuelRequest) -> FuelStation | None:
+        """홈 연료 타일의 [주유소 찾기]: 출발지 근처(다음 지점이 있으면 그 길에서 덜 돌아가는) 주유소·충전소 1곳."""
+        return self._fuel_pick(req.origin, req.toward, req.ev)
+
+    def _fuel_pick(self, origin: LatLng, toward: LatLng | None, ev: bool) -> FuelStation | None:
+        try:
+            if ev:
+                found = self._kakao.by_keyword(fuel.EV_KEYWORD, origin.latitude, origin.longitude, fuel.SEARCH_RADIUS_M)
+            else:
+                found = self._kakao.by_category(fuel.CATEGORY_FUEL, origin.latitude, origin.longitude, fuel.SEARCH_RADIUS_M)
+        except Exception as e:  # noqa: BLE001 - 주유소 검색 실패가 코스 생성을 막지 않는다
+            log.warning("주유소·충전소 검색 실패: %s", type(e).__name__)
+            return None
+        by_key = {p.place_id: p for p in found}
+        candidates = [
+            fuel.StationCandidate(key=p.place_id, name=p.name, category=p.category, latitude=p.latitude, longitude=p.longitude)
+            for p in found
+        ]
+        pick = fuel.pick_station(
+            (origin.latitude, origin.longitude),
+            (toward.latitude, toward.longitude) if toward else None,
+            candidates,
+            ev,
+        )
+        if pick is None:
+            return None
+        return FuelStation(
+            place=_kakao_place(by_key[pick.candidate.key]),
+            distance_m=pick.distance_m,
+            drive_minutes=pick.drive_minutes,
+            on_route=pick.on_route,
+        )
 
     def reschedule(self, req: ScheduleRequest) -> CourseResponse:
         """사용자가 고친 장소·순서·체류 시간 그대로 이동 시간과 시간표를 다시 계산한다."""
@@ -635,6 +699,11 @@ def _dash(ymd: str) -> str:
     return f"{ymd[:4]}-{ymd[4:6]}-{ymd[6:]}"
 
 
+def _stays(stops: list[tuple[StopRole, Place]], ev: bool) -> list[int | None]:
+    """주유는 10분, 전기차 충전은 30분. 나머지는 역할 기본값(None)."""
+    return [fuel.stay_minutes(ev) if role == StopRole.FUEL else None for role, _ in stops]
+
+
 def _stay_minutes(role: StopRole, cond: TripConditions) -> int:
     if role == StopRole.OUTING and cond.has_infant():
         return INFANT_OUTING_MINUTES
@@ -775,7 +844,7 @@ def _pick_varied(outings: list[_Candidate], count: int) -> list[tuple[int, str]]
 
 def _option(course: CourseResponse, candidate: _Candidate, label: str) -> CourseOption:
     outing_stop = next(s for s in course.stops if s.role == StopRole.OUTING)
-    visits = [s for s in course.stops if s.role != StopRole.HOME]
+    visits = [s for s in course.stops if s.role not in (StopRole.HOME, StopRole.FUEL)]
     h1, m1 = map(int, course.departure_at.split(":"))
     h2, m2 = map(int, course.return_at.split(":"))
     total = ((h2 * 60 + m2) - (h1 * 60 + m1)) % (24 * 60)

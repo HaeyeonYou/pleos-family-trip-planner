@@ -15,6 +15,8 @@ import io.github.haeyeonyou.familytrip.data.FeedingRoutine
 import io.github.haeyeonyou.familytrip.data.CourseOption
 import io.github.haeyeonyou.familytrip.data.VisitSummary
 import io.github.haeyeonyou.familytrip.data.CourseRequest
+import io.github.haeyeonyou.familytrip.vehicle.isElectric
+import io.github.haeyeonyou.familytrip.vehicle.rangeForRequest
 import io.github.haeyeonyou.familytrip.data.StartBody
 import io.github.haeyeonyou.familytrip.data.WeatherInfo
 import kotlinx.coroutines.CancellationException
@@ -366,7 +368,7 @@ class TripViewModel(private val container: AppContainer) : ViewModel() {
             val conditions = homeConditions(s.profile, filters)
             try {
                 val res = container.api.suggest(
-                    CourseRequest(conditions = conditions, origin = origin, visits = recentVisits(), excludePlaceKeys = shownKeys.toList()),
+                    CourseRequest(conditions = conditions, origin = origin, visits = recentVisits(), excludePlaceKeys = shownKeys.toList(), rangeMeters = rangeForRequest(vehicle.value.rangeRemainingMeters), ev = vehicle.value.isElectric()),
                 )
                 shownKeys += res.options.map { it.placeKey }
                 _state.update { it.copy(options = res.options, optionsLoading = false, courseConditions = conditions) }
@@ -505,7 +507,7 @@ class TripViewModel(private val container: AppContainer) : ViewModel() {
         val conditions = _state.value.conditions ?: TripConditions()
         val origin = currentOrigin()
         launchRequest {
-            val course = container.api.course(CourseRequest(conditions = conditions, origin = origin, visits = recentVisits()))
+            val course = container.api.course(CourseRequest(conditions = conditions, origin = origin, visits = recentVisits(), rangeMeters = rangeForRequest(vehicle.value.rangeRemainingMeters), ev = vehicle.value.isElectric()))
             _state.update { it.copy(course = course, courseOrigin = origin, savedCourseId = null, message = null) }
             onSuccess()
         }
@@ -649,6 +651,16 @@ class TripViewModel(private val container: AppContainer) : ViewModel() {
     fun endGuide() = container.guide.end()
 
     fun dismissError() = _state.update { it.copy(error = null) }
+
+    /** 홈 연료 타일 [주유소 찾기] (#215): 지금 위치 근처, [toward]가 있으면 그 길에서 덜 돌아가는 곳. 못 찾으면 null */
+    suspend fun findFuel(toward: LatLng?): io.github.haeyeonyou.familytrip.data.FuelStation? = try {
+        container.api.fuelStation(io.github.haeyeonyou.familytrip.data.FuelRequest(currentOrigin(), toward, vehicle.value.isElectric()))
+    } catch (e: kotlinx.coroutines.CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        Log.w(TAG, "fuel station failed", e)
+        null
+    }
 
     private fun currentOrigin(): LatLng {
         val loc = container.location.state.value

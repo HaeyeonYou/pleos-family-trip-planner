@@ -72,6 +72,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import io.github.haeyeonyou.familytrip.onboarding.LocalVoiceEnabled
 import io.github.haeyeonyou.familytrip.onboarding.OnboardingMode
 import io.github.haeyeonyou.familytrip.onboarding.withChild
+import io.github.haeyeonyou.familytrip.vehicle.isElectric
 
 private object Routes {
     const val HOME = "home"
@@ -470,7 +471,13 @@ class MainActivity : ComponentActivity() {
                                     fed = vm::markFed,
                                     feedingInterval = vm::setFeedingInterval,
                                     openChildInfo = { nav.navigate(Routes.ONBOARDING_CHILDREN) },
+                                    // 연료 타일 (#215): 찾은 주유소·충전소는 안내 중이면 경유지, 아니면 목적지로
+                                    fuel = io.github.haeyeonyou.familytrip.ui.FuelActions(
+                                        find = vm::findFuel,
+                                        go = { st -> container.navi.addWaypointOrRoute(io.github.haeyeonyou.familytrip.navi.Place(st.place.name, st.place.latitude, st.place.longitude)) },
+                                    ),
                                 ),
+                                electric = vehicle.isElectric(),
                             )
                         }
                         composable(Routes.INPUT) {

@@ -25,8 +25,8 @@ log = logging.getLogger("web")
 router = APIRouter(prefix="/m", include_in_schema=False)
 
 _ROLES = {"meal": "식사", "outing": "나들이", "cafe": "카페", "home": "귀가"}
-_AMENITIES = {"stroller": "유모차", "nursing_room": "수유실", "kids_chair": "아기의자", "kids_zone": "키즈존", "parking": "주차"}
-_NEEDS = [("nursing_room", "수유실"), ("stroller", "유모차 길"), ("kids_chair", "아기의자"), ("parking", "주차")]
+_AMENITIES = {"stroller": "유모차", "nursing_room": "수유실", "kids_chair": "유아의자", "kids_zone": "키즈존", "parking": "주차"}
+_NEEDS = [("nursing_room", "수유실"), ("stroller", "유모차 길"), ("kids_chair", "유아의자"), ("parking", "주차")]
 _MINUTES = [(20, "20분"), (40, "40분"), (60, "60분")]
 
 

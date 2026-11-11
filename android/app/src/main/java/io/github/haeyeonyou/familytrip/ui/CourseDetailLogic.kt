@@ -136,8 +136,11 @@ internal fun replacements(course: CourseResponse, stopIndex: Int, origin: LatLng
 internal fun replacementMeta(r: Replacement): String =
     distanceLabel(r.distanceM) + " · " + if (r.detourMinutes == 0) "추가 이동 없음" else "경로에서 +${r.detourMinutes}분"
 
-/** 타임라인 행 보조 줄: "식사 · 60분 머무름 · 주차 공영 도보 약 3분" */
-internal fun stopLine(stop: CourseStop): String = listOfNotNull(
+/** 타임라인 행 보조 줄: "식사 · 60분 머무름 · 주차 공영 도보 약 3분". 주유·충전(#215)은 "주유 · 10분"·"충전 · 30분" */
+internal fun stopLine(stop: CourseStop): String = if (stop.role == "fuel") {
+    val label = if ("전기차" in stop.place.category || "충전소" in stop.place.name) "충전" else ROLE_LABELS[stop.role]
+    listOfNotNull(label, stop.stayMinutes.takeIf { it > 0 }?.let { "${it}분" }).joinToString(" · ")
+} else listOfNotNull(
     ROLE_LABELS[stop.role],
     stop.stayMinutes.takeIf { it > 0 }?.let { "${it}분 머무름" },
     stop.parking.firstOrNull()?.let { "주차 " + listOfNotNull(it.kind, it.name.takeIf { _ -> it.kind == null }).joinToString(" ") + " 도보 약 ${it.walkMinutes}분" },
