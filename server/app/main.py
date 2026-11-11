@@ -20,7 +20,16 @@ from app.logs import setup_logging
 from app.course.planner import CoursePlanner, NoCourseError
 from app.sources.parking import DbParkingSource
 from app.parsing import get_parser
-from app.schemas import CourseRequest, CourseResponse, ParseRequest, ParseResponse, ScheduleRequest, SuggestResponse
+from app.schemas import (
+    CourseRequest,
+    CourseResponse,
+    FuelRequest,
+    FuelStation,
+    ParseRequest,
+    ParseResponse,
+    ScheduleRequest,
+    SuggestResponse,
+)
 from app.sources.kakao import KakaoClient
 from app.sources.public_data import PublicData
 from app.sources.tour import TourApiClient
@@ -153,6 +162,16 @@ def schedule(req: ScheduleRequest, planner: CoursePlanner = Depends(get_planner)
     except httpx.HTTPError as e:
         log.warning("외부 API 오류: %r", e)
         raise HTTPException(502, f"외부 API 오류: {type(e).__name__}") from e
+
+
+@app.post("/course/fuel", response_model=FuelStation)
+def fuel_station(req: FuelRequest, planner: CoursePlanner = Depends(get_planner)) -> FuelStation:
+    """홈 연료 타일 [주유소 찾기] (#215): 근처(다음 지점이 있으면 그 길에서 덜 돌아가는) 주유소·충전소 1곳. 없으면 404."""
+    station = planner.fuel_station(req)
+    if station is None:
+        raise HTTPException(404, "근처에서 충전소를 찾지 못했어요" if req.ev else "근처에서 주유소를 찾지 못했어요")
+    log.info("주유소 찾기(ev=%s): %s · %dm · 경로 위=%s", req.ev, station.place.name, station.distance_m, station.on_route)
+    return station
 
 
 @app.post("/course/suggest", response_model=SuggestResponse)

@@ -65,6 +65,29 @@ data class CourseRequest(
     val visits: List<VisitSummary> = emptyList(),
     /** 이미 보여 준 나들이 장소 키. '다른 코스 보기'에서 뺀다 */
     @SerialName("exclude_place_keys") val excludePlaceKeys: List<String> = emptyList(),
+    /** 차의 주행 가능 거리(m). 코스 × 여유율보다 짧으면 서버가 첫 경유지로 주유소·충전소를 넣는다 (#215). 모르면 null */
+    @SerialName("range_m") val rangeMeters: Int? = null,
+    /** 전기차면 충전소를 찾는다 */
+    val ev: Boolean = false,
+)
+
+/** 홈 연료 타일 [주유소 찾기] (서버 `/course/fuel`, #215) */
+@Serializable
+data class FuelRequest(
+    val origin: LatLng,
+    /** 다음에 갈 곳. 있으면 그 길에서 덜 돌아가는 곳을 고른다 */
+    val toward: LatLng? = null,
+    val ev: Boolean = false,
+)
+
+@Serializable
+data class FuelStation(
+    val place: CoursePlace,
+    /** 출발지에서 도로 거리 어림(m) */
+    @SerialName("distance_m") val distanceMeters: Int,
+    @SerialName("drive_minutes") val driveMinutes: Int,
+    /** 다음 지점 가는 길에서 500m 안쪽으로 돌아가면 true ("경로 위") */
+    @SerialName("on_route") val onRoute: Boolean = false,
 )
 
 @Serializable
@@ -111,7 +134,7 @@ data class StopParking(
 
 @Serializable
 data class CourseStop(
-    /** meal, outing, cafe, home */
+    /** meal, outing, cafe, fuel(주유·충전, #215), home */
     val role: String,
     val place: CoursePlace,
     /** 옛 저장본에는 없다 → 빈 목록 */
@@ -313,6 +336,10 @@ interface TripApi {
 
     @POST("course/suggest")
     suspend fun suggest(@Body request: CourseRequest): SuggestResponse
+
+    /** 근처(다음 지점이 있으면 그 길에서 덜 돌아가는) 주유소·충전소 1곳. 없으면 404 */
+    @POST("course/fuel")
+    suspend fun fuelStation(@Body request: FuelRequest): FuelStation
 
     /** 자연어 음성 명령을 앱 동작으로 해석한다 (서버가 3초 안에 못 받으면 unknown·fallback). */
     @POST("voice/interpret")

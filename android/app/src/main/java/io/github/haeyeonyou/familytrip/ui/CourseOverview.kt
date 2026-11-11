@@ -304,7 +304,7 @@ private fun AmenityTags(stop: CourseStop) {
 private fun tagLabel(key: String) = when (key) {
     "nursing_room" -> "수유실"
     "stroller" -> "유모차"
-    "kids_chair" -> "아기의자"
+    "kids_chair" -> "유아의자"
     "pet" -> "반려동물"
     else -> AMENITY_LABELS[key] ?: key
 }
@@ -330,7 +330,8 @@ private fun ColumnScope.DetailPanel(
     CourseMap(stops = course.stops, path = course.path, modifier = Modifier.fillMaxWidth().height(330.dp).clip(SitterShapes.Card))
     Spacer(Modifier.height(14.dp))
     // 도착·수유 여유
-    val first = course.stops.firstOrNull { it.role != "home" } ?: outing
+    // 서버가 넣은 주유·충전 경유지(#215)는 '도착'의 기준이 아니다
+    val first = course.stops.firstOrNull { it.role != "home" && it.role != "fuel" } ?: outing
     Row(
         Modifier.fillMaxWidth().clip(SitterShapes.Card).background(s.primarySoft).padding(horizontal = 20.dp, vertical = 18.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
