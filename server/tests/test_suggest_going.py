@@ -25,7 +25,7 @@ def test_suggest_gives_varied_options_with_summary_and_times():
     first = options[0]
     assert first.summary == "한식당 → " + first.course.stops[1].place.name + " → 카페"
     assert first.first_drive_minutes == 20
-    assert first.total_minutes == 20 * 4 + 60 + 120 + 40  # 이동 4구간 + 식사·나들이·카페
+    assert first.total_minutes == 20 * 4 + 60 * 3  # 이동 4구간 + 장소마다 60분
     assert first.place_key.startswith(("tour:", "kakao:"))
 
 

@@ -1,0 +1,6 @@
+{
+ "request": "GET apis.data.go.kr/B551011/KorService2/locationBasedList2?MobileApp=FamilyTrip&MobileOS=ETC&_type=json&arrange=E&contentTypeId=14&mapX=127.0286&mapY=37.03877&numOfRows=60&pageNo=1&radius=20000",
+ "status": 200,
+ "content_type": "application/json",
+ "body": "{\"response\": {\"header\":{\"resultCode\":\"0000\",\"resultMsg\":\"OK\"},\"body\": {\"items\": {\"item\":[{\"addr1\":\"경기도 안성시 양성면 난실길 14-1\",\"addr2\":\"\",\"zipcode\":\"17501\",\"areacode\":\"31\",\"cat1\":\"A02\",\"cat2\":\"A0206\",\"cat3\":\"A02060200\",\"contentid\":\"130565\",\"contenttypeid\":\"14\",\"createdtime\":\"20060629090000\",\"dist\":\"18988.556701745907\",\"firstimage\":\"http://tong.visitkorea.or.kr/cms/resource/30/3579730_image2_1.jpg\",\"firstimage2\":\"http://tong.visitkorea.or.kr/cms/resource/30/3579730_image3_1.jpg\",\"cpyrhtDivCd\":\"Type3\",\"mapx\":\"127.2215950764\",\"mapy\":\"37.1120668213\",\"mlevel\":\"6\",\"modifiedtime\":\"20251208185826\",\"sigungucode\":\"16\",\"tel\":\"\",\"title\":\"조병화문학관\",\"lDongRegnCd\":\"41\",\"lDongSignguCd\":\"550\",\"lclsSystm1\":\"VE\",\"lclsSystm2\":\"VE07\",\"lclsSystm3\":\"VE070200\"}]},\"numOfRows\":1,\"pageNo\":1,\"totalCount\":1}}}"
+}
