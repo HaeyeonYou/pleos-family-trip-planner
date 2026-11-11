@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+@kotlinx.serialization.Serializable
 data class GuideState(
     val stops: List<CourseStop> = emptyList(),
     /** 안내 중인 stops 인덱스. null이면 안내 전. */
@@ -30,6 +31,8 @@ data class GuideState(
     val departureAt: String = "",
     /** "덕수궁 나들이 코스" */
     val title: String = "",
+    /** 코스를 시작한 시각(ms). 앱이 다시 뜰 때 오늘 코스인지 가린다. 옛 저장 파일에는 없다. */
+    val startedAtMillis: Long? = null,
 ) {
     val active: Boolean get() = index != null
 
@@ -43,6 +46,10 @@ data class GuideState(
     val homeIndex: Int? get() = stops.indexOfLast { it.role == "home" }.takeIf { it >= 0 }
 }
 
+/** 저장 파일 형식: 안내 상태 + 안내 중인 코스. */
+@kotlinx.serialization.Serializable
+data class SavedGuide(val state: GuideState = GuideState(), val course: io.github.haeyeonyou.familytrip.data.CourseResponse? = null)
+
 /**
  * 구간 순차 안내. 앱 화면이 뒤에 있어도(내비가 앞) 도착을 판정하고 알림으로 알리도록
  * 화면이 아니라 앱 단위로 둔다. 경유지 제한(최대 2개) 때문에 한 구간씩 목적지로 넘긴다.
@@ -55,12 +62,49 @@ class GuideSession(
     private val notifier: GuideNotifier,
     private val visits: VisitStore,
     scope: CoroutineScope,
+    /** 안내 상태 저장 파일. 내비가 앞에 있는 동안 앱 프로세스가 죽어도(에뮬레이터에서 실제로 겪음) 다시 이어 간다. */
+    private val store: io.github.haeyeonyou.familytrip.data.JsonFile<SavedGuide>? = null,
     private val clock: () -> Long = System::currentTimeMillis,
 ) {
-    private val _state = MutableStateFlow(GuideState())
+    private val saved = store?.load() ?: SavedGuide()
+
+    /**
+     * 저장해 둔 안내가 오늘 시작한 것이 아니어서(또는 시작 시각을 모르는 옛 파일이라) 이어 가지 않고 끝낸 것. 없으면 null.
+     * 앱 단위(AppContainer)가 이것을 서버 `/me/trip`에 '끝남'으로 올린다.
+     */
+    val expired: GuideState? = saved.state.takeIf { it.active && !it.finished && !resumableToday(it, clock()) }
+    private val _state = MutableStateFlow(if (expired != null) GuideState() else saved.state)
     val state: StateFlow<GuideState> = _state.asStateFlow()
 
+    /** 안내 중인 코스(대체 후보 포함). 프로세스가 다시 뜨면 화면 상태를 이것으로 되살린다. */
+    var course: io.github.haeyeonyou.familytrip.data.CourseResponse? = saved.course.takeIf { expired == null }
+        private set
+
+    fun rememberCourse(course: io.github.haeyeonyou.familytrip.data.CourseResponse) {
+        this.course = course
+        persist(_state.value)
+    }
+
+    private fun persist(state: GuideState) {
+        val file = store ?: return
+        if (state.active) file.save(SavedGuide(state, course)) else file.clear()
+    }
+
     init {
+        // 지난 날 코스는 이어 가지 않는다: 안내·알림·도착 감시를 정리한다 (서버에는 AppContainer가 '끝남'으로 올린다).
+        if (expired != null) {
+            GuideService.stop(context)
+            navi.cancelRoute()
+            location.clearArrival()
+            notifier.clear()
+        }
+        scope.launch { _state.collect(::persist) }
+        // 저장해 둔 안내를 이어 간다: 아직 도착하지 않은 목적지의 도착 판정을 다시 건다 (내비 경로는 내비가 가지고 있다).
+        _state.value.current?.takeIf { _state.value.active && !_state.value.arrived }?.let { stop ->
+            val place = Place(stop.place.name, stop.place.latitude, stop.place.longitude)
+            location.watchArrival(place)
+            GuideService.update(context, "${stop.place.name}(으)로 가는 중")
+        }
         scope.launch {
             location.state.collect { loc ->
                 val s = _state.value
@@ -80,7 +124,7 @@ class GuideSession(
     }
 
     fun start(stops: List<CourseStop>, departureAt: String = "", title: String = courseTitle(stops)) {
-        _state.value = GuideState(stops = stops, departureAt = departureAt, title = title)
+        _state.value = GuideState(stops = stops, departureAt = departureAt, title = title, startedAtMillis = clock())
         guideTo(0)
     }
 
@@ -144,6 +188,7 @@ class GuideSession(
         if (!homeward) navi.cancelRoute()
         location.clearArrival()
         notifier.clear()
+        course = null
         _state.value = GuideState()
     }
 

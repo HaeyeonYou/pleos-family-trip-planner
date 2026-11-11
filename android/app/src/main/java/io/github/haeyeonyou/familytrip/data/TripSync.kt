@@ -48,6 +48,12 @@ class TripSync(
         }
     }
 
+    /** 한 번만 올린다 (지난 날 코스를 끝남으로 바꿀 때). */
+    fun upload(snapshot: TripSnapshot?, scope: CoroutineScope) {
+        if (snapshot == null || !loggedIn()) return
+        scope.launch { runCatching { put(snapshot) }.onFailure { Log.w(TAG, "trip upload failed", it) } }
+    }
+
     private companion object {
         const val TAG = "TripSync"
     }

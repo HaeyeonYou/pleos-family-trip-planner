@@ -193,6 +193,24 @@ fun tripSnapshot(state: GuideState, today: LocalDate): TripSnapshot? {
     )
 }
 
+// ───────────── 다시 뜬 앱이 안내를 이어 갈지 ─────────────
+
+/**
+ * 저장해 둔 안내를 이어 갈지: 기기 시간대 기준으로 오늘 시작한 코스만 (자정을 넘기면 어제 코스다).
+ * 시작 시각이 없는 옛 저장 파일은 언제 시작했는지 모르므로 이어 가지 않는다.
+ */
+fun resumableToday(state: GuideState, nowMillis: Long, zone: java.time.ZoneId = java.time.ZoneId.systemDefault()): Boolean {
+    val started = state.startedAtMillis ?: return false
+    fun day(ms: Long) = java.time.Instant.ofEpochMilli(ms).atZone(zone).toLocalDate()
+    return day(started) == day(nowMillis)
+}
+
+/** 지난 날 코스를 끝낸 것으로 서버에 올릴 스냅숏 (여기서 끝냄, 시작한 날짜 기준). 시작 시각을 모르면 [fallbackDay]. */
+fun expiredSnapshot(state: GuideState, fallbackDay: LocalDate, zone: java.time.ZoneId = java.time.ZoneId.systemDefault()): TripSnapshot? {
+    val day = state.startedAtMillis?.let { java.time.Instant.ofEpochMilli(it).atZone(zone).toLocalDate() } ?: fallbackDay
+    return tripSnapshot(state.copy(endedBy = CourseEnd.HERE, arrived = false), day)
+}
+
 // ───────────── 음성 답 ─────────────
 
 /** 도착 화면에서 고를 수 있는 답. */

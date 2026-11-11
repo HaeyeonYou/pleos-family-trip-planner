@@ -51,7 +51,6 @@ import io.github.haeyeonyou.familytrip.ui.CourseScreen
 import io.github.haeyeonyou.familytrip.ui.DevScreen
 import io.github.haeyeonyou.familytrip.ui.ExperienceScreen
 import io.github.haeyeonyou.familytrip.guide.ArrivalChoice
-import io.github.haeyeonyou.familytrip.guide.arrivalQuestion
 import io.github.haeyeonyou.familytrip.guide.classifyArrivalReply
 import io.github.haeyeonyou.familytrip.guide.stageOf
 import io.github.haeyeonyou.familytrip.ui.GuideActions
@@ -314,12 +313,6 @@ class MainActivity : ComponentActivity() {
                     // 코스 진행 (#218): 오른쪽 고르기 패널(장소 바꾸기·한 곳 더). 음성으로도 열고, 장소가 바뀌면 닫는다.
                     var guidePicker by remember { mutableStateOf<GuidePicker?>(null) }
                     LaunchedEffect(guide.index, guide.arrived, guide.finished) { guidePicker = null }
-                    // 주행 중 도착하면 같은 질문을 음성으로만 묻는다 (기어를 모르면 묻지 않는다). 답이 없으면 화면은 그대로.
-                    LaunchedEffect(guide.index, guide.arrived) {
-                        val v = container.vehicle.state.value
-                        if (!guide.arrived || guide.finished || v.isParked || v.gear == io.github.haeyeonyou.familytrip.vehicle.GearState.UNKNOWN) return@LaunchedEffect
-                        arrivalQuestion(guide)?.let(container.voice::askArrival)
-                    }
                     val backStack by nav.currentBackStackEntryAsState()
                     val route = backStack?.destination?.route
                     fun openTab(tab: MainTab) {
