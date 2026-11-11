@@ -1,0 +1,6 @@
+{
+ "request": "GET dapi.kakao.com/v2/local/search/keyword.json?query=실내놀이터&radius=20000&size=15&sort=distance&x=127.42434&y=37.49724",
+ "status": 200,
+ "content_type": "application/json; charset=utf-8",
+ "body": "{\"documents\":[{\"address_name\":\"경기 양평군 양평읍 도곡리 1031\",\"category_group_code\":\"\",\"category_group_name\":\"\",\"category_name\":\"가정,생활 \\u003e 유아 \\u003e 놀이시설\",\"distance\":\"8624\",\"id\":\"1448463845\",\"phone\":\"031-773-2315\",\"place_name\":\"양평어린이건강놀이터\",\"place_url\":\"http://place.map.kakao.com/1448463845\",\"road_address_name\":\"경기 양평군 양평읍 종합운동장로 5\",\"x\":\"127.5214055945498\",\"y\":\"37.48973281826891\"},{\"address_name\":\"경기 광주시 송정동 120-78\",\"category_group_code\":\"\",\"category_group_name\":\"\",\"category_name\":\"문화,예술 \\u003e 문화시설\",\"distance\":\"17323\",\"id\":\"1192200019\",\"phone\":\"031-760-8798\",\"place_name\":\"통미햇살마루\",\"place_url\":\"http://place.map.kakao.com/1192200019\",\"road_address_name\":\"경기 광주시 중앙로 189-1\",\"x\":\"127.256544170375\",\"y\":\"37.4167940540107\"}],\"meta\":{\"is_end\":true,\"pageable_count\":2,\"same_name\":{\"keyword\":\"실내놀이터\",\"region\":[],\"selected_region\":\"\"},\"total_count\":2}}"
+}

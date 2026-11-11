@@ -1,0 +1,6 @@
+{
+ "request": "GET apis.data.go.kr/B551011/KorService2/locationBasedList2?MobileApp=FamilyTrip&MobileOS=ETC&_type=json&arrange=E&contentTypeId=14&mapX=127.30898&mapY=37.72014&numOfRows=60&pageNo=1&radius=20000",
+ "status": 200,
+ "content_type": "application/json",
+ "body": "{\"response\": {\"header\":{\"resultCode\":\"0000\",\"resultMsg\":\"OK\"},\"body\": {\"items\": \"\",\"numOfRows\":0,\"pageNo\":1,\"totalCount\":0}}}"
+}
