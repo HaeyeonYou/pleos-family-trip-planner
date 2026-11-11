@@ -33,6 +33,8 @@ fun CourseScreen(
     weather: io.github.haeyeonyou.familytrip.data.WeatherInfo? = null,
     going: Int = 0,
     origin: io.github.haeyeonyou.familytrip.data.LatLng? = null,
+    /** 12개월 이하 아이가 있을 때만 수유 지점·수유 여유를 보인다 (#217). */
+    showFeeding: Boolean = true,
 ) = DrivingAware(isParked) {
-    CourseOverview(course, loading, error, message, feeding, edit, onStartGuide, onSave = onSave, onBack = onBack, weather = weather, going = going, origin = origin)
+    CourseOverview(course, loading, error, message, feeding, edit, onStartGuide, onSave = onSave, onBack = onBack, weather = weather, going = going, origin = origin, showFeeding = showFeeding)
 }

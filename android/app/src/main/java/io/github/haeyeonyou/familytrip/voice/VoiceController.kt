@@ -144,6 +144,11 @@ class VoiceController(
         cancelClose()
         io.cancelListen()
         _state.update { it.copy(open = true, listening = false, notice = null, heard = text) }
+        // 유아기(12개월 초과) "쉬었다 갈게" = 정차 모드 (Figma C05-T1, #217)
+        if (isRestStop(text) && !care.infant()) {
+            handleRestStop(text)
+            return
+        }
         when (val u = parseUtterance(text)) {
             is Utterance.Situation -> handleSituation(text, u.situation)
             is Utterance.Choose -> handleChoose(u.number)
@@ -214,7 +219,9 @@ class VoiceController(
                 finish(care.state.value.climateMessage ?: reply.ifBlank { "베이비케어를 바꿨어요." })
             }
             is Step.Climate -> runClimate(step)
-            Step.FeedLog -> {
+            Step.FeedLog -> if (!care.infant()) {
+                finish(TODDLER_NO_FEEDING)
+            } else {
                 care.markFed()
                 val next = care.state.value.feeding.nextAt?.let { "다음 수유는 ${clockLabel(it)}쯤이에요." }.orEmpty()
                 finish("수유를 기록했어요. $next".trim(), tone = CareTone.FEED)
@@ -376,6 +383,22 @@ class VoiceController(
 
     // 케어 상황 4가지
 
+    /** 유아기 "쉬었다 갈게": 정차 중이면 정차 모드(수유 정차 모드와 같은 공조 값, 수유 기록 없음)를 켜고, 주행 중이면 정차할 곳 1곳을 제안한다. */
+    private fun handleRestStop(heard: String) {
+        _state.update { VoiceUiState(open = true, heard = heard, busy = true) }
+        scope.launch {
+            if (host?.driving == true) {
+                propose(CareKind.REST, CareTone.SOOTHE)
+                return@launch
+            }
+            if (care.startFeedingStop(feeding = false)) {
+                finish("정차 모드를 켰어요. 출발하면 저절로 꺼져요.")
+            } else {
+                finish("정차한 뒤에 켤 수 있어요.")
+            }
+        }
+    }
+
     private fun handleSituation(heard: String, situation: CareSituation) {
         // 주행 중 1곳 제안(D01)은 상황 톤을 입히지 않는다 (수면은 다크 그대로)
         if (situation == CareSituation.SLEEP || host?.driving != true) ToneState.voice = situation.tone
@@ -409,6 +432,18 @@ class VoiceController(
                     )
                 }
                 CareSituation.FEED -> {
+                    if (!care.infant()) {
+                        // 유아기는 수유 타이머·수유실이 없다 (#217): 쉬어 갈 곳을 대신 찾는다.
+                        val places = care.findNearby(CareKind.REST, 2)
+                        answer(
+                            "$TODDLER_NO_FEEDING " + when {
+                                places.isNullOrEmpty() -> "쉬었다 가려면 “쉬었다 갈게”라고 말해 주세요."
+                                else -> "근처 정차할 곳 ${places.size}곳 찾았어요. ${firstDetail(places)}"
+                            },
+                            places.orEmpty(),
+                        )
+                        return@launch
+                    }
                     // C03: 정차(P단) 중 "수유할게"는 수유 정차 모드를 켠다 (주행 중은 위의 1곳 제안).
                     if (care.startFeedingStop()) {
                         finish("수유 정차 모드를 켰어요. 수유 시간을 셀게요. 끝나면 “다 먹었어”라고 말해 주세요.", tone = CareTone.FEED)

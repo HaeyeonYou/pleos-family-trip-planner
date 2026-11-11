@@ -69,6 +69,15 @@ fun parseUtterance(text: String): Utterance {
     return Utterance.Unknown
 }
 
+/** "쉬었다 갈게"·"쉬어 가자" (유아기 정차 모드, Figma C05-T1). */
+fun isRestStop(text: String): Boolean {
+    val compact = text.replace(" ", "")
+    return listOf("쉬었다가", "쉬었다갈", "쉬어가", "쉬다가자", "쉬다갈").any { compact.contains(it) }
+}
+
+/** 유아기 아이에게 수유를 말했을 때의 답. */
+val TODDLER_NO_FEEDING = "${io.github.haeyeonyou.familytrip.care.INFANT_MAX_MONTHS}개월이 넘은 아이는 수유 타이머를 쓰지 않아요."
+
 /** 화면에 보여 줄 문장 버튼 (운전 중에도 누를 수 있다). */
 val VOICE_SAMPLES = listOf(
     "애 잔다", "애 쌌다", "애 배고프다", "애 운다",

@@ -53,7 +53,13 @@ class AppContainer(private val app: Application) {
     val guide = GuideSession(app, navi, location, notifier, visits, scope)
     /** 차 앱 ↔ 서버 동기화 (로그인했을 때만 동작). 도착 기록 같은 차의 변경을 바로 올린다. */
     val serverSync = ServerSync(app, api, account, visits, profile, feeding, scope).also { it.start() }
-    val care = CareController(app, vehicle, navi, location, api, guide, notifier, feeding, serverSync, visits, scope)
+    val care = CareController(app, vehicle, navi, location, api, guide, notifier, feeding, serverSync, visits, scope).also { c ->
+        // 고른 아이가 12개월 이하인지 (#217): 수유 정차·자동 적용의 기준
+        c.infant = {
+            val children = profile.load()?.children.orEmpty()
+            io.github.haeyeonyou.familytrip.care.isInfant(children.getOrNull(io.github.haeyeonyou.familytrip.care.selectedChildIndex(children, c.state.value.selectedChildId)))
+        }
+    }
     val delayAlert = DelayAlertController(app, navi, location, api, { guide.state.value.current?.place?.let { Place(it.name, it.latitude, it.longitude) } }, scope)
     val voiceIo = VoiceIo(app)
     val voice = VoiceController(voiceIo, care, vehicle, navi, api, scope)
