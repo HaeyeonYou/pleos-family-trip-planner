@@ -33,6 +33,8 @@ import io.github.haeyeonyou.familytrip.data.SavedCourse
 import io.github.haeyeonyou.familytrip.data.Visit
 import io.github.haeyeonyou.familytrip.data.WeatherInfo
 import io.github.haeyeonyou.familytrip.data.ageLabel
+import io.github.haeyeonyou.familytrip.vehicle.courseMeters
+import io.github.haeyeonyou.familytrip.vehicle.fuelLevel
 import java.time.LocalDateTime
 import java.time.format.TextStyle
 import java.util.Locale
@@ -58,21 +60,25 @@ data class HomeActions(
     val onMic: () -> Unit = {},
     /** 아이 정보가 없을 때 안내 카드의 `아이 정보 넣기` → 온보딩 O04 (QO7, #184). null이면 카드를 그리지 않는다 */
     val openChildInfo: (() -> Unit)? = null,
+    /** 연료 타일 [주유소 찾기]·[여기 들르기] (#215). null이면 버튼이 눌리지 않는다 */
+    val fuel: FuelActions? = null,
 )
 
 /**
  * 홈 H01 (Figma 352:2601). 3열 그리드:
- * 1열 지도 카드 + 탑승 감지 추천 카드 / 2열 오늘의 추천 코스 3개 / 3열 정차 공간·경험 젤리 타일 + 최근 방문 코스 + 바로가기 독.
+ * 1열 지도 카드 + 탑승 감지 추천 카드 / 2열 오늘의 추천 코스 3개 / 3열 주행 가능 거리·경험 젤리 타일 + 최근 방문 코스 + 바로가기 독.
  * 코스 행을 누르면 지도가 그 코스 경로로 바뀐다 (`05` Q27 [제안]: 추천 1 = 목록 첫 코스, 선택은 행 탭).
  */
 @Composable
 fun HomeScreen(
     state: TripUiState,
     @Suppress("UNUSED_PARAMETER") isParked: Boolean,
-    @Suppress("UNUSED_PARAMETER") rangeMeters: Float?,
+    rangeMeters: Float?,
     visits: List<Visit>,
     saved: List<SavedCourse>,
     actions: HomeActions,
+    /** 전기차면 [충전소 찾기] (#215) */
+    electric: Boolean = false,
 ) {
     LaunchedEffect(Unit) { actions.load() }
     val now = rememberNow()
@@ -94,7 +100,18 @@ fun HomeScreen(
         SitterThreeColumns(
             first = { MapColumn(selected, state.weather, now, state.going[selected?.placeKey] ?: 0, actions) },
             second = { CourseListColumn(state, shown, selected, filters, actions) { selectedKey = it.placeKey } },
-            third = { RightColumn(visits, saved, actions, needsChildInfo = state.profile?.children.isNullOrEmpty()) },
+            third = {
+                RightColumn(visits, saved, actions, needsChildInfo = state.profile?.children.isNullOrEmpty()) { tileModifier ->
+                    FuelRangeTile(
+                        rangeMeters = rangeMeters,
+                        level = fuelLevel(rangeMeters, selected?.let { courseMeters(it.course) }),
+                        electric = electric,
+                        toward = selected?.let { fuelToward(it.course) },
+                        actions = actions.fuel,
+                        modifier = tileModifier,
+                    )
+                }
+            },
         )
     }
 }
@@ -297,10 +314,17 @@ private fun CourseItem(title: String, option: CourseOption, going: Int, selected
 // 3열
 
 @Composable
-private fun RightColumn(visits: List<Visit>, saved: List<SavedCourse>, actions: HomeActions, needsChildInfo: Boolean = false) {
+private fun RightColumn(
+    visits: List<Visit>,
+    saved: List<SavedCourse>,
+    actions: HomeActions,
+    needsChildInfo: Boolean = false,
+    fuelTile: @Composable (Modifier) -> Unit,
+) {
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(SitterGrid.GAP.dp)) {
         Row(Modifier.fillMaxWidth().height(200.dp), horizontalArrangement = Arrangement.spacedBy(SitterGrid.GAP.dp)) {
-            StopSpaceTile(actions.openCare, Modifier.weight(1f).fillMaxHeight())
+            // 디자이너 메모 411:13221: 정차 공간 타일을 빼고 연료 기능으로 (#215). 정차 공간 찾기는 케어(C11)에 그대로 있다.
+            fuelTile(Modifier.weight(1f).fillMaxHeight())
             ExperienceTile(visits, actions.openGrow, Modifier.weight(1f).fillMaxHeight())
         }
         val openChildInfo = actions.openChildInfo
@@ -319,22 +343,6 @@ private fun ChildInfoCard(onOpen: () -> Unit) {
         Text("아이 정보를 넣으면 맞춰 드려요", style = SitterText.Title3, color = s.ink, modifier = Modifier.padding(top = 12.dp))
         Text("월령에 맞춰 케어 모드와 추천 코스를 준비해요", style = SitterText.Caption, color = s.inkMute, modifier = Modifier.padding(top = 4.dp))
         Text("아이 정보 넣기", style = SitterText.Label, color = s.primary, modifier = Modifier.padding(top = 12.dp))
-    }
-}
-
-/** 정차 공간 찾기 타일. 휴게소·졸음쉼터 데이터는 아직 없어(D9) 케어의 주차 후보 찾기로 연결한다. */
-@Composable
-private fun StopSpaceTile(onClick: () -> Unit, modifier: Modifier) {
-    val s = SitterSurface.current
-    SitterCard(
-        modifier.clickable(onClick = onClick),
-        tone = SitterCardTone.Active,
-    ) {
-        SitterIcon(SitterIcons.Parking, s.primary)
-        Spacer(Modifier.weight(1f))
-        Text("정차 공간 찾기", style = SitterText.Title3, color = s.ink)
-        Text("근처 주차장·쉼터", style = SitterText.Caption, color = s.inkMute, modifier = Modifier.padding(top = 4.dp))
-        Text("케어에서 찾기", style = SitterText.Label, color = s.primary, modifier = Modifier.padding(top = 12.dp))
     }
 }
 
@@ -429,6 +437,10 @@ private fun recentMeta(course: SavedCourse): String {
 }
 
 // 글
+
+/** 주유소를 고를 때 향할 곳: 코스의 첫 방문지(서버가 넣은 주유 경유지와 귀가는 뺀다). */
+internal fun fuelToward(course: io.github.haeyeonyou.familytrip.data.CourseResponse): io.github.haeyeonyou.familytrip.data.LatLng? =
+    course.stops.firstOrNull { it.role != "home" && it.role != "fuel" }?.place?.let { io.github.haeyeonyou.familytrip.data.LatLng(it.latitude, it.longitude) }
 
 private fun courseMeta(option: CourseOption, going: Int): String {
     val base = "총 ${io.github.haeyeonyou.familytrip.data.durationLabel(option.totalMinutes.toLong())} · 첫 이동 ${option.firstDriveMinutes}분"
