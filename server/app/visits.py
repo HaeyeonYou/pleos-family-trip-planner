@@ -18,7 +18,7 @@ from app.auth.deps import current_user, get_db
 from app.family import _owned, today_kst
 from app.course import jelly as jelly_rules
 from app.course.jelly import judge
-from app.models import CarePlace, User, VisitRecord
+from app.models import CarePlace, CurrentTrip, User, VisitRecord
 from app.schemas import Jelly, Theme, VisitSummary
 
 router = APIRouter(prefix="/me", tags=["visits"])
@@ -151,9 +151,10 @@ async def delete_visit(visit_id: uuid.UUID, user: User = Depends(current_user), 
 
 @router.delete("/visits", status_code=204)
 async def delete_all_visits(user: User = Depends(current_user), db: AsyncSession = Depends(get_db)) -> None:
-    """내 방문 기록 전체 삭제. 방문 기록에서 나온 자주 가는 케어 장소도 함께 지운다."""
+    """내 방문 기록 전체 삭제. 방문 기록에서 나온 자주 가는 케어 장소와 진행 중 코스(#218)도 함께 지운다."""
     await db.execute(delete(VisitRecord).where(VisitRecord.user_id == user.id))
     await db.execute(delete(CarePlace).where(CarePlace.user_id == user.id))
+    await db.execute(delete(CurrentTrip).where(CurrentTrip.user_id == user.id))
     await db.commit()
 
 
