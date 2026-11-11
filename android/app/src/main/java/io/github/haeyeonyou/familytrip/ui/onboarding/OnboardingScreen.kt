@@ -90,6 +90,8 @@ class OnboardingActions(
     val saveChild: (ChildDraft) -> Unit,
     /** O05에서 고른 아이 (null = 첫째, 케어 화면 C07과 같은 규칙) */
     val selectChild: (String?) -> Unit,
+    /** O05 아이 카드에서 고친 그 아이의 케어 모드 값을 서버에 저장한다 (서버 아이 id, null = 가족 기본값). 끝나면 성공 여부. */
+    val saveModes: (childId: String?, edits: Map<String, ClimateSettings>, onDone: (Boolean) -> Unit) -> Unit = { _, _, done -> done(false) },
     /** `홈으로`·`나중에 하기`: 완료로 표시하고 홈(H01)으로 */
     val finish: () -> Unit,
     /** 설정에서 연 경우 닫기 */
@@ -108,6 +110,8 @@ fun OnboardingScreen(
     isParked: Boolean,
     presets: List<PresetState>,
     carePlaceNames: List<String>,
+    /** 가족 기본값과 아이마다의 케어 모드 값 (O05 카드마다, QO5). 로그인 전이면 빈 목록. */
+    allPresets: List<PresetState> = emptyList(),
     selectedChildId: String?,
     choices: LinkChoices,
     firstRecommendation: String?,
@@ -196,7 +200,9 @@ fun OnboardingScreen(
                 OnboardingStep.CONFIRM -> ConfirmStep(
                     profile = profile,
                     selectedChildId = selectedChildId,
-                    babyCare = baby,
+                    allPresets = allPresets,
+                    isParked = isParked,
+                    onSaveModes = actions.saveModes,
                     today = today,
                     onSelect = actions.selectChild,
                     onEdit = { child ->
@@ -229,6 +235,16 @@ fun babyCareSummary(presets: List<PresetState>): String {
         ?: ClimateSettings(temperature = io.github.haeyeonyou.familytrip.care.BABY_TARGET_TEMPERATURE, fanSpeed = 1)
     val temp = if (s.temperature % 1f == 0f) s.temperature.toInt().toString() else "%.1f".format(s.temperature)
     return listOfNotNull(if (s.power) "${temp}°C" else null, windLabel(s), volumeLabel(s.mediaVolume)).joinToString(" · ")
+}
+
+/**
+ * O05 아이 카드의 베이비케어 줄 (QO5: 모드 값은 아이별). 서버에서 받은 그 아이의 탑승 준비 값(자기 값이 없으면 가족 기본값)으로
+ * "24°C · 약풍 · 음량 낮게", 받은 값이 없으면(로그인 전) "기본값".
+ */
+fun childBabyCareLine(allPresets: List<PresetState>, child: io.github.haeyeonyou.familytrip.data.Child): String {
+    val boarding = io.github.haeyeonyou.familytrip.data.presetsForChild(allPresets, child.serverId).firstOrNull { it.slot == "boarding" }
+        ?: return "기본값"
+    return io.github.haeyeonyou.familytrip.ui.modeSummary(boarding.settings)
 }
 
 private fun presetName(p: PresetState): String = when (p.slot) {
