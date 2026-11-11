@@ -14,6 +14,8 @@ data class ChildOption(
     val key: String?,
     val name: String,
     val ageMonths: Int,
+    /** 이름 옆 월령 배지 ([ageStageLabel]). */
+    val stage: String,
     val line: String,
     /** 그 아이의 베이비케어 모드 값 한 줄 ("24°C · 약풍 · 음량 낮게"). 모르면 null. */
     val mode: String? = null,
@@ -27,6 +29,13 @@ fun childKey(children: List<Child>, index: Int): String? = if (index == 0) null 
 /** 고른 아이의 위치. 없으면(아이가 바뀌었으면) 첫째. */
 fun selectedChildIndex(children: List<Child>, selected: String?): Int =
     if (selected == null) 0 else children.indexOfFirst { it.serverId == selected }.takeIf { it > 0 } ?: 0
+
+/** C07 이름 옆 월령 배지: 12개월 이하([INFANT_MAX_MONTHS], 수유 표시 QD1과 같은 경계)는 "영아기", 넘으면 "유아기". */
+fun ageStageLabel(child: Child, today: java.time.LocalDate = java.time.LocalDate.now()): String =
+    if (isInfant(child, today)) STAGE_INFANT else STAGE_TODDLER
+
+const val STAGE_INFANT = "영아기"
+const val STAGE_TODDLER = "유아기"
 
 /** 수유하지 않는 아이 (유아식). */
 private fun noFeeding(type: String?) = type == "toddler"
@@ -45,8 +54,9 @@ fun childOptions(
         val info = server.firstOrNull { it.id == child.serverId } ?: server.getOrNull(i)?.takeIf { child.serverId == null && i == 0 }
         val routine = routineOf(key)
         val line = buildList {
+            // 유아기(12개월 초과)는 이름 옆 배지로 보이고, 줄에는 수유 내용이 없다 (#217)
             if (!isInfant(child, today)) {
-                add("유아기")
+                Unit
             } else if (noFeeding(info?.feedingType)) {
                 add("수유 없음")
             } else {
@@ -59,6 +69,7 @@ fun childOptions(
             key = key,
             name = child.name.ifBlank { "아이 ${i + 1}" },
             ageMonths = child.ageMonths(),
+            stage = ageStageLabel(child, today),
             line = if (i > 0 && child.serverId == null) "웹앱과 연결되면 고를 수 있어요" else line,
             mode = modeOf(child),
             selected = i == selectedIndex,
