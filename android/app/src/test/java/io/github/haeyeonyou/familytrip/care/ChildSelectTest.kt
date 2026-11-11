@@ -43,4 +43,21 @@ class ChildSelectTest {
         assertEquals("아이", childChipLabel(emptyList(), null))
         assertTrue(childChipLabel(listOf(seoa, doyun), "s2").startsWith("도윤 · "))
     }
+
+    // 케어 모드 값 아이별 (QO5, #192)
+
+    @Test
+    fun `행마다 그 아이의 베이비케어 값을 보여 준다`() {
+        val o = childOptions(listOf(seoa, doyun), server, null, modeOf = { c -> if (c.serverId == "s2") "22°C · 미풍" else "24°C · 약풍" }) { FeedingRoutine() }
+        assertEquals(listOf("24°C · 약풍", "22°C · 미풍"), o.map { it.mode })
+    }
+
+    @Test
+    fun `아이를 바꾸면 공조를 쓰는 모드 하나를 새 아이 값으로 다시 넣는다`() {
+        assertEquals("feeding_stop", activeModeSlot(babyCare = true, sleepClimate = true, feedingStopClimate = true))
+        assertEquals("nap", activeModeSlot(babyCare = true, sleepClimate = true, feedingStopClimate = false))
+        assertEquals("boarding", activeModeSlot(babyCare = true, sleepClimate = false, feedingStopClimate = false))
+        assertEquals(null, activeModeSlot(babyCare = false, sleepClimate = false, feedingStopClimate = false))
+        assertEquals("수면 모드", modeNoticeName("nap"))
+    }
 }

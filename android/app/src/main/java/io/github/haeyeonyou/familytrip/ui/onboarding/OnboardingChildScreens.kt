@@ -34,6 +34,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
@@ -56,7 +57,11 @@ import androidx.compose.ui.unit.dp
 import io.github.haeyeonyou.familytrip.care.childKey
 import io.github.haeyeonyou.familytrip.care.selectedChildIndex
 import io.github.haeyeonyou.familytrip.data.Child
+import io.github.haeyeonyou.familytrip.data.ClimateSettings
 import io.github.haeyeonyou.familytrip.data.FamilyProfile
+import io.github.haeyeonyou.familytrip.data.PresetState
+import io.github.haeyeonyou.familytrip.data.presetsForChild
+import io.github.haeyeonyou.familytrip.ui.ModeEditSheet
 import io.github.haeyeonyou.familytrip.onboarding.BirthWheel
 import io.github.haeyeonyou.familytrip.onboarding.ChildDraft
 import io.github.haeyeonyou.familytrip.onboarding.NapChoice
@@ -352,13 +357,16 @@ private fun Wheel(values: List<Int>, selected: Int, selectedLabel: (Int) -> Stri
 
 /**
  * 등록된 아이 카드·선택·편집·추가. 고른 아이는 케어 화면 아이 선택(C07)과 같은 값이라 케어 화면이 그 아이로 시작한다.
- * 카드의 베이비케어 줄은 **가족 공통 값**이다 (QO5 보류, 아이별 모드 값이 정해지면 바꾼다).
+ * 카드의 베이비케어 줄은 **그 아이의 케어 모드 값**이다 (QO5, #192). 서버에서 받은 값이 있고 정차 중이면 그 줄을 눌러
+ * 모드 편집 시트(C08과 같은 것)로 그 아이 값을 고친다.
  */
 @Composable
 internal fun BoxScope.ConfirmStep(
     profile: FamilyProfile?,
     selectedChildId: String?,
-    babyCare: String,
+    allPresets: List<PresetState>,
+    isParked: Boolean,
+    onSaveModes: (String?, Map<String, ClimateSettings>, (Boolean) -> Unit) -> Unit,
     today: LocalDate,
     onSelect: (String?) -> Unit,
     onEdit: (Child) -> Unit,
@@ -370,7 +378,11 @@ internal fun BoxScope.ConfirmStep(
     val s = SitterSurface.current
     val children = profile?.children.orEmpty()
     val selectedIndex = if (children.isEmpty()) -1 else selectedChildIndex(children, selectedChildId)
-    StepTitle("함께 다니는 아이를 선택해 주세요", "고른 아이로 케어 화면이 시작해요 · 케어 모드 값은 가족이 함께 써요")
+    // 모드 값을 고치는 아이 (카드 위치). 주행을 시작하면 닫는다 (모드 편집은 정차 중에만, C08과 같은 규칙).
+    var editingModes by remember { mutableStateOf<Int?>(null) }
+    var modeError by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(isParked) { if (!isParked) editingModes = null }
+    StepTitle("함께 다니는 아이를 선택해 주세요", "고른 아이로 케어 화면이 시작해요 · 케어 모드 값은 아이마다 따로 저장해요")
 
     Row(
         Modifier.offset(32.dp, 204.dp).width(1192.dp).height(277.dp).horizontalScroll(rememberScrollState()),
@@ -384,10 +396,12 @@ internal fun BoxScope.ConfirmStep(
                 child = child,
                 index = index,
                 selected = index == selectedIndex,
-                babyCare = babyCare,
+                babyCare = childBabyCareLine(allPresets, child),
                 today = today,
                 onClick = { if (index == selectedIndex || !selectable) onEdit(child) else onSelect(key) },
                 onEdit = { onEdit(child) },
+                // 서버에서 모드 값을 받았을 때만 고칠 수 있다 (저장할 곳이 서버다)
+                onEditModes = { modeError = null; editingModes = index }.takeIf { allPresets.isNotEmpty() && isParked },
             )
         }
         AddChildCard(onAdd)
@@ -403,6 +417,23 @@ internal fun BoxScope.ConfirmStep(
             style = SitterText.Label,
             color = s.primary,
             modifier = Modifier.padding(start = 10.dp),
+        )
+    }
+    editingModes?.let { i -> children.getOrNull(i) }?.let { child ->
+        ModeEditSheet(
+            presets = presetsForChild(allPresets, child.serverId),
+            initialSlot = "boarding",
+            error = modeError,
+            childName = child.name.ifBlank { "아이 ${editingModes!! + 1}" },
+            onSave = { edits ->
+                if (edits.isEmpty()) {
+                    editingModes = null
+                } else {
+                    modeError = null
+                    onSaveModes(child.serverId, edits) { ok -> if (ok) editingModes = null else modeError = "저장하지 못했어요. 로그인과 연결을 확인해 주세요" }
+                }
+            },
+            onDismiss = { editingModes = null; modeError = null },
         )
     }
     OnboardingFooter(
@@ -421,7 +452,16 @@ private fun callName(name: String): String {
 }
 
 @Composable
-private fun ChildCard(child: Child, index: Int, selected: Boolean, babyCare: String, today: LocalDate, onClick: () -> Unit, onEdit: () -> Unit) {
+private fun ChildCard(
+    child: Child,
+    index: Int,
+    selected: Boolean,
+    babyCare: String,
+    today: LocalDate,
+    onClick: () -> Unit,
+    onEdit: () -> Unit,
+    onEditModes: (() -> Unit)? = null,
+) {
     val s = SitterSurface.current
     Column(
         Modifier.width(386.dp).height(277.dp).clip(SitterShapes.Card).background(s.card)
@@ -451,17 +491,22 @@ private fun ChildCard(child: Child, index: Int, selected: Boolean, babyCare: Str
         ) {
             CardLine(SitterIcons.Moon, child.napTimes?.let { "낮잠 $it" } ?: "낮잠 정보 없음")
             CardLine(SitterIcons.Baby, tagAlongLabel(child))
-            CardLine(OnboardingIcons.Fan, "베이비케어 $babyCare")
+            // 값이 있으면 "24°C · 약풍 · 음량 낮게"(바람 아이콘이 베이비케어를 뜻함, '바꾸기'와 한 줄에 들어가게), 없으면 "베이비케어 기본값"
+            CardLine(OnboardingIcons.Fan, if (babyCare == "기본값") "베이비케어 기본값" else babyCare, action = "바꾸기".takeIf { onEditModes != null }, onAction = onEditModes)
         }
     }
 }
 
 @Composable
-private fun CardLine(icon: ImageVector, text: String) {
+private fun CardLine(icon: ImageVector, text: String, action: String? = null, onAction: (() -> Unit)? = null) {
     val s = SitterSurface.current
-    Row(verticalAlignment = Alignment.CenterVertically) {
+    Row(
+        Modifier.fillMaxWidth().then(if (onAction != null) Modifier.clickable(role = Role.Button, onClick = onAction) else Modifier),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         SitterIcon(icon, s.primary, size = SitterIconSize.Small)
-        Text(text, style = SitterText.Body2, color = s.inkSoft, maxLines = 1, modifier = Modifier.padding(start = 10.dp))
+        Text(text, style = SitterText.Body2, color = s.inkSoft, maxLines = 1, modifier = Modifier.padding(start = 10.dp).weight(1f))
+        if (action != null) Text(action, style = SitterText.Label, color = s.primary, modifier = Modifier.padding(start = 8.dp))
     }
 }
 

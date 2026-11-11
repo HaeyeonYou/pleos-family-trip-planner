@@ -200,6 +200,7 @@ class MainActivity : ComponentActivity() {
     private fun OnboardingRoute(vm: TripViewModel, state: io.github.haeyeonyou.familytrip.ui.TripUiState, isParked: Boolean, mode: OnboardingMode, onDone: () -> Unit) {
         val care by container.care.state.collectAsStateWithLifecycle()
         val presets by container.serverSync.presets.collectAsStateWithLifecycle()
+        val allPresets by container.serverSync.allPresets.collectAsStateWithLifecycle()
         val choices by container.onboarding.choices.collectAsStateWithLifecycle()
         val profile by container.profile.profile.collectAsStateWithLifecycle()
         var placesTick by remember { mutableStateOf(0) }
@@ -209,6 +210,7 @@ class MainActivity : ComponentActivity() {
             profile = profile,
             isParked = isParked,
             presets = presets,
+            allPresets = allPresets,
             carePlaceNames = remember(placesTick) { container.serverSync.carePlaces.cached().map { it.placeName } },
             selectedChildId = care.selectedChildId,
             choices = choices,
@@ -232,6 +234,7 @@ class MainActivity : ComponentActivity() {
                     if (io.github.haeyeonyou.familytrip.onboarding.TagAlong.STROLLER in draft.tags) vm.setPreference(io.github.haeyeonyou.familytrip.data.Preference.STROLLER, true)
                 },
                 selectChild = container.care::selectChild,
+                saveModes = vm::saveChildPresetEdits,
                 finish = {
                     container.onboarding.markDone()
                     onDone()
@@ -511,6 +514,7 @@ class MainActivity : ComponentActivity() {
                                     onSelectChild = care::selectChild,
                                     childRoutine = care::routineOf,
                                     serverChildren = { container.serverSync.family.serverChildren() },
+                                    allPresets = { container.serverSync.allPresets.value },
                                     onDelayAddWaypoint = container.delayAlert::addWaypoint,
                                     onDelayKeepGoing = container.delayAlert::keepGoing,
                                     onApplyPreset = vm::applyPreset,

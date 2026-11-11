@@ -43,6 +43,7 @@ import io.github.haeyeonyou.familytrip.care.FeedingStopSession
 import io.github.haeyeonyou.familytrip.care.sleepVoicePercent
 import io.github.haeyeonyou.familytrip.care.childChipLabel
 import io.github.haeyeonyou.familytrip.care.childOptions
+import io.github.haeyeonyou.familytrip.data.presetsForChild
 import io.github.haeyeonyou.familytrip.care.selectedChildIndex
 import io.github.haeyeonyou.familytrip.care.FrequentCarePlace
 import io.github.haeyeonyou.familytrip.care.Nearby
@@ -88,6 +89,8 @@ data class CareActions(
     /** C07 드롭다운 행: 아이별 수유 루틴, 서버 아이 정보 */
     val childRoutine: (String?) -> FeedingRoutine = { FeedingRoutine() },
     val serverChildren: () -> List<io.github.haeyeonyou.familytrip.data.ServerChild> = { emptyList() },
+    /** 가족 기본값과 아이마다의 모드 값 (C07 행의 베이비케어 줄, QO5) */
+    val allPresets: () -> List<io.github.haeyeonyou.familytrip.data.PresetState> = { emptyList() },
     val onDelayAddWaypoint: (DelayCandidate) -> Unit,
     val onDelayKeepGoing: () -> Unit,
     val onApplyPreset: (slot: String) -> Unit,
@@ -170,7 +173,15 @@ fun CareScreen(
         CareNoticeToast(care.notice, care.noticeAt)
         if (choosingChild) {
             ChildSelectDropdown(
-                options = childOptions(children, actions.serverChildren(), care.selectedChildId, actions.childRoutine),
+                options = actions.allPresets().let { all ->
+                    childOptions(
+                        children,
+                        actions.serverChildren(),
+                        care.selectedChildId,
+                        modeOf = { c -> all.takeIf { it.isNotEmpty() }?.let { presetsForChild(it, c.serverId).firstOrNull { p -> p.slot == "boarding" }?.let { p -> modeSummary(p.settings) } } },
+                        routineOf = actions.childRoutine,
+                    )
+                },
                 onSelect = { key -> actions.onSelectChild(key); choosingChild = false },
                 onDismiss = { choosingChild = false },
             )
@@ -186,6 +197,7 @@ fun CareScreen(
         editingSlot?.let { slot ->
             ModeEditSheet(
                 presets = state.presets,
+                childName = child?.name?.takeIf { children.size > 1 },
                 initialSlot = slot,
                 error = modeSaveError,
                 onSave = { edits ->

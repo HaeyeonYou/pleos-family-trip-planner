@@ -123,11 +123,13 @@ data class ChildIn(
 @Serializable
 data class ServerFamily(val children: List<ServerChild> = emptyList())
 
-/** `GET /presets`의 슬롯 하나 (boarding · nap · feeding_stop). */
+/** `GET /presets`의 슬롯 하나 (boarding · nap · feeding_stop). 케어 모드 값은 아이별이다 (QO5, #192). */
 @Serializable
 data class PresetState(
     val slot: String,
     val label: String = "",
+    /** 이 값의 아이(서버 아이 id). null이면 가족 기본값 (예전 서버이거나 서버와 아직 안 맞춘 아이). */
+    @SerialName("child_id") val childId: String? = null,
     @SerialName("when") val whenLabel: String = "",
     val sent: Boolean = false,
     val id: String? = null,
@@ -136,6 +138,14 @@ data class PresetState(
     @SerialName("applied_at") val appliedAt: String? = null,
     /** 폰에서 보냈는데 아직 차에서 적용하지 않음 */
     val pending: Boolean = false,
+)
+
+/** `GET /presets/children`: 가족 기본값(child_id null, 맨 앞)과 아이마다의 모드 3개. */
+@Serializable
+data class ChildPresets(
+    @SerialName("child_id") val childId: String? = null,
+    val nickname: String? = null,
+    val presets: List<PresetState> = emptyList(),
 )
 
 /** 서버가 정한 슬롯 순서. */

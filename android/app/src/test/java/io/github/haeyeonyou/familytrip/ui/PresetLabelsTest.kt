@@ -33,4 +33,17 @@ class PresetLabelsTest {
         assertEquals("24°C · 약풍 · 음량 낮게", presetShortSummary(preset(ClimateSettings(temperature = 24f, fanSpeed = 2, mediaVolume = 30))))
         assertEquals("22.5°C · 미풍 · 정차 시", presetShortSummary(preset(ClimateSettings(temperature = 22.5f, fanSpeed = 1, mediaVolume = null))))
     }
+
+    @Test
+    fun 온보딩_아이_카드는_그_아이의_베이비케어_값이고_받은_값이_없으면_기본값() {
+        val all = listOf(
+            PresetState("boarding", childId = null, settings = ClimateSettings(temperature = 24f, fanSpeed = 2, mediaVolume = 30)),
+            PresetState("boarding", childId = "s2", settings = ClimateSettings(temperature = 22.5f, fanSpeed = 1, mediaVolume = 10)),
+        )
+        val doyun = io.github.haeyeonyou.familytrip.data.Child(2023, 3, "도윤", serverId = "s2")
+        val seoa = io.github.haeyeonyou.familytrip.data.Child(2025, 9, "서아", serverId = "s1")
+        assertEquals("22.5°C · 미풍 · 음량 최소", io.github.haeyeonyou.familytrip.ui.onboarding.childBabyCareLine(all, doyun))
+        assertEquals("24°C · 약풍 · 음량 낮게", io.github.haeyeonyou.familytrip.ui.onboarding.childBabyCareLine(all, seoa))  // 자기 값 없음 → 가족 기본값
+        assertEquals("기본값", io.github.haeyeonyou.familytrip.ui.onboarding.childBabyCareLine(emptyList(), seoa))
+    }
 }

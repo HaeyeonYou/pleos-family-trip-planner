@@ -73,7 +73,7 @@ data class CareState(
     val urgent: UrgentSheet? = null,
     /** 케어에서 넣은 경유지 (C12 토스트·"다음 경유지" 슬롯). 빼거나 안내가 끝나면 null. */
     val addedWaypoint: AddedWaypoint? = null,
-    /** 케어 대상 아이 (서버 아이 id, null = 첫째). 수유 타이머만 아이별이다 (D4). */
+    /** 케어 대상 아이 (서버 아이 id, null = 첫째). 수유 타이머와 케어 모드 값(공조 프리셋)이 아이별이다 (QO5, #192). */
     val selectedChildId: String? = null,
     /** 진행 중인 수유 정차 (C03 "수유 중 N분째"). 없으면 null. */
     val feedingStop: FeedingStopSession? = null,
@@ -309,11 +309,38 @@ class CareController(
 
     // 아이 선택 (C07)
 
-    /** 케어 대상 아이를 바꾼다 (null = 첫째). 그 아이의 마지막 수유를 서버에서 받아 온다. 모드 값은 가족 공통이라 그대로다. */
+    /**
+     * 케어 대상 아이를 바꾼다 (null = 첫째). 모드 값은 그 아이 것으로 바뀌고(QO5), 마지막 수유를 서버에서 받아 온다.
+     * 지금 켜 둔 모드(수유 정차 · 수면 · 베이비케어)가 공조를 쓰고 있으면 새 아이의 같은 모드 값을 바로 공조에 넣는다.
+     */
     fun selectChild(childId: String?) {
+        val changed = childId != _state.value.selectedChildId
         feedingStore.select(childId)
         _state.update { it.copy(selectedChildId = childId, feeding = feedingStore.load()) }
         serverSync.onChildSelected()
+        if (changed) reapplyActiveMode()
+    }
+
+    private fun reapplyActiveMode() {
+        val st = _state.value
+        val slot = activeModeSlot(
+            babyCare = st.babyCare,
+            sleepClimate = st.sleepMode && beforeSleep != null,
+            feedingStopClimate = st.feedingStop?.climateApplied == true,
+        ) ?: return
+        val preset = serverSync.presets.value.firstOrNull { it.slot == slot } ?: return
+        scope.launch {
+            val applied = vehicle.applyClimate(preset.settings).applied.isNotEmpty()
+            if (!applied) return@launch
+            if (preset.pending && preset.id != null) serverSync.onPresetApplied(preset.slot, preset.id)
+            _state.update {
+                it.copy(
+                    targetTemperature = preset.settings.temperature,
+                    notice = "${modeNoticeName(slot)}를 이 아이 값으로 바꿨어요 · ${modeLine(preset.settings)}",
+                    noticeAt = System.currentTimeMillis(),
+                )
+            }
+        }
     }
 
     /** [childId] 아이의 수유 루틴 (드롭다운의 다음 수유 표시). */

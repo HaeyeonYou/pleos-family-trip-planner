@@ -7,7 +7,7 @@ import io.github.haeyeonyou.familytrip.data.clockLabel
 import io.github.haeyeonyou.familytrip.data.durationLabel
 
 /**
- * 아이 선택 드롭다운(C07)의 행 (순수 함수). D4: 수유 타이머만 아이별, 모드 값은 가족 공통.
+ * 아이 선택 드롭다운(C07)의 행 (순수 함수). 수유 타이머와 케어 모드 값(공조 프리셋)이 아이별이다 (QO5, #192 — D4 폐기).
  * 아이 키: 첫째(목록 맨 앞)는 null, 나머지는 서버 아이 id. 서버 id가 없는 아이(웹앱과 아직 안 맞춤)는 고를 수 없다.
  */
 data class ChildOption(
@@ -15,6 +15,8 @@ data class ChildOption(
     val name: String,
     val ageMonths: Int,
     val line: String,
+    /** 그 아이의 베이비케어 모드 값 한 줄 ("24°C · 약풍 · 음량 낮게"). 모르면 null. */
+    val mode: String? = null,
     val selected: Boolean,
     val enabled: Boolean,
 )
@@ -33,6 +35,7 @@ fun childOptions(
     children: List<Child>,
     server: List<ServerChild>,
     selected: String?,
+    modeOf: (Child) -> String? = { null },
     routineOf: (String?) -> FeedingRoutine,
 ): List<ChildOption> {
     val selectedIndex = selectedChildIndex(children, selected)
@@ -54,6 +57,7 @@ fun childOptions(
             name = child.name.ifBlank { "아이 ${i + 1}" },
             ageMonths = child.ageMonths(),
             line = if (i > 0 && child.serverId == null) "웹앱과 연결되면 고를 수 있어요" else line,
+            mode = modeOf(child),
             selected = i == selectedIndex,
             enabled = i == 0 || child.serverId != null,
         )
@@ -66,4 +70,22 @@ fun childChipLabel(children: List<Child>, selected: String?): String {
     val i = selectedChildIndex(children, selected)
     val c = children[i]
     return "${c.name.ifBlank { "아이 ${i + 1}" }} · ${c.ageMonths()}개월"
+}
+
+/**
+ * 아이를 바꿀 때 새 아이 값으로 다시 넣을 모드 (공조를 쓰고 있는 것 하나). 수유 정차 > 수면 > 베이비케어 순서로,
+ * 나중에 켠 것이 공조를 차지하고 있기 때문이다. 공조를 쓰는 모드가 없으면 null.
+ */
+fun activeModeSlot(babyCare: Boolean, sleepClimate: Boolean, feedingStopClimate: Boolean): String? = when {
+    feedingStopClimate -> "feeding_stop"
+    sleepClimate -> "nap"
+    babyCare -> "boarding"
+    else -> null
+}
+
+/** 안내 문구의 모드 이름 ("수유 정차 모드를 …"). */
+fun modeNoticeName(slot: String): String = when (slot) {
+    "feeding_stop" -> "수유 정차 모드"
+    "nap" -> "수면 모드"
+    else -> "베이비케어 모드"
 }

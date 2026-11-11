@@ -274,9 +274,13 @@ class TripViewModel(private val container: AppContainer) : ViewModel() {
      * 케어 모드 편집(C08): 바뀐 모드 값을 서버(웹앱과 같은 값)에만 저장한다. 차 공조에는 적용하지 않는다 (모드를 켤 때 적용).
      * 모두 저장했으면 [onDone]에 true.
      */
-    fun savePresetEdits(edits: Map<String, ClimateSettings>, onDone: (Boolean) -> Unit) {
+    fun savePresetEdits(edits: Map<String, ClimateSettings>, onDone: (Boolean) -> Unit) =
+        saveChildPresetEdits(container.serverSync.presetChildId(), edits, onDone)
+
+    /** [savePresetEdits]를 [childId] 아이(서버 id, null = 가족 기본값)의 모드 값으로 (온보딩 O05 카드, QO5). */
+    fun saveChildPresetEdits(childId: String?, edits: Map<String, ClimateSettings>, onDone: (Boolean) -> Unit) {
         viewModelScope.launch {
-            val ok = edits.all { (slot, settings) -> container.serverSync.savePresetEdit(slot, settings) }
+            val ok = edits.all { (slot, settings) -> container.serverSync.savePresetEdit(slot, settings, childId) }
             _state.update { s -> s.copy(presets = container.serverSync.presets.value.ifEmpty { s.presets }) }
             onDone(ok)
         }
