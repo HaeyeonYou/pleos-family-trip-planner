@@ -1,11 +1,12 @@
 {% extends "base.html" %}
-{% block header %}<div class="topbar"><a class="back" href="/m/care" aria-label="케어로 돌아가기">←</a></div><h1 class="title">{{ meta.label }}</h1>{% endblock %}
+{% block header %}<div class="topbar"><a class="back" href="/m/care{{ '?child=' ~ child.id if child }}" aria-label="케어로 돌아가기">←</a></div><h1 class="title">{{ title }}</h1>{% if child %}<p class="muted small">{{ child.nickname }}의 케어 모드 값이에요. 아이마다 따로 저장돼요.</p>{% endif %}{% endblock %}
 {% block body %}
 <p class="lead">정해 두고 「차로 보내기」를 누르면, 시동을 걸고 차 앱을 켰을 때 이 설정을 확인하고 「차에 적용」으로 적용할 수 있어요. ({{ meta.when }})</p>
 {% if status %}<p class="{{ 'form-error' if error else 'form-ok' }}" role="status">{{ status }}</p>{% endif %}
 {% for a in advice %}<p class="notice" style="margin-top:12px">{{ a }}</p>{% endfor %}
 <form method="post">
   <input type="hidden" name="slot" value="{{ slot }}">
+  {% if child %}<input type="hidden" name="child" value="{{ child.id }}">{% endif %}
   <label class="field" for="name">설정 이름</label>
   <input id="name" name="name" type="text" maxlength="30" value="{{ s.name }}">
 

@@ -60,13 +60,17 @@ class CarLoginRequest(Base):
 
 
 class ClimatePreset(Base):
-    """폰에서 보낸 공조 프리셋. 사용자·슬롯(탑승 준비·낮잠·수유 정차)마다 지금 보낸 것 하나를 두고, 차가 적용하면 applied_at을 채운다."""
+    """폰에서 보낸 공조 프리셋 (케어 모드 값). 사용자·아이·슬롯(탑승 준비·낮잠·수유 정차)마다 지금 보낸 것 하나를 두고,
+    차가 적용하면 applied_at을 채운다. 아이별로 둔다(QO5, #192). child_id가 비어 있으면 가족 기본값이다:
+    아이를 고르지 않는 예전 차 앱이 쓰고, 아직 자기 값이 없는 아이는 이 값으로 시작한다."""
 
     __tablename__ = "climate_presets"
-    __table_args__ = (UniqueConstraint("user_id", "slot"),)
+    # child_id가 NULL인 가족 기본값도 슬롯마다 하나만 두려고 NULLS NOT DISTINCT (PostgreSQL 15+)
+    __table_args__ = (UniqueConstraint("user_id", "child_id", "slot", name="uq_climate_presets_user_child_slot", postgresql_nulls_not_distinct=True),)
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    child_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("children.id", ondelete="CASCADE"), default=None, index=True)
     # boarding(탑승 준비) / nap(낮잠) / feeding_stop(수유 정차). 예전 앱이 쓰던 1개짜리는 boarding이다.
     slot: Mapped[str] = mapped_column(String(20), default="boarding", server_default="boarding")
     # 설정 값은 app/presets.py의 ClimateSettings 모양 그대로 둔다 (항목이 늘어도 테이블은 그대로)

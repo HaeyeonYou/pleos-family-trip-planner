@@ -22,7 +22,7 @@ AREAS = ("presets", "feedings", "visits", "family", "cars")
 
 
 class SyncRevisions(BaseModel):
-    presets: str = Field(..., description="프리셋 슬롯 3개: 보냄·적용 상태가 바뀌면 달라짐")
+    presets: str = Field(..., description="프리셋(가족 기본값·아이별 슬롯 3개): 보냄·적용 상태가 바뀌면 달라짐")
     feedings: str = Field(..., description="수유 기록: 추가·삭제되면 달라짐")
     visits: str = Field(..., description="방문 기록: 추가·확인·삭제되면 달라짐")
     family: str = Field(..., description="아이·기본 외출 멤버")
@@ -37,7 +37,7 @@ def _digest(rows: list) -> str:
 
 async def revisions(db: AsyncSession, user: User) -> SyncRevisions:
     """내 데이터의 영역별 변경 표시. 모두 작은 표라 매번 읽어 해시한다."""
-    presets = (await db.execute(select(ClimatePreset.slot, ClimatePreset.id, ClimatePreset.sent_at, ClimatePreset.applied_at).where(ClimatePreset.user_id == user.id).order_by(ClimatePreset.slot))).all()
+    presets = (await db.execute(select(ClimatePreset.child_id, ClimatePreset.slot, ClimatePreset.id, ClimatePreset.sent_at, ClimatePreset.applied_at).where(ClimatePreset.user_id == user.id).order_by(ClimatePreset.child_id.nulls_first(), ClimatePreset.slot))).all()
     feedings = (await db.execute(select(FeedingLog.id, FeedingLog.fed_at).where(FeedingLog.user_id == user.id).order_by(FeedingLog.fed_at.desc()).limit(50))).all()
     visits = (await db.execute(select(VisitRecord.id, VisitRecord.status, VisitRecord.mood).where(VisitRecord.user_id == user.id).order_by(VisitRecord.id))).all()
     # 자주 가는 케어 장소는 방문 기록에서 나오므로 visits 영역에 함께 넣는다
