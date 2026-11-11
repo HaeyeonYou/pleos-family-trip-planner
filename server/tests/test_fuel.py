@@ -36,10 +36,15 @@ def client():
 # 판정 (QP2 제안: 코스 × 1.3)
 
 
-def test_needs_refuel_uses_margin():
-    assert fuel.needs_refuel(40_000, 50_000)  # 40km × 1.3 = 52km > 50km
-    assert not fuel.needs_refuel(40_000, 53_000)
-    assert not fuel.needs_refuel(40_000, 52_000)  # 같으면 충분
+def test_needs_refuel_below_80km():
+    assert fuel.needs_refuel(10_000, 79_999)  # 짧은 코스라도 80km 미만이면 부족
+    assert not fuel.needs_refuel(10_000, 80_000)  # 80km면 충분
+
+
+def test_needs_refuel_uses_margin_for_long_course():
+    assert fuel.needs_refuel(100_000, 120_000)  # 100km × 1.3 = 130km > 120km
+    assert not fuel.needs_refuel(100_000, 131_000)
+    assert not fuel.needs_refuel(100_000, 130_000)  # 같으면 충분
 
 
 def test_needs_refuel_without_value_is_not_judged():
@@ -49,8 +54,9 @@ def test_needs_refuel_without_value_is_not_judged():
 
 
 def test_margin_is_one_constant():
-    assert fuel.needs_refuel(40_000, 45_000, margin=1.2)
-    assert not fuel.needs_refuel(40_000, 45_000, margin=1.1)
+    assert fuel.needs_refuel(100_000, 115_000, margin=1.2)
+    assert not fuel.needs_refuel(100_000, 115_000, margin=1.1)
+    assert fuel.LOW_RANGE_M == 80_000
 
 
 # 고르기
