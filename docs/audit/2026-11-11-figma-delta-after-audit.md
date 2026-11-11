@@ -2,7 +2,7 @@
 
 - 정리: figma-watch 세션(이슈 #157). 코드는 고치지 않았다.
 - 기준: 전체 감사 [`2026-11-11-figma-vs-app.md`](2026-11-11-figma-vs-app.md)(Figma 버전 `2420237904099670604`) 이후 감시가 잡은 두 번의 변경. 버전은 `2420472890338145429`(15:20), `2420528935908374156`(18:20)이다. 21:20 확인 때는 그대로였다. 원본 줄은 [`watch/CHANGELOG.md`](../design/pleos-1110/watch/CHANGELOG.md)에 있다.
-- 근거: `watch/snapshot.json`(노드 글·크기·색)과 앱 코드 `grep`. PNG는 받지 않았다(11월 Tier 1 호출이 14/15회).
+- 근거: `watch/snapshot.json`(노드 글·크기·색), 앱 코드 `grep`, 새 PNG 10장(2026-11-11 21:50 사용자 요청으로 받음, Tier 1 1회 → 11월 15/15회). PNG는 `docs/design/pleos-1110/assets/screens/`에 있다: `H03-course-arrived.png`(+`-overlay`), `H03-1-course-last-stop.png`(+`-overlay`), `H04-course-finished.png`(+`-overlay`), `H01-3-home-fuel-tile.png`, `H01-2-home-radius.png`(새 버전으로 교체), `tile-fuel-a.png`, `tile-fuel-b.png`.
 
 ## 1. 실제 앱에 반영할 것
 
@@ -28,7 +28,7 @@
 
 ## 3. 확인하지 못한 것
 
-- 새 화면 PNG(H03·H03-1·H04·연료 타일). Tier 1이 1회 남아 받지 않았다. 구현 세션이 필요하면 `images?ids=420:13227,420:13357,420:13474,413:13521&format=png&scale=1` 한 번으로 받는다(한도는 `watch/state.json`에서 확인).
-- 덮는 안 세 장(`420:14549` 등)이 "H02 위에 뜨는 시트"인지 "별도 화면의 다른 안"인지. 글로만 보면 H02 전체 위에 도착 카드가 얹힌 꼴이다.
+- (PNG로 확인함) 덮는 안 세 장은 H02 코스 화면 위에 어둡게 깔고 가운데 창으로 띄운 꼴이다. 단독 화면은 지도와 "남은 일정"을 오른쪽에 함께 보인다. 어느 쪽을 쓸지는 사용자 결정(QC1).
+- (PNG로 확인함) H01 연료 타일은 "충분"·"부족" 태그를 둘 다 그려 두었다 — 상태별로 하나만 보이는 것으로 읽는다.
 - Pleos SDK `RangeRemainingListener`가 내연기관 차에서도 값을 주는지, 주유소·충전소를 내비 POI로 찾을 수 있는지.
 - 감사 H-17(반경 드롭다운 구현됨)과 지금 main 코드가 다른 이유.
