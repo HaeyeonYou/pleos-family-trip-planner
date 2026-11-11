@@ -170,3 +170,63 @@ def test_web_care_and_preset_pages_pick_a_child():
             assert f"/m/care?child={a}" in my and "케어 모드(탑승 준비)" in my
 
     run(scenario)
+
+
+# 적용 시점 (C08, #168)
+
+
+def test_apply_at_defaults_follow_slot_and_is_kept_per_child():
+    async def scenario(client):
+        async with phone(client) as mobile:
+            await signup(mobile, "mom_apply_at")
+            car = await car_token(client, mobile)
+            a, b = await two_children(mobile)
+
+            # 슬롯 기본값은 예전 고정 문구와 같다: 탑승 준비 = 탑승하면 바로, 낮잠·수유 정차 = 직접 실행.
+            family = {p["slot"]: p for p in (await client.get("/presets", headers=car)).json()}
+            assert {s: p["apply_at"] for s, p in family.items()} == {"boarding": "boarding", "nap": "manual", "feeding_stop": "manual"}
+            assert [family[s]["when"] for s in ("boarding", "nap", "feeding_stop")] == ["탑승 시", "수면 모드와 함께", "정차 시"]
+
+            # 차에서 서아의 탑승 준비를 '출발 시각'으로 바꾼다. 도윤은 그대로.
+            saved = (await client.put(f"/presets/boarding?child_id={a}&applied_on_car=true", json=NAP | {"apply_at": "departure"}, headers=car)).json()
+            assert saved["apply_at"] == "departure" and saved["when"] == "출발 시각" and "apply_at" not in saved["settings"]
+            groups = {g["child_id"]: {p["slot"]: p for p in g["presets"]} for g in (await client.get("/presets/children", headers=car)).json()}
+            assert groups[a]["boarding"]["apply_at"] == "departure"
+            assert groups[b]["boarding"]["apply_at"] == "boarding" and groups[None]["boarding"]["apply_at"] == "boarding"
+
+            # apply_at 없이 값만 고치면 적용 시점은 그대로 둔다 (예전 차 앱).
+            again = (await client.put(f"/presets/boarding?child_id={a}", json=NAP | {"temperature": 23}, headers=car)).json()
+            assert again["apply_at"] == "departure" and again["settings"]["temperature"] == 23
+
+            # 가족 기본값의 적용 시점은 자기 값이 없는 아이가 물려받는다.
+            await client.put("/presets/nap", json=NAP | {"apply_at": "boarding"}, headers=car)
+            nap_b = next(p for p in (await client.get(f"/presets?child_id={b}", headers=car)).json() if p["slot"] == "nap")
+            assert nap_b["apply_at"] == "boarding" and nap_b["when"] == "탑승하면 바로"
+
+            # 모르는 값은 받지 않고, 바꾸면 /me/sync 표지가 달라진다.
+            assert (await client.put("/presets/nap", json=NAP | {"apply_at": "later"}, headers=car)).status_code == 422
+            before = (await client.get("/me/sync", headers=car)).json()["presets"]
+            await client.put(f"/presets/nap?child_id={b}&applied_on_car=true", json=NAP | {"apply_at": "manual"}, headers=car)
+            assert (await client.get("/me/sync", headers=car)).json()["presets"] != before
+
+    run(scenario)
+
+
+def test_web_preset_page_edits_apply_at():
+    async def scenario(client):
+        async with phone(client) as mobile:
+            await signup(mobile, "mom_apply_at_web")
+            car = await car_token(client, mobile)
+            _, b = await two_children(mobile)
+
+            page = (await mobile.get(f"/m/preset?slot=nap&child={b}")).text
+            assert 'name="apply_at" value="manual" checked' in page and "출발 시각" in page and "탑승하면 바로" in page
+
+            sent = await mobile.post("/m/preset", data=PRESET_FORM | {"slot": "nap", "child": b, "apply_at": "departure"})
+            assert sent.status_code == 200 and 'name="apply_at" value="departure" checked' in sent.text
+            nap_b = next(p for p in (await client.get(f"/presets?child_id={b}", headers=car)).json() if p["slot"] == "nap")
+            assert nap_b["apply_at"] == "departure" and nap_b["pending"]
+
+            assert (await mobile.post("/m/preset", data=PRESET_FORM | {"apply_at": "soon"})).status_code == 400
+
+    run(scenario)
