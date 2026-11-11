@@ -1,6 +1,6 @@
 # NAS 배포 전 마지막 통합 테스트 (2026-11-11 지시서)
 
-- 상태: **대기 — 11/11 작업 세션 5개(shell-polish, grow-jelly, course-progress, home-fuel, feeding-by-age)가 모두 병합된 뒤 시작** · 담당: 통제 세션
+- 상태: **진행 중 (2026-11-11 밤) — 1~3단계 끝, 4단계 흐름 확인 중(통제 세션의 하위 에이전트)** · 담당: 통제 세션
 - 다음 단계: NAS 환경 구축(#15)
 
 ## 목표
@@ -19,3 +19,8 @@
 
 ## 진행 로그
 - 2026-11-11: 사용자 요청으로 지시서 작성(통제 세션).
+- 2026-11-11 밤 (통제 세션): 세션 PR 5개(#220~#223, #226) 병합 확인 후 시작.
+  - 1단계: 에뮬레이터 user 10·0의 접미사 앱 12개 모두 삭제(`.feedage .home .growvoice .course .care .shell .fuel .onboard .audit .grow .childmode`와 기본 앱).
+  - 2단계: 로컬 서버(main 체크아웃, `--reload`) `alembic upgrade head` → `a6c2e9f41d58`. 테스트 DB `pleos_test`에 옛 표가 남아 `drop_all`이 실패(59개)하던 것을 스키마 비우고 다시 실행 → **서버 테스트 275개 통과**.
+  - 3단계: **앱 단위 테스트 340개 통과**, `assembleDebug`로 기본 applicationId 앱을 user 10에 설치, `adb reverse tcp:8000`.
+  - 4단계: 화면 흐름 확인을 하위 에이전트에 맡김(캡처 `docs/screenshots/final-1111/`).
