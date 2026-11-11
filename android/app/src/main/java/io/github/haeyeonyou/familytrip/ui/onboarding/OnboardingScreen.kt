@@ -336,7 +336,7 @@ private fun BoxScope.StartStep(onStart: () -> Unit, onQr: () -> Unit) {
         )
         Text("아이와의 외출,\n출발 전부터 함께할게요", style = SitterText.Display.copy(fontSize = 46.sp, lineHeight = 66.sp), color = s.ink, modifier = Modifier.padding(top = 22.dp))
         Text(
-            "일정을 보고 미리 준비하고, 이동 중엔 함께 돌보고,\n다녀온 경험은 아이의 나무로 키워요",
+            "일정을 보고 미리 준비하고, 이동 중엔 함께 돌보고,\n다녀온 경험은 아이의 경험 젤리로 키워요",
             style = SitterText.Body1.copy(fontWeight = FontWeight.Normal, lineHeight = 31.sp),
             color = s.inkSoft,
             modifier = Modifier.padding(top = 26.dp),
@@ -353,7 +353,7 @@ private fun BoxScope.StartStep(onStart: () -> Unit, onQr: () -> Unit) {
     Column(Modifier.offset(672.dp, 120.dp).width(520.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         ValueCard("READY", "미리 준비", "일정에 맞춰 연료·타이어를 챙기고, 경로 위 수유실을 먼저 찾아둬요", OnboardingIcons.Car, 180)
         ValueCard("CARE", "함께 돌봄", "\"애 잔다\" \"수유할게\" 한마디로 온도·바람·음량을 아이에게 맞춰요", SitterIcons.Heart, 155)
-        ValueCard("GROW", "같이 성장", "다녀온 곳이 경험 나무로 자라고, 다음 외출을 추천해요", SitterIcons.Sprout, 155)
+        ValueCard("GROW", "같이 성장", "다녀온 곳이 경험 젤리로 자라고, 다음 외출을 추천해요", SitterIcons.Sprout, 155)
     }
 }
 

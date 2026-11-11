@@ -24,6 +24,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -123,25 +124,41 @@ fun ErrorText(message: String?) {
     }
 }
 
-/** 알림이 꺼져 있으면 내비가 앞에 있을 때 도착 안내를 받을 수 없음을 알린다. */
+/** 알림 띠를 보일지. 첫 실행 온보딩(O01~) 동안은 숨기고, 권한을 묻는 O03에서 거절한 뒤 앱으로 들어왔을 때만 보인다. */
+fun notificationBannerVisible(allowed: Boolean, onboarding: Boolean): Boolean = !allowed && !onboarding
+
+/**
+ * 알림이 꺼져 있으면 내비가 앞에 있을 때 도착 안내를 받을 수 없음을 알린다.
+ * 앱 프레임을 줄이지 않도록 떠 있는 띠로 그린다 (부르는 쪽이 [modifier]로 자리를 정한다. 지금은 위쪽 음성 바의 안내 문구 자리).
+ * X로 닫으면 앱을 다시 켤 때까지 숨긴다.
+ */
 @Composable
-fun NotificationOffBanner(visible: Boolean, onAllow: () -> Unit) {
-    if (!visible) return
+fun NotificationOffBanner(visible: Boolean, onAllow: () -> Unit, modifier: Modifier = Modifier) {
+    var dismissed by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
+    if (!visible || dismissed) return
+    val s = SitterSurface.current
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.errorContainer)
-            .padding(horizontal = 40.dp, vertical = 12.dp),
+        modifier = modifier
+            .padding(horizontal = 24.dp, vertical = 12.dp)
+            .shadow(8.dp, SitterShapes.Row)
+            .clip(SitterShapes.Row)
+            .background(SitterPalette.WarnFill)
+            .padding(start = 24.dp, end = 12.dp, top = 12.dp, bottom = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(24.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
+        SitterIcon(SitterIcons.Alert, SitterPalette.Warn, size = SitterIconSize.Medium)
         Text(
             "알림이 꺼져 있어 내비 화면에서 도착 안내를 실시간으로 받을 수 없어요",
-            fontSize = 22.sp,
-            color = MaterialTheme.colorScheme.onErrorContainer,
-            modifier = Modifier.weight(1f),
+            style = SitterText.Body1,
+            color = s.ink,
+            modifier = Modifier.weight(1f, fill = false),
         )
-        BigOutlinedButton("알림 허용", onAllow)
+        SitterButton("알림 허용", onAllow)
+        Box(
+            Modifier.size(48.dp).clip(CircleShape).clickable(role = Role.Button, onClickLabel = "알림 안내 닫기") { dismissed = true },
+            contentAlignment = Alignment.Center,
+        ) { SitterIcon(SitterIcons.X, s.inkSoft, size = SitterIconSize.Medium) }
     }
 }
 
