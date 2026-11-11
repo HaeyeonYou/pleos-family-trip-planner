@@ -167,6 +167,49 @@ fun extraCandidates(course: CourseResponse, current: CourseStop, home: LatLng?):
         .take(REPLACEMENT_COUNT)
 }
 
+/**
+ * H03 [장소 바꾸기] 대체 장소 목록 한 줄 (Figma 11/12 `420:14549`, 결정: 서버 대체 후보를 이 목록 모양으로).
+ * [distanceM]·[driveMinutes]는 지금 있는 장소에서 후보까지(직선거리 × 도로 계수 어림, 실제 시간은 고른 뒤 `/course/schedule`).
+ * [detourMinutes]는 다음 장소 대신 들를 때 경로가 늘어나는 분(서버 `detour_minutes`, 0이면 '경로 위').
+ */
+data class SwapOption(
+    val number: Int,
+    val place: CoursePlace,
+    val distanceM: Int,
+    val driveMinutes: Int,
+    val detourMinutes: Int,
+    val tags: List<String>,
+) {
+    val onRoute: Boolean get() = detourMinutes == 0
+}
+
+/** 조건 태그 순서와 표기 (Figma 유모차 · 수유실 · 아기의자 → QP4 결정 `유아의자`). */
+private val SWAP_TAGS = listOf("stroller" to "유모차", "nursing_room" to "수유실", "kids_chair" to "유아의자")
+
+/** H03 다음 장소의 대체 후보 (최대 3곳, H02-1과 같은 순서: 조건 유지 → 덜 돌아가는 곳). 다음 장소가 없으면 빈 목록. */
+fun swapOptions(state: GuideState, course: CourseResponse, origin: LatLng?): List<SwapOption> {
+    val index = state.index ?: return emptyList()
+    if (state.nextVisit == null) return emptyList()
+    val here = state.current?.place?.let { LatLng(it.latitude, it.longitude) } ?: origin
+    return io.github.haeyeonyou.familytrip.ui.replacements(course, index + 1, origin).mapIndexed { i, r ->
+        val fromHere = here?.let { FrequentCarePlaces.distanceMeters(it, r.place.latitude, r.place.longitude) } ?: r.distanceM
+        SwapOption(
+            number = i + 1,
+            place = r.place,
+            distanceM = fromHere,
+            driveMinutes = FrequentCarePlaces.minutes(fromHere),
+            detourMinutes = r.detourMinutes,
+            tags = SWAP_TAGS.filter { (key, _) -> r.place.amenities[key] == "available" }.map { it.second },
+        )
+    }
+}
+
+/** "0.8km · 2분 · 경로 위" / "1.5km · 4분 · +2분" */
+fun swapMeta(o: SwapOption): String {
+    val km = if (o.distanceM < 1000) "${o.distanceM}m" else "%.1fkm".format(o.distanceM / 1000.0)
+    return "$km · ${o.driveMinutes}분 · " + if (o.onRoute) "경로 위" else "+${o.detourMinutes}분"
+}
+
 /** 서버 `PUT /me/trip`에 올릴 지금 코스 (좌표 없음). 안내 전이면 null. */
 fun tripSnapshot(state: GuideState, today: LocalDate): TripSnapshot? {
     val index = state.index ?: return null
