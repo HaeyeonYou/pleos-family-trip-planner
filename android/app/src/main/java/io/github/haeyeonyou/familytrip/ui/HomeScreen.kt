@@ -189,6 +189,7 @@ private fun MapColumn(selected: CourseOption?, weather: WeatherInfo?, nowMs: Lon
                 stops = selected.course.stops,
                 path = selected.course.path,
                 modifier = Modifier.fillMaxSize(),
+                style = CourseMapStyle.Preview,
                 contentPadding = PaddingValues(start = 48.dp, top = 96.dp, end = 48.dp, bottom = HOME_MAP_CARD_SPACE),
             )
         }
