@@ -217,7 +217,7 @@ private fun DayCell(c: CalendarDay, isToday: Boolean, modifier: Modifier, onDay:
                 JellyIcon(c.births.first(), JellyStage.BORN, 64.dp)
             } else if (c.kinds.isNotEmpty()) {
                 Row(horizontalArrangement = Arrangement.spacedBy((-4).dp), verticalAlignment = Alignment.CenterVertically) {
-                    c.kinds.take(3).forEach { JellyIcon(it, JellyStage.DROP, 40.dp) }
+                    c.kinds.take(3).forEach { JellyIcon(it, JellyStage.DROP, 60.dp) }
                     if (c.kinds.size > 3) Text("+${c.kinds.size - 3}", style = SitterText.Caption, color = s.inkMute)
                 }
             }
@@ -255,7 +255,7 @@ private fun ColumnScope.YearGrid(list: List<Experience>, year: Int, today: Local
                             Row(horizontalArrangement = Arrangement.spacedBy((-4).dp)) {
                                 sum.births.lastOrNull()?.let { JellyIcon(it.first, JellyStage.BORN, 52.dp) }
                                 sum.growth.filter { g -> sum.births.none { it.first == g.kind } }.take(if (sum.births.isEmpty()) 4 else 2)
-                                    .forEach { JellyIcon(it.kind, JellyStage.DROP, 36.dp) }
+                                    .forEach { JellyIcon(it.kind, JellyStage.DROP, 52.dp) }
                             }
                         }
                     }
