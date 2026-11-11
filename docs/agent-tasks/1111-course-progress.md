@@ -1,6 +1,6 @@
 # 코스 진행 H03·H03-1·H04 새 셸 (2026-11-11 지시서)
 
-- 상태: **완료** (이슈 #218, 브랜치 `feature/218-course-progress`, PR은 HANDOFF 행 참고) · 접수 전 필수: **예**
+- 상태: **완료** (이슈 #218, PR #226 병합, 브랜치 `feature/218-course-progress`) · 접수 전 필수: **예**
 - 근거: [`docs/audit/2026-11-11-figma-delta-after-audit.md`](../audit/2026-11-11-figma-delta-after-audit.md) P-1~P-3. Figma 18:20 변경(`watch/CHANGELOG.md`)에서 새로 생긴 화면이다.
 - 다른 지시서와 파일 겹침: `1111-shell-polish`(`MainActivity.kt`, `VoicePanel.kt`), `1111-feeding-cleanup`(`CourseOverview.kt`). 시작 전에 열린 PR과 작업 트리를 확인한다.
 
