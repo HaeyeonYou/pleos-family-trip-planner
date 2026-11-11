@@ -24,19 +24,26 @@ class CourseMapGeometryTest {
     private val start = LatLng(37.3947, 127.1112)
 
     @Test
-    fun `출발지 다음 장소 번호 순서로 지점을 고르고 집에서 출발하면 출발·귀가로 합친다`() {
+    fun `출발 지점 다음 장소 번호 순서로 고르고 귀가 지점은 넣지 않는다`() {
         val roadPath = listOf(start, LatLng(37.3990, 127.1150), LatLng(37.4040, 127.1180))
         val a = CourseMapGeometry.anchors(listOf(meal, park, cafe, home), roadPath)
-        assertEquals(listOf("출발·귀가", "신신원", "고산근린공원", "이디야커피"), a.map { it.label })
         assertEquals(listOf(null, 1, 2, 3), a.map { it.number })
+        assertEquals(listOf("", "신신원", "고산근린공원", "이디야커피"), a.map { it.label })
         // 도로 경로의 중간 점은 쓰지 않는다 (출발 위치만)
         assertEquals(start, a.first().at)
     }
 
     @Test
-    fun `출발지와 귀가 지점이 다르면 귀가를 마지막 지점으로 따로 둔다`() {
-        val a = CourseMapGeometry.anchors(listOf(meal, cafe, home), listOf(LatLng(37.4200, 127.1000)))
-        assertEquals(listOf("출발", "신신원", "이디야커피", "귀가"), a.map { it.label })
+    fun `출발 위치를 모르면 1번 장소에서 시작한다`() {
+        val a = CourseMapGeometry.anchors(listOf(meal, cafe, home), emptyList())
+        assertEquals(listOf(1, 2), a.map { it.number })
+    }
+
+    @Test
+    fun `수유실이 확인된 장소는 이름 뒤에 수유실을 붙인다`() {
+        val withRoom = meal.place.copy(amenities = mapOf("nursing_room" to "available"))
+        assertEquals("신신원 · 수유실", CourseMapGeometry.placeLabel(withRoom))
+        assertEquals("신신원", CourseMapGeometry.placeLabel(meal.place.copy(amenities = mapOf("nursing_room" to "unknown"))))
     }
 
     @Test
@@ -89,6 +96,17 @@ class CourseMapGeometryTest {
             val cross = (a.to.x - a.c2.x) * (b.c1.y - b.from.y) - (a.to.y - a.c2.y) * (b.c1.x - b.from.x)
             assertEquals(0f, cross, 0.01f)
         }
+    }
+
+    @Test
+    fun `되돌아오는 토막은 서로 반대쪽으로 휘어 겹치지 않는다`() {
+        // 출발(0,0) → ①(100,0) → ②(50,0): ②가 출발과 ① 사이에 있어 되돌아온다
+        val c = CourseMapGeometry.smoothCurve(listOf(MapPoint(0f, 0f), MapPoint(100f, 0f), MapPoint(50f, 0f)))
+        val goMid = (c[0].c1.y + c[0].c2.y) / 2
+        val backMid = (c[1].c1.y + c[1].c2.y) / 2
+        assertTrue("go=$goMid back=$backMid", goMid * backMid < 0f)
+        assertEquals(MapPoint(100f, 0f), c[0].to)
+        assertEquals(MapPoint(50f, 0f), c[1].to)
     }
 
     @Test
