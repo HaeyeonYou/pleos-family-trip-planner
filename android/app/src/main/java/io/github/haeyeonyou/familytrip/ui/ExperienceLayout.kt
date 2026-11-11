@@ -59,9 +59,9 @@ internal class OrbitNode(
     val labelY: Float
         get() = when {
             empty -> y + EMPTY_RADIUS + 6f
-            center -> y + frame * 0.40f
-            state.stage == JellyStage.DROP -> y + frame * 0.22f
-            else -> y + frame * 0.40f
+            center -> y + frame * 0.47f
+            state.stage == JellyStage.DROP -> y + frame * 0.36f
+            else -> y + frame * 0.45f
         }
 }
 

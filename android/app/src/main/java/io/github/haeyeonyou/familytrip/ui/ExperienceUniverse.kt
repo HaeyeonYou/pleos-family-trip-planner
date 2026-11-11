@@ -101,8 +101,9 @@ private fun DrawScope.drawOrbit(
         val layout = tm.measure(text, TextStyle(fontSize = (14f / density / fontScale).sp, color = Color.White, fontFamily = Pretendard, fontWeight = FontWeight.Medium))
         val w = layout.size.width + 24f
         val h = layout.size.height + 12f
-        val left = (n.x + n.frame * 0.08f).coerceIn(2f, DESIGN_W - w - 2f)
-        val top = (n.y - n.frame * 0.42f - h).coerceAtLeast(2f)
+        // 젤리 오른쪽 위 (위쪽 궤도 젤리 이름을 가리지 않게)
+        val left = (n.x + n.frame * 0.22f).coerceIn(2f, DESIGN_W - w - 2f)
+        val top = (n.y - n.frame * 0.30f - h).coerceAtLeast(2f)
         drawRoundRect(BubbleInk, Offset(left, top), Size(w, h), CornerRadius(10f))
         drawText(layout, topLeft = Offset(left + 12f, top + 6f))
     }
