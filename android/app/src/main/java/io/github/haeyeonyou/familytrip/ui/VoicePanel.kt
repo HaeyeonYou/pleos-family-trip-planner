@@ -66,6 +66,7 @@ fun VoicePanel(
     val tone = state.situation?.tone ?: ToneState.current
     val accent = if (tone == CareTone.NONE) s.primary else tone.accent
     Box(Modifier.fillMaxSize().background(s.app).clickable(enabled = false) {}) {
+        // 좁은 창에서도 통째로 줄이지 않는다: 이미 전체 폭 세로 스크롤이라 폭만 창에 맞추면 된다 (#245)
         SitterCanvas(ownsDock = false) {
             Column(
                 modifier = Modifier.fillMaxSize().padding(horizontal = 48.dp, vertical = 40.dp).verticalScroll(rememberScrollState()),

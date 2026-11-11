@@ -139,7 +139,7 @@ fun OnboardingScreen(
     val onLater = if (mode == OnboardingMode.EDIT_CHILDREN) actions.close else actions.finish
     val baby = babyCareSummary(presets)
 
-    SitterCanvas(ownsDock = false) {
+    SitterCanvas(ownsDock = false, stackOnNarrow = false) {
         Box(Modifier.fillMaxSize().background(SitterSurface.current.app)) {
             OnboardingTopbar(stepLabel = stepLabel.takeIf { step != OnboardingStep.START && step != OnboardingStep.READY }, later = later.takeIf { step != OnboardingStep.START && step != OnboardingStep.READY }, onLater = onLater)
             when (step) {

@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -105,15 +106,14 @@ fun CourseOverview(
             }
         }
         // 요약 태그 5종 (y 118)
-        Row(Modifier.padding(start = 24.dp, top = 112.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.padding(start = 24.dp, top = 112.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             courseTags(course).forEach { SummaryTag(it) }
         }
-        // 본문 (y 168): 왼쪽 타임라인 800, 오른쪽 392
-        Row(
-            Modifier.padding(start = SitterGrid.MARGIN.dp, top = SitterGrid.BODY_TOP.dp, end = SitterGrid.MARGIN.dp, bottom = SitterGrid.MARGIN.dp).fillMaxSize(),
-            horizontalArrangement = Arrangement.spacedBy(SitterGrid.GAP.dp),
-        ) {
-            SitterCard(Modifier.width(SitterGrid.DOUBLE_W.dp).fillMaxHeight(), contentPadding = PaddingValues(start = 20.dp, top = 20.dp, end = 20.dp, bottom = 12.dp)) {
+        // 본문 (y 168): 왼쪽 타임라인 800, 오른쪽 392. 좁은 창에서는 타임라인 → 패널 순으로 쌓고, 패널을 열면 패널로 스크롤한다.
+        SitterWideAndColumn(
+            focusThird = panel != null,
+            wide = {
+            SitterCard(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 20.dp, top = 20.dp, end = 20.dp, bottom = 12.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("코스 타임라인", style = SitterText.Title3, color = s.ink, modifier = Modifier.weight(1f))
                     Text("↻ 교체 · ✕ 삭제 · ≡ 순서 변경", style = SitterText.Caption, color = s.inkMute)
@@ -164,7 +164,8 @@ fun CourseOverview(
                     }
                 }
             }
-            Column(Modifier.width(SitterGrid.COLUMN_W.dp).fillMaxHeight()) {
+            },
+            third = {
                 when (panel) {
                     is CoursePanel.Replace -> {
                         val target = panel.stopIndex
@@ -186,8 +187,8 @@ fun CourseOverview(
                         onSave = onSave,
                     )
                 }
-            }
-        }
+            },
+        )
     }
 }
 
