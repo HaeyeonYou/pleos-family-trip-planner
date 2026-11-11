@@ -27,9 +27,12 @@ class HomeFiltersTest {
     }
 
     @Test
-    fun `반경 단계는 5 10 20이고 이동 분으로 바뀐다`() {
-        assertEquals(listOf(5, 10, 20), HOME_RADIUS_STEPS_KM)
+    fun `반경은 5~50km 1km 단위이고 이동 분으로 바뀐다`() {
+        assertEquals(5, clampRadiusKm(2.4f))
+        assertEquals(24, clampRadiusKm(23.6f))
+        assertEquals(50, clampRadiusKm(60f))
         assertEquals(40, driveMinutesForRadius(20))
+        assertEquals(100, driveMinutesForRadius(HOME_RADIUS_MAX_KM)) // 서버 MAX_RADIUS_M 50km = 100분 × 500m
     }
 
     @Test

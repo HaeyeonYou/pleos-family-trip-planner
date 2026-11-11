@@ -32,7 +32,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
@@ -42,6 +41,7 @@ import io.github.haeyeonyou.familytrip.data.CourseStop
 import io.github.haeyeonyou.familytrip.data.FeedingRoutine
 import io.github.haeyeonyou.familytrip.data.StopParking
 import io.github.haeyeonyou.familytrip.data.WeatherInfo
+import io.github.haeyeonyou.familytrip.data.sameLot
 import java.time.Instant
 import java.time.ZoneId
 
@@ -83,6 +83,8 @@ fun CourseOverview(
     val panel = panelState?.takeIf { it !is CoursePanel.Replace || it.stopIndex < visits }
     val swapping = (panel as? CoursePanel.Replace)?.stopIndex
     var reordering by remember(course) { mutableStateOf<Int?>(null) }
+    // 펼친 주차 줄 (H02-2). 한 번에 한 장소만 펼친다.
+    var parkingOpen by remember { mutableStateOf<Int?>(null) }
     val outingIndex = course.stops.indexOfFirst { it.role == "outing" }.takeIf { it >= 0 } ?: 0
 
     // 독 자리를 이 화면이 맡는다고 알려(셸의 옛 독 줄을 끄고) 아무것도 두지 않는다: H02·H02-1은 독 대신 뒤로 버튼
@@ -106,7 +108,7 @@ fun CourseOverview(
         }
         // 요약 태그 5종 (y 118)
         Row(Modifier.padding(start = 24.dp, top = 112.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            courseTags(course).forEach { SummaryTag(it) }
+            courseTags(course, showNursing = showFeeding).forEach { SummaryTag(it) }
         }
         // 본문 (y 168): 왼쪽 타임라인 800, 오른쪽 392
         Row(
@@ -116,7 +118,8 @@ fun CourseOverview(
             SitterCard(Modifier.width(SitterGrid.DOUBLE_W.dp).fillMaxHeight(), contentPadding = PaddingValues(start = 20.dp, top = 20.dp, end = 20.dp, bottom = 12.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("코스 타임라인", style = SitterText.Title3, color = s.ink, modifier = Modifier.weight(1f))
-                    Text("↻ 교체 · ✕ 삭제 · ≡ 순서 변경", style = SitterText.Caption, color = s.inkMute)
+                    // Figma H02-2는 "· 장소마다 기본 60분"이 더 있지만, 머무는 시간 규칙(역할별)이 달라 사용자 결정 전까지 쓰지 않는다 (지시서 임시 결정 6)
+                    Text("↻ 교체 · ✕ 삭제 · ↕ 순서 변경", style = SitterText.Caption, color = s.inkMute)
                 }
                 Column(Modifier.padding(top = 12.dp).verticalScroll(rememberScrollState())) {
                     TimelineRow(course.departureAt.ifBlank { "--:--" }, "출발", hollow = true)
@@ -146,10 +149,18 @@ fun CourseOverview(
                             canMoveDown = index < visits - 1,
                         ) {
                             if (home) {
-                                Text("오늘 경험이 경험 젤리에 기록돼요", style = SitterText.Caption, color = s.inkMute)
+                                Text("코스가 끝나면 오늘 경험이 경험 젤리에 기록돼요", style = SitterText.Caption, color = s.inkMute)
                             } else {
                                 Text(stopLine(stop), style = SitterText.Caption, color = s.inkMute, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 AmenityTags(stop)
+                                parkingRowLot(stop)?.let { lot ->
+                                    ParkingRow(
+                                        stop, lot,
+                                        open = parkingOpen == index,
+                                        onToggle = { parkingOpen = if (parkingOpen == index) null else index },
+                                        onPick = { picked -> edit.pickParking(index, picked) },
+                                    )
+                                }
                             }
                         }
                         if (point?.afterStop == index) {
@@ -263,27 +274,105 @@ private fun TimelineRow(
             }
             body()
         }
-        if (reorderOpen) {
-            RowAction(SitterIcons.ChevronLeft, enabled = canMoveUp, rotate = 90f) { onMove(-1) }
-            RowAction(SitterIcons.ChevronLeft, enabled = canMoveDown, rotate = -90f) { onMove(1) }
-        }
+        // H02-2: ✕ · ⇅. ⇅를 누르면 그 자리에 ↑ · ↓ (첫 행 그림)
         onRemove?.let { RowAction(SitterIcons.X, enabled = true, onClick = it) }
-        onReorder?.let { RowAction(SitterIcons.Grip, enabled = true, onClick = it) }
+        if (reorderOpen) {
+            RowAction(SitterIcons.ArrowUp, enabled = canMoveUp) { onMove(-1) }
+            RowAction(SitterIcons.ArrowDown, enabled = canMoveDown) { onMove(1) }
+        } else {
+            onReorder?.let { RowAction(SitterIcons.ArrowUpDown, enabled = true, onClick = it) }
+        }
     }
 }
 
 @Composable
-private fun RowAction(icon: ImageVector, enabled: Boolean, rotate: Float = 0f, onClick: () -> Unit) {
+private fun RowAction(icon: ImageVector, enabled: Boolean, onClick: () -> Unit) {
     val s = SitterSurface.current
     Box(
         Modifier.size(48.dp).clip(CircleShape).clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        SitterIcon(icon, if (enabled) s.inkSoft else s.line, modifier = Modifier.graphicsRotate(rotate), size = SitterIconSize.Medium)
+        SitterIcon(icon, if (enabled) s.inkSoft else s.line, size = SitterIconSize.Medium)
     }
 }
 
-private fun Modifier.graphicsRotate(degrees: Float): Modifier = if (degrees == 0f) this else rotate(degrees)
+/**
+ * 장소 행 아래 주차 줄 (H02-2 `428:16045`, H02-1에도 같은 줄). 접히면 "P 고른 주차장 · 요금 · 도보 N분 · 대체 K곳 ⌄",
+ * 펼치면 고른 주차장 칸(추천이면 [추천]) + "다른 주차장 · <장소>까지 걷는 거리순" 라디오 목록 + 안내 한 줄.
+ * 고른 곳이 그 장소의 길안내 도착지가 된다 (data/ParkingChoice.kt). 요금을 모르면 "요금 정보 없음", 경사로·혼잡도는 데이터가 없어 쓰지 않는다.
+ */
+@Composable
+private fun ParkingRow(stop: CourseStop, chosen: StopParking, open: Boolean, onToggle: () -> Unit, onPick: (StopParking) -> Unit) {
+    val s = SitterSurface.current
+    val recommended = stop.parking.firstOrNull()?.sameLot(chosen) == true
+    Column(
+        Modifier
+            .padding(top = 4.dp)
+            .fillMaxWidth()
+            .clip(SitterShapes.Row)
+            .background(s.card)
+            .border(if (open) 2.dp else 1.dp, if (open) s.primary else s.line, SitterShapes.Row),
+    ) {
+        Row(
+            Modifier.fillMaxWidth().clickable(onClick = onToggle).padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            SitterIcon(SitterIcons.Parking, s.inkSoft, size = SitterIconSize.Small)
+            Text(chosen.name, style = SitterText.Body2, color = s.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+            if (open && recommended) {
+                Text(
+                    "추천", style = SitterText.Caption, color = s.primary,
+                    modifier = Modifier.clip(SitterShapes.Pill).background(s.primarySoft).padding(horizontal = 8.dp, vertical = 2.dp),
+                )
+            }
+            if (!open) {
+                Text(parkingRowDetail(chosen), style = SitterText.Caption, color = s.inkMute, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+            }
+            Spacer(Modifier.weight(1f))
+            val toggle = if (open) "접기" else parkingOthersLabel(stop)
+            toggle?.let { Text(it, style = SitterText.Caption, color = s.primary, maxLines = 1) }
+            SitterIcon(if (open) SitterIcons.ChevronUp else SitterIcons.ChevronDown, s.primary, size = SitterIconSize.Small)
+        }
+        if (open) {
+            Column(Modifier.padding(start = 14.dp, end = 14.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(parkingCardDetail(chosen), style = SitterText.Caption, color = s.inkSoft, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Box(Modifier.padding(vertical = 4.dp).fillMaxWidth().height(1.dp).background(s.line))
+                Text("다른 주차장 · ${stop.place.name}까지 걷는 거리순", style = SitterText.Caption, color = s.inkMute, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                parkingChoices(stop).forEach { lot ->
+                    val picked = lot.sameLot(chosen)
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .clip(SitterShapes.Row)
+                            .background(if (picked) s.primarySoft else Color.Transparent)
+                            .clickable { if (!picked) onPick(lot) }
+                            .padding(horizontal = 10.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        RadioDot(picked)
+                        Text(lot.name, style = SitterText.Body2, color = s.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                        Text(parkingChoiceDetail(lot), style = SitterText.Caption, color = s.inkMute, maxLines = 1)
+                        if (lot.openAtArrival == false) Text("운영 안 함", style = SitterText.Caption, color = SitterPalette.Danger, maxLines = 1)
+                    }
+                }
+                Text("고른 주차장을 이 장소의 도착지로 길안내해요", style = SitterText.Caption, color = s.inkMute, modifier = Modifier.padding(top = 2.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun RadioDot(on: Boolean) {
+    val s = SitterSurface.current
+    Box(
+        Modifier.size(20.dp).clip(CircleShape).background(s.card).border(2.dp, if (on) s.primary else s.line, CircleShape),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (on) Box(Modifier.size(10.dp).clip(CircleShape).background(s.primary))
+    }
+}
 
 /** 편의 태그: 있으면 체크, '정보 없음'은 빼기 표시 (없다는 뜻은 아님). 반려견은 있을 때만. */
 @OptIn(ExperimentalLayoutApi::class)
@@ -339,10 +428,12 @@ private fun ColumnScope.DetailPanel(
         SitterIcon(SitterIcons.Clock, s.primary, size = SitterIconSize.Medium)
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             val next = feeding?.nextAt?.let { " · 다음 수유 ${io.github.haeyeonyou.familytrip.data.clockLabel(it)}" } ?: ""
-            Text("도착 ${first.arriveAt}$next", style = SitterText.Title3, color = s.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            // H02-2: "도착 10:40 · 3곳 · 장소마다 60분" — 머무는 시간은 장소마다 달라(역할별 기본값) 뒤 문구는 쓰지 않는다
+            val places = course.stops.count { it.role != "home" && it.role != "fuel" }
+            Text("도착 ${first.arriveAt} · ${places}곳$next", style = SitterText.Title3, color = s.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(
                 if (feeding == null) {
-                    "${first.place.name} · ${first.driveMinutes}분 이동"
+                    "장소에 도착하면 다음 일정을 물어볼게요"
                 } else {
                     feedingSlackText(feeding, first.arriveAt, now) ?: "케어에서 수유를 기록하면 도착 때 여유를 알려 드려요"
                 },

@@ -43,7 +43,33 @@ class CourseDetailLogicTest {
     @Test
     fun `요약 태그 5종을 코스 편의 정보로 계산한다`() {
         val tags = courseTags(course()).map { it.label }
-        assertEquals(listOf("총 5시간 30분", "수유실 2곳", "유모차 OK", "주차 4곳 확인", "반려동물 일부만 가능"), tags)
+        assertEquals(listOf("총 5시간 30분", "수유실 2곳", "유모차 OK", "주차 3곳 · 대체 1곳", "반려동물 일부만 가능"), tags)
+    }
+
+    @Test
+    fun `수유를 보이지 않는 코스는 수유실 태그가 없다 (H02-2)`() {
+        assertEquals(listOf("총 5시간 30분", "유모차 OK", "주차 3곳 · 대체 1곳", "반려동물 일부만 가능"), courseTags(course(), showNursing = false).map { it.label })
+    }
+
+    @Test
+    fun `주차 줄은 고른 곳의 요금과 도보, 나머지 수를 쓰고 모르는 요금은 정보 없음`() {
+        val lots = listOf(
+            StopParking(name = "세종로 공영주차장", kind = "공영", distanceMeters = 400, walkMinutes = 6, feeSummary = "5분 400원·일 최대 6,000원"),
+            StopParking(name = "정동 공영주차장", kind = "공영", distanceMeters = 270, walkMinutes = 4, feeSummary = "10분 500원"),
+            StopParking(name = "건물 지하 주차장", distanceMeters = 600, walkMinutes = 9),
+        )
+        val s = stop("outing", palace, "12:00").copy(parking = lots)
+        val lot = parkingRowLot(s)!!
+        assertEquals("세종로 공영주차장", lot.name)
+        assertEquals("5분 400원·일 최대 6,000원 · 도보 6분", parkingRowDetail(lot))
+        assertEquals("공영 · 5분 400원·일 최대 6,000원 · 도보 6분", parkingCardDetail(lot))
+        assertEquals("대체 2곳", parkingOthersLabel(s))
+        assertEquals(listOf("정동 공영주차장", "세종로 공영주차장", "건물 지하 주차장"), parkingChoices(s).map { it.name })
+        assertEquals("도보 6분 · 5분 400원", parkingChoiceDetail(lots[0]))
+        assertEquals("도보 9분 · 요금 정보 없음", parkingChoiceDetail(lots[2]))
+        assertEquals("요금 정보 없음 · 도보 9분", parkingRowDetail(lots[2]))
+        assertNull(parkingRowLot(stop("home", home, "15:30")))
+        assertNull(parkingRowLot(stop("fuel", waffle, "10:10").copy(parking = lots)))
     }
 
     @Test

@@ -12,6 +12,8 @@ data class CourseEditActions(
     val remove: (stopIndex: Int) -> Unit,
     val changeStay: (stopIndex: Int, deltaMinutes: Int) -> Unit,
     val add: (role: String, place: CoursePlace) -> Unit,
+    /** H02-2 주차장 고르기 (#250). 고른 곳이 그 장소의 길안내 도착지가 된다. */
+    val pickParking: (stopIndex: Int, lot: io.github.haeyeonyou.familytrip.data.StopParking) -> Unit = { _, _ -> },
 )
 
 /**
