@@ -51,6 +51,10 @@ import io.github.haeyeonyou.familytrip.guide.finishedSummary
 import io.github.haeyeonyou.familytrip.guide.progressPoints
 import io.github.haeyeonyou.familytrip.guide.remainingStops
 import io.github.haeyeonyou.familytrip.guide.stageOf
+import io.github.haeyeonyou.familytrip.guide.SwapOption
+import io.github.haeyeonyou.familytrip.guide.swapMeta
+import io.github.haeyeonyou.familytrip.guide.swapOptions
+import io.github.haeyeonyou.familytrip.ui.onboarding.OnboardingIcons
 import io.github.haeyeonyou.familytrip.guide.visitedStops
 import io.github.haeyeonyou.familytrip.data.Visit
 import io.github.haeyeonyou.familytrip.grow.courseExperiences
@@ -86,7 +90,7 @@ class GuideActions(
  * 주행 중에도 버튼은 그대로 둔다(동승자 조작, 사용자 결정). 계산은 guide/CourseProgress.kt.
  *
  * 앱 프레임 1256x886: 위 뒤로·코스 이름·진행 상태·날씨, 왼쪽 넓은 카드(800)는 도착 안내·진행 줄·다음 행동, 오른쪽(392)은 지도·남은 일정
- * (고르는 중이면 H02-1 후보 패널). [여기서 코스 끝내기]는 Figma에 자리가 없어 왼쪽 카드 오른쪽 아래 텍스트 버튼(QC2 제안).
+ * (한 곳 더 가기는 H02-1 후보 패널, 장소 바꾸기는 왼쪽 카드가 대체 장소 목록으로 바뀜 — 11/12 새 판). [여기서 코스 끝내기]는 Figma에 자리가 없어 왼쪽 카드 오른쪽 아래 텍스트 버튼(QC2 제안).
  */
 @Composable
 fun GuideScreen(
@@ -144,20 +148,21 @@ fun GuideScreen(
         } else {
             SitterWideAndColumn(
                 top = GUIDE_BODY_TOP,
-                focusThird = picker != null,
+                focusThird = picker == GuidePicker.MORE, // 장소 바꾸기는 넓은 카드 안에서 목록으로 바뀐다 (11/12 새 판)
                 wide = {
                 SitterCard(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 32.dp, top = 28.dp, end = 32.dp, bottom = 20.dp)) {
-                    if (stage == GuideStage.HEADING) Heading(state, actions) else Arrived(state, stage, sameCourse, picker, loading, actions)
+                    when {
+                        stage == GuideStage.HEADING -> Heading(state, actions)
+                        // 11/12 새 판 `420:14549`: [장소 바꾸기]를 누르면 도착 창이 대체 장소 목록 창으로 바뀐다
+                        picker == GuidePicker.SWAP && sameCourse != null && state.nextVisit != null ->
+                            SwapList(state, remember(sameCourse, state.index, origin) { swapOptions(state, sameCourse, origin) }, loading, error, actions)
+                        else -> Arrived(state, stage, sameCourse, picker, loading, actions)
+                    }
                 }
                 },
                 third = {
                     val current = state.current
                     when {
-                        picker == GuidePicker.SWAP && sameCourse != null && state.nextVisit != null -> {
-                            val target = (state.index ?: 0) + 1
-                            val candidates = remember(sameCourse, target) { replacements(sameCourse, target, origin).map { ROLE_KEEP to it } }
-                            PickerPanel("${state.nextVisit?.place?.name} 대체 장소", "같은 시간대 · 경로에서 가까운 순 · 수유실·유모차 조건 유지", candidates, "이걸로 바꾸기", loading, error, actions) { _, p -> actions.onSwap(p) }
-                        }
                         picker == GuidePicker.MORE && sameCourse != null && current != null -> {
                             val candidates = remember(sameCourse, current) { extraCandidates(sameCourse, current, home) }
                             PickerPanel("근처 추천 장소", "지금 장소에서 가깝고 귀가 길에서 덜 돌아가는 순 · 귀가 전에 들어가요", candidates, "여기 들르기", loading, error, actions, actions.onAddExtra)
@@ -169,8 +174,6 @@ fun GuideScreen(
         }
     }
 }
-
-private const val ROLE_KEEP = ""
 
 /** 코스 진행 본문 시작 y (머리 줄 아래) */
 private const val GUIDE_BODY_TOP = 120
@@ -235,9 +238,9 @@ private fun ColumnScope.Arrived(
                 it, SitterIcons.Pencil, "장소 바꾸기", "${next?.place?.name} 대신 다른 곳",
                 primary = picker == GuidePicker.SWAP, enabled = !loading && course != null && !course.alternatives[next?.role].isNullOrEmpty(),
             ) { actions.onPicker(if (picker == GuidePicker.SWAP) null else GuidePicker.SWAP) }
-            ChoiceCard(it, SitterIcons.Home, "귀가", homeLine, primary = false, enabled = !loading, onClick = actions.onGoHome)
+            ChoiceCard(it, OnboardingIcons.Car, "귀가", homeLine, primary = false, enabled = !loading, onClick = actions.onGoHome)
         } else {
-            ChoiceCard(it, SitterIcons.Home, "귀가", homeLine, primary = picker == null, enabled = !loading, onClick = actions.onGoHome)
+            ChoiceCard(it, OnboardingIcons.Car, "귀가", homeLine, primary = picker == null, enabled = !loading, onClick = actions.onGoHome)
             ChoiceCard(
                 it, SitterIcons.Plus, "한 곳 더 가기", "근처 추천 장소 고르기",
                 primary = picker == GuidePicker.MORE, enabled = !loading && course != null && addCandidates(course).isNotEmpty(),
@@ -245,6 +248,62 @@ private fun ColumnScope.Arrived(
         }
     }
     BottomRow(hint = if (last) "“집에 가자” “한 곳 더”로 답해도 돼요" else "“다음 장소 가자” “바꿔줘” “집에 가자”로 답해도 돼요", actions)
+}
+
+/**
+ * H03 > 장소 바꾸기 (Figma 11/12 `420:14549`): 태그 · 제목 `<다음 장소> 대체 장소` · 보조 문구 · 번호 목록(이름 · 거리 · 분 · 경로 위/+N분 ·
+ * 조건 태그) + 오른쪽 길안내 버튼. 길안내 버튼을 누르면 바로 바꾼다(`/course/schedule` 재계산 → 그 장소 안내).
+ * Figma에는 닫는 자리가 없어 아래에 [돌아가기] 글자 버튼을 둔다.
+ */
+@Composable
+private fun ColumnScope.SwapList(state: GuideState, options: List<SwapOption>, loading: Boolean, error: String?, actions: GuideActions) {
+    val s = SitterSurface.current
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Chip("${(state.index ?: 0) + 1}번째 장소 도착", strong = true)
+        Chip("장소 변경안")
+    }
+    Text("${state.nextVisit?.place?.name} 대체 장소", style = SitterText.Title1, color = s.ink, modifier = Modifier.padding(top = 18.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+    Text("같은 시간대 · 경로에서 가까운 순 · 수유실·유모차 조건 유지", style = SitterText.Body2, color = s.inkSoft, modifier = Modifier.padding(top = 12.dp))
+    Column(Modifier.padding(top = 16.dp).weight(1f).verticalScroll(rememberScrollState())) {
+        if (options.isEmpty()) Text("지금은 바꿀 후보가 없어요", style = SitterText.Body2, color = s.inkSoft, modifier = Modifier.padding(top = 16.dp))
+        options.forEachIndexed { i, o ->
+            if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(s.line))
+            SwapRow(o, primary = i == 0, enabled = !loading) { actions.onSwap(o.place) }
+        }
+    }
+    error?.let { Text(it, style = SitterText.Caption, color = SitterPalette.Danger, maxLines = 2, modifier = Modifier.padding(top = 6.dp)) }
+    Row(Modifier.padding(top = 10.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        if (loading) CircularProgressIndicator(Modifier.padding(end = 8.dp).size(20.dp), strokeWidth = 2.dp)
+        Text(
+            if (loading) "코스를 다시 계산하고 있어요" else "고르면 뒤 일정을 다시 계산하고 그곳으로 안내해요",
+            style = SitterText.Caption, color = s.inkMute, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            "돌아가기",
+            style = SitterText.Label,
+            color = s.inkSoft,
+            modifier = Modifier.clip(SitterShapes.Pill).clickable(enabled = !loading) { actions.onPicker(null) }.padding(horizontal = 12.dp, vertical = 10.dp),
+        )
+    }
+}
+
+@Composable
+private fun SwapRow(o: SwapOption, primary: Boolean, enabled: Boolean, onGo: () -> Unit) {
+    val s = SitterSurface.current
+    Row(Modifier.fillMaxWidth().padding(vertical = 20.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            Modifier.size(44.dp).clip(CircleShape).background(if (primary) s.primary else s.tile),
+            contentAlignment = Alignment.Center,
+        ) { Text("${o.number}", style = SitterText.Title3, color = if (primary) Color.White else s.ink) }
+        Column(Modifier.padding(start = 16.dp, end = 16.dp).weight(1f)) {
+            Text(o.place.name, style = SitterText.Title3, color = s.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(swapMeta(o), style = SitterText.Caption, color = if (o.onRoute) s.primary else s.inkSoft, maxLines = 1, modifier = Modifier.padding(end = 4.dp))
+                o.tags.forEach { SitterTag(it, available = true) }
+            }
+        }
+        GradientCircleButton(size = 52.dp, onClick = { if (enabled) onGo() }) { SitterIcon(SitterIcons.Turn, Color.White) }
+    }
 }
 
 /** 아래 줄: 음성 안내 · 오른쪽 [여기서 코스 끝내기] 텍스트 버튼 (QC2). */
