@@ -144,6 +144,8 @@ data class CourseStop(
     @SerialName("stay_minutes") val stayMinutes: Int = 0,
     @SerialName("drive_minutes") val driveMinutes: Int,
     @SerialName("drive_distance_m") val driveDistanceMeters: Int,
+    /** 앱에서 고른 주차장(H02-2, #250). 없으면 추천 주차장. 서버는 쓰지 않는다 → ParkingChoice.kt */
+    @SerialName("parking_pick") val parkingPick: StopParking? = null,
 )
 
 @Serializable

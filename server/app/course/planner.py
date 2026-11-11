@@ -13,7 +13,7 @@ from typing import Protocol
 from zoneinfo import ZoneInfo
 
 from app import interests
-from app.course import classify, fuel, jelly, parking_rank, ranking
+from app.course import classify, fuel, jelly, parking_rank, ranking, wide_area
 from app.schemas import (
     Alternative,
     Amenity,
@@ -33,7 +33,7 @@ from app.schemas import (
 )
 from app.sources.parking import ParkingPlace
 from app.sources.public_data import PublicData
-from app.sources.kakao import CATEGORY_CAFE, CATEGORY_RESTAURANT, KakaoPlace, Leg
+from app.sources.kakao import CATEGORY_CAFE, CATEGORY_PARKING, CATEGORY_RESTAURANT, KakaoPlace, Leg
 from app.sources.tour import CONTENT_TYPE_ATTRACTION, CONTENT_TYPE_CULTURE, CONTENT_TYPE_LEISURE, PET, TourPlace
 
 KST = ZoneInfo("Asia/Seoul")
@@ -41,7 +41,7 @@ KST = ZoneInfo("Asia/Seoul")
 log = logging.getLogger("course")
 
 DEFAULT_RADIUS_M = 10_000
-MAX_RADIUS_M = 20_000
+MAX_RADIUS_M = 50_000  # 홈 반경 5~50km (Figma H01-2). 20km를 넘으면 wide_area가 여러 중심점으로 나눠 찾는다 (#250)
 METERS_PER_DRIVE_MINUTE = 500  # 시내 평균 30km/h 가정
 NEARBY_MEAL_RADIUS_M = 2_000
 NEARBY_CAFE_RADIUS_M = 1_500
@@ -386,20 +386,52 @@ class CoursePlanner:
             return []
         key = (round(place.latitude, 5), round(place.longitude, 5), today)
         if key not in self._parking_cache:
-            try:
-                self._parking_cache[key] = self._parking.near(
-                    place.latitude, place.longitude, parking_rank.PARKING_RADIUS_M, parking_rank.PARKING_FETCH, today
-                )
-            except Exception as e:  # noqa: BLE001 - 주차장 조회 실패가 코스 생성을 막지 않는다
-                log.warning("주차장 조회 실패: %s", type(e).__name__)
-                self._parking_cache[key] = []
+            lots: list[ParkingPlace] = []
+            if self._parking is not None:
+                try:
+                    lots = self._parking.near(
+                        place.latitude, place.longitude, parking_rank.PARKING_RADIUS_M, parking_rank.PARKING_FETCH, today
+                    )
+                except Exception as e:  # noqa: BLE001 - 주차장 조회 실패가 코스 생성을 막지 않는다
+                    log.warning("주차장 조회 실패: %s", type(e).__name__)
+            if len(lots) < parking_rank.PARKING_PER_STOP:
+                lots = lots + self._kakao_lots(place, lots)
+            self._parking_cache[key] = lots
         return self._parking_cache[key]
+
+    def _kakao_lots(self, place: Place, known: list[ParkingPlace]) -> list[ParkingPlace]:
+        """주차장 표에 없는 곳(건물 부설 등)을 카카오 주차장 분류(PK6)로 채운다 (#250).
+
+        카카오에는 요금·운영시간·면수가 없어 빈 값으로 둔다(앱이 '정보 없음'으로 쓴다). 표에 있는 곳과 겹치면 뺀다.
+        """
+        try:
+            found = self._kakao.by_category(
+                CATEGORY_PARKING, place.latitude, place.longitude, parking_rank.PARKING_RADIUS_M, size=parking_rank.PARKING_FETCH
+            )
+        except Exception as e:  # noqa: BLE001 - 카카오 장애가 코스 생성을 막지 않는다
+            log.warning("카카오 주차장 검색 실패: %s", type(e).__name__)
+            return []
+        return [lot for p in found if (lot := parking_rank.from_kakao(p)) and not parking_rank.is_duplicate(lot, known)]
 
     def _ensure_amenities(self, c: _Candidate, cond: TripConditions) -> None:
         """가중 선택으로 상위 조회 범위 밖의 후보가 뽑혀도 편의 정보를 붙인다."""
         self._lookup_amenities(c)
         if "parking" in cond.needs:
             self._lookup_parking(c)
+
+    def _tour_nearby(self, origin: LatLng, radius: int, **kw) -> list[TourPlace]:
+        """TourAPI 위치기반 목록. 20km를 넘으면 여러 중심점으로 나눠 모은다 (wide_area)."""
+        return wide_area.gather(
+            origin.latitude, origin.longitude, radius,
+            lambda lat, lng, r: self._tour.nearby(lat, lng, r, **kw), key=lambda p: p.content_id,
+        )
+
+    def _kakao_keyword(self, query: str, origin: LatLng, radius: int) -> list[KakaoPlace]:
+        """카카오 키워드 검색. 20km를 넘으면 여러 중심점으로 나눠 모은다 (wide_area)."""
+        return wide_area.gather(
+            origin.latitude, origin.longitude, radius,
+            lambda lat, lng, r: self._kakao.by_keyword(query, lat, lng, r), key=lambda p: p.place_id,
+        )
 
     def _general_candidates(self, origin: LatLng, radius: int, cond: TripConditions) -> list[_Candidate]:
         candidates = self._tour_candidates(origin, radius, with_pet=False)
@@ -457,7 +489,7 @@ class CoursePlanner:
     def _leisure_candidates(self, origin: LatLng, radius: int) -> list[_Candidate]:
         """레포츠 중 스케이트장·물놀이장·눈썰매장처럼 아이와 갈 만한 곳."""
         result = []
-        for p in self._tour.nearby(origin.latitude, origin.longitude, radius, content_type_id=CONTENT_TYPE_LEISURE):
+        for p in self._tour_nearby(origin, radius, content_type_id=CONTENT_TYPE_LEISURE):
             kind = classify.leisure_kind(p)
             if kind is None:
                 continue
@@ -502,12 +534,12 @@ class CoursePlanner:
 
     def _tour_candidates(self, origin: LatLng, radius: int, with_pet: bool) -> list[_Candidate]:
         if with_pet:
-            places = self._tour.nearby(origin.latitude, origin.longitude, radius, service=PET)
+            places = self._tour_nearby(origin, radius, service=PET)
         else:
             places = [
                 p
                 for type_id in (CONTENT_TYPE_ATTRACTION, CONTENT_TYPE_CULTURE)
-                for p in self._tour.nearby(origin.latitude, origin.longitude, radius, content_type_id=type_id)
+                for p in self._tour_nearby(origin, radius, content_type_id=type_id)
             ]
         seen: set[str] = set()
         result = []
@@ -530,7 +562,7 @@ class CoursePlanner:
         places = {
             p.place_id: p
             for word in classify.PLAY_KEYWORDS
-            for p in self._kakao.by_keyword(word, origin.latitude, origin.longitude, radius)
+            for p in self._kakao_keyword(word, origin, radius)
         }
         return [
             _Candidate(place=_kakao_place(p), theme=Theme.PLAY, indoor=True, distance_m=p.distance_m)
@@ -545,7 +577,7 @@ class CoursePlanner:
         result = []
         for interest in wanted[:MAX_INTEREST_SEARCHES]:
             query = interests.search_query(interest)
-            for p in self._kakao.by_keyword(query, origin.latitude, origin.longitude, radius):
+            for p in self._kakao_keyword(query, origin, radius):
                 kind = classify.kakao_outing_kind(p)
                 if kind is None or ("kakao", p.place_id) in seen:
                     continue

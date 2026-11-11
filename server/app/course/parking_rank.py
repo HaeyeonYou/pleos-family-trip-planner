@@ -7,7 +7,8 @@
 """
 
 from app.schemas import StopParking
-from app.sources.parking import ParkingPlace
+from app.sources.kakao import KakaoPlace
+from app.sources.parking import ParkingPlace, haversine_m
 
 PARKING_RADIUS_M = 500  # 장소 둘레 검색 반경
 PARKING_PER_STOP = 3  # 한 장소에 붙이는 최대 개수
@@ -16,6 +17,8 @@ FREE_BONUS_M = 150
 PUBLIC_BONUS_M = 80
 CLOSED_PENALTY_M = 10_000
 INFANT_DISTANCE_WEIGHT = 1.6
+NOT_A_LOT_WORDS = ("대행", "발렛", "발레")  # 카카오 주차장 분류에 섞인 주차대행 업체
+DUPLICATE_M = 40  # 표의 주차장과 이 거리 안이면 같은 곳으로 본다
 WALK_M_PER_MIN = 67  # 어른 보행 ≈ 4km/h. 앱도 같은 값으로 '약 N분'을 어림한다
 
 
@@ -72,3 +75,34 @@ def rank(lots: list[ParkingPlace], arrive_hhmm: str, infant: bool, limit: int = 
         )
         for _, _, lot, open_now in scored[:limit]
     ]
+
+
+def _kakao_kind(category: str) -> str | None:
+    """카카오 분류 끝 단계로 공영·민영을 가른다. 모르면 None (짐작하지 않음)."""
+    last = category.split(" > ")[-1]
+    if "공영" in last:
+        return "공영"
+    if "민영" in last:
+        return "민영"
+    return None
+
+
+def from_kakao(p: KakaoPlace) -> ParkingPlace | None:
+    """카카오 주차장(PK6) 한 곳. 요금·운영시간·면수는 카카오에 없어 비워 둔다. 주차장 분류가 아니면 None."""
+    if "주차장" not in p.category or any(w in p.name for w in NOT_A_LOT_WORDS):
+        return None
+    return ParkingPlace(
+        name=p.name, kind=_kakao_kind(p.category), lot_type=None, address=p.address, distance_m=round(p.distance_m),
+        capacity=None, fee_summary="", hours="", latitude=p.latitude, longitude=p.longitude,
+    )
+
+
+def _plain(name: str) -> str:
+    return name.replace(" ", "").replace("주차장", "")
+
+
+def is_duplicate(lot: ParkingPlace, known: list[ParkingPlace]) -> bool:
+    return any(
+        _plain(lot.name) == _plain(k.name) or haversine_m(lot.latitude, lot.longitude, k.latitude, k.longitude) <= DUPLICATE_M
+        for k in known
+    )

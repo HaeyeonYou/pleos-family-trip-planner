@@ -172,3 +172,52 @@ def test_db_source_through_schedule_endpoint():
         assert r.json()["stops"][-1]["parking"] == []
 
     run(scenario)
+
+
+# ---- 카카오 주차장 보충 (#250) ----
+
+class ParkingKakao(FakeKakao):
+    def __init__(self, lots):
+        super().__init__()
+        self.lots = lots
+        self.parking_calls = 0
+
+    def by_category(self, code, latitude, longitude, radius_m, size=15):
+        if code == "PK6":
+            self.parking_calls += 1
+            return self.lots
+        return super().by_category(code, latitude, longitude, radius_m, size)
+
+
+def kakao_lot(pid, name, category="교통,수송 > 교통시설 > 주차장", dist=80.0, lat=37.5, lng=127.0):
+    from app.sources.kakao import KakaoPlace
+
+    return KakaoPlace(place_id=pid, name=name, category=category, latitude=lat, longitude=lng, address="서울", distance_m=dist, url="")
+
+
+def test_kakao_fills_lots_missing_from_table_without_inventing_fees():
+    table = [lot("세종로 공영주차장", 400)]  # 37.5, 127.0
+    kakao_src = ParkingKakao([
+        kakao_lot("k1", "세종로공영 주차장", dist=410),  # 이름이 같다 → 뺀다
+        kakao_lot("k2", "근처 빌딩 주차장", dist=90, lat=37.5002, lng=127.0002),  # 표의 곳과 40m 안 → 뺀다
+        kakao_lot("k3", "건물 지하 주차장", dist=60, lat=37.502, lng=127.002),
+        kakao_lot("k4", "서소문청사 주차장", "교통,수송 > 교통시설 > 주차장 > 공영주차장", 150, 37.503, 127.003),
+        kakao_lot("k5", "베스트 주차대행", dist=100, lat=37.504, lng=127.004),  # 주차대행 업체 → 뺀다
+        kakao_lot("k6", "주차장 아님", "음식점 > 한식", 30, 37.505, 127.005),
+    ])
+    p = CoursePlanner(FakeTour({CONTENT_TYPE_ATTRACTION: [PARK]}), kakao_src, now=NOW, parking=FakeParking({"*": table}))
+    course = p.plan(CourseRequest(conditions=TripConditions(), origin=ORIGIN, departure_time="10:30"))
+    outing = next(s for s in course.stops if s.role == StopRole.OUTING)
+    names = {x.name for x in outing.parking}
+    assert names == {"세종로 공영주차장", "건물 지하 주차장", "서소문청사 주차장"}
+    from_kakao = {x.name: x for x in outing.parking if x.name != "세종로 공영주차장"}
+    assert all(x.fee_summary == "" and x.capacity is None and x.open_at_arrival is None for x in from_kakao.values())
+    assert from_kakao["서소문청사 주차장"].kind == "공영" and from_kakao["건물 지하 주차장"].kind is None
+
+
+def test_kakao_not_called_when_table_has_enough_lots():
+    kakao_src = ParkingKakao([kakao_lot("k3", "건물 지하 주차장")])
+    table = [lot("A", 100), lot("B", 200), lot("C", 300)]
+    p = CoursePlanner(FakeTour({CONTENT_TYPE_ATTRACTION: [PARK]}), kakao_src, now=NOW, parking=FakeParking({"*": table}))
+    p.plan(CourseRequest(conditions=TripConditions(), origin=ORIGIN))
+    assert kakao_src.parking_calls == 0

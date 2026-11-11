@@ -1,5 +1,7 @@
 package io.github.haeyeonyou.familytrip.ui
 
+import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -148,7 +150,10 @@ private fun HomeChips(state: TripUiState, filters: HomeFilters, actions: HomeAct
     }
 }
 
-/** 반경 칩 (Figma: "반경 10km ⌄"). 누르면 5·10·20km 중에서 고르는 목록이 열린다. */
+/**
+ * 반경 칩 (Figma: "반경 10km ⌄"). 누르면 H01-2 `369:19634`의 "반경 설정" 창: 큰 숫자(지금 값) + 5km~50km 슬라이더.
+ * 끌 때는 숫자만 바뀌고, 손을 떼면 그 값으로 추천을 다시 받는다(끄는 동안 요청을 반복하지 않음).
+ */
 @Composable
 private fun RadiusChip(radiusKm: Int, onPick: (Int) -> Unit) {
     val s = SitterSurface.current
@@ -156,22 +161,72 @@ private fun RadiusChip(radiusKm: Int, onPick: (Int) -> Unit) {
     // 팝업은 SitterCanvas 확대(LocalDensity)를 물려받지 않아 글자가 작아진다. 캔버스 밀도를 그대로 넘긴다.
     val canvasDensity = androidx.compose.ui.platform.LocalDensity.current
     Box {
-        SitterChip("반경 ${radiusKm}km", selected = false, onClick = { open = true }, trailingIcon = SitterIcons.ChevronDown)
-        androidx.compose.material3.DropdownMenu(
-            expanded = open,
-            onDismissRequest = { open = false },
-            containerColor = s.card,
-            shape = SitterShapes.Card,
-        ) {
-            androidx.compose.runtime.CompositionLocalProvider(androidx.compose.ui.platform.LocalDensity provides canvasDensity) {
-            HOME_RADIUS_STEPS_KM.forEach { km ->
-                androidx.compose.material3.DropdownMenuItem(
-                    text = { Text("반경 ${km}km", style = SitterText.Body1, color = if (km == radiusKm) s.primary else s.ink) },
-                    trailingIcon = if (km == radiusKm) ({ SitterIcon(SitterIcons.Check, s.primary, size = SitterIconSize.Small) }) else null,
-                    onClick = { open = false; if (km != radiusKm) onPick(km) },
-                    modifier = Modifier.height(64.dp).width(200.dp),
-                )
+        SitterChip("반경 ${radiusKm}km", selected = open, onClick = { open = true }, trailingIcon = SitterIcons.ChevronDown)
+        if (open) {
+            androidx.compose.ui.window.Popup(
+                alignment = Alignment.TopStart,
+                offset = with(canvasDensity) { androidx.compose.ui.unit.IntOffset(0, 60.dp.roundToPx()) },
+                onDismissRequest = { open = false },
+                properties = androidx.compose.ui.window.PopupProperties(focusable = true),
+            ) {
+                androidx.compose.runtime.CompositionLocalProvider(androidx.compose.ui.platform.LocalDensity provides canvasDensity) {
+                    RadiusPanel(radiusKm) { km -> if (km != radiusKm) onPick(km) }
+                }
             }
+        }
+    }
+}
+
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun RadiusPanel(radiusKm: Int, onPick: (Int) -> Unit) {
+    val s = SitterSurface.current
+    var value by remember(radiusKm) { mutableStateOf(radiusKm.toFloat()) }
+    Column(
+        Modifier
+            .width(480.dp)
+            .clip(SitterShapes.Card)
+            .background(s.card)
+            .padding(horizontal = 24.dp, vertical = 22.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("반경 설정", style = SitterText.Title3, color = s.ink)
+                Text("코스 추천 시 설정한 반경 내로 추천해드려요!", style = SitterText.Caption, color = s.inkMute, maxLines = 1)
+            }
+            Text("${clampRadiusKm(value)}km", style = SitterText.Title1, color = s.primary)
+        }
+        Column(
+            Modifier.padding(top = 18.dp).fillMaxWidth().clip(SitterShapes.Row).background(s.tile).padding(horizontal = 20.dp, vertical = 14.dp),
+        ) {
+            androidx.compose.material3.Slider(
+                value = value,
+                onValueChange = { value = it },
+                onValueChangeFinished = { onPick(clampRadiusKm(value)) },
+                valueRange = HOME_RADIUS_MIN_KM.toFloat()..HOME_RADIUS_MAX_KM.toFloat(),
+                steps = HOME_RADIUS_MAX_KM - HOME_RADIUS_MIN_KM - 1,
+                colors = androidx.compose.material3.SliderDefaults.colors(
+                    thumbColor = s.card,
+                    activeTrackColor = s.primary,
+                    inactiveTrackColor = s.line,
+                    activeTickColor = Color.Transparent,
+                    inactiveTickColor = Color.Transparent,
+                ),
+                thumb = {
+                    Box(Modifier.size(28.dp).clip(CircleShape).background(s.card).border(3.dp, s.primary, CircleShape))
+                },
+                // Figma처럼 이어진 막대 하나 (M3 기본 트랙의 손잡이 틈·끝 점을 쓰지 않는다)
+                track = { state ->
+                    val range = state.valueRange
+                    val fraction = ((state.value - range.start) / (range.endInclusive - range.start)).coerceIn(0f, 1f)
+                    Box(Modifier.fillMaxWidth().height(8.dp).clip(SitterShapes.Pill).background(s.line)) {
+                        Box(Modifier.fillMaxWidth(fraction).height(8.dp).clip(SitterShapes.Pill).background(s.primary))
+                    }
+                },
+            )
+            Row {
+                Text("${HOME_RADIUS_MIN_KM}km", style = SitterText.Body1, color = s.ink, modifier = Modifier.weight(1f))
+                Text("${HOME_RADIUS_MAX_KM}km", style = SitterText.Body1, color = s.ink)
             }
         }
     }
