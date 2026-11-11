@@ -15,7 +15,7 @@ async def rev(client, headers=None) -> dict:
 
 
 def changed(before: dict, after: dict) -> set[str]:
-    return {area for area in ("presets", "feedings", "visits", "family", "cars") if before[area] != after[area]}
+    return {area for area in ("presets", "feedings", "visits", "family", "cars", "trip") if before[area] != after[area]}
 
 
 def test_sync_requires_login_and_shows_nothing_but_marks():
@@ -24,7 +24,7 @@ def test_sync_requires_login_and_shows_nothing_but_marks():
         async with phone(client) as mom:
             await signup(mom, "mom_sync")
             first = await rev(mom)
-            assert set(first) == {"presets", "feedings", "visits", "family", "cars", "all"}
+            assert set(first) == {"presets", "feedings", "visits", "family", "cars", "trip", "all"}
             assert all(len(v) == 12 for v in first.values())  # 내용이 아니라 짧은 표시만
             assert await rev(mom) == first  # 아무것도 안 바뀌면 같다
 

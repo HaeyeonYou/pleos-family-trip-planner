@@ -139,6 +139,10 @@ class TripViewModel(private val container: AppContainer) : ViewModel() {
     val guide = container.guide.state
 
     init {
+        // 안내 중에 앱 프로세스가 다시 떴으면 안내 중인 코스를 되살린다 (장소 바꾸기·한 곳 더 후보에 쓴다).
+        if (_state.value.course == null && container.guide.state.value.active) {
+            container.guide.course?.let { c -> _state.update { it.copy(course = c) } }
+        }
         // 고른 코스의 출발 시각에 적용 시점 '출발 시각'인 케어 모드를 켠다 (C08, #168).
         viewModelScope.launch {
             _state.map { it.course?.departureAt }.distinctUntilChanged().collect { container.care.planDeparture(it) }
@@ -606,6 +610,7 @@ class TripViewModel(private val container: AppContainer) : ViewModel() {
     private fun reschedule(
         stops: List<ScheduleStop>,
         suggestNearby: Boolean = false,
+        onDone: (CourseResponse) -> Unit = {},
         updateAlternatives: (Map<String, List<CoursePlace>>) -> Map<String, List<CoursePlace>> = { it },
     ) {
         val s = _state.value
@@ -628,13 +633,15 @@ class TripViewModel(private val container: AppContainer) : ViewModel() {
                     message = if (updated.alternatives.isNotEmpty()) "나들이 장소 근처 식당·카페 후보를 새로 찾았어요" else null,
                 )
             }
+            onDone(_state.value.course ?: updated)
         }
     }
 
     /** 첫 장소부터 안내. 안내 상태는 앱 단위 GuideSession이 가진다 (앱이 뒤에 있어도 도착 알림). */
     fun startGuide() {
         val course = _state.value.course ?: return
-        container.guide.start(course.stops)
+        container.guide.start(course.stops, course.departureAt)
+        container.guide.rememberCourse(course)
         // '지금 N대 가는 중' 집계: 나들이 장소 키만 서버에 알린다 (실패해도 안내는 계속).
         course.stops.firstOrNull { it.role == "outing" }?.place?.let { place ->
             viewModelScope.launch {
@@ -649,6 +656,52 @@ class TripViewModel(private val container: AppContainer) : ViewModel() {
     fun markArrived() = container.guide.markArrived()
 
     fun endGuide() = container.guide.end()
+
+    // 코스 진행 (H03·H03-1·H04, #218). 바꾼 일정은 GuideSession → TripSync로 폰 웹에 올라간다.
+
+    /** [귀가]: 코스를 마치고 집 안내를 시작한다 (H04). */
+    fun goHomeFromGuide() = container.guide.goHome()
+
+    /** [여기서 코스 끝내기]: 안내 없이 H04. */
+    fun endCourseHere() = container.guide.endHere()
+
+    /**
+     * [장소 바꾸기]: 다음 장소를 [place]로 바꾸고 서버가 다시 계산한 일정으로 그곳 안내를 시작한다.
+     * 코스 편집과 같은 `/course/schedule`을 쓴다. 안내 중인 코스와 화면의 코스가 다르면 하지 않는다.
+     */
+    fun swapNextDuringGuide(place: CoursePlace) {
+        val guide = container.guide.state.value
+        val nextIndex = (guide.index ?: return) + 1
+        if (guide.nextVisit == null || _state.value.course?.stops?.map { it.place.sourceId } != guide.stops.map { it.place.sourceId }) return
+        val stops = editableStops() ?: return
+        val old = stops.getOrNull(nextIndex) ?: return
+        val edited = stops.toMutableList().apply { this[nextIndex] = ScheduleStop(old.role, place) }
+        reschedule(
+            edited,
+            updateAlternatives = { alternatives -> alternatives + (old.role to (alternatives[old.role].orEmpty() - place + old.place)) },
+            onDone = { course -> applyToGuide(course) },
+        )
+    }
+
+    private fun applyToGuide(course: CourseResponse) {
+        container.guide.rememberCourse(course)
+        if (!container.guide.replaceStops(course.stops, thenGoNext = true)) {
+            _state.update { it.copy(error = "안내 중인 코스와 달라 일정을 바꾸지 못했어요") }
+        }
+    }
+
+    /** [한 곳 더 가기]: 근처 후보를 코스 끝(귀가 앞)에 붙이고 그곳 안내를 시작한다. */
+    fun addExtraDuringGuide(role: String, place: CoursePlace) {
+        val guide = container.guide.state.value
+        if (guide.index == null || guide.finished) return
+        if (_state.value.course?.stops?.map { it.place.sourceId } != guide.stops.map { it.place.sourceId }) return
+        val stops = editableStops() ?: return
+        reschedule(
+            stops + ScheduleStop(role, place),
+            updateAlternatives = { alternatives -> alternatives + (role to (alternatives[role].orEmpty() - place)) },
+            onDone = { course -> applyToGuide(course) },
+        )
+    }
 
     fun dismissError() = _state.update { it.copy(error = null) }
 

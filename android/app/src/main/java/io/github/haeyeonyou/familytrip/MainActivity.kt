@@ -50,6 +50,11 @@ import io.github.haeyeonyou.familytrip.ui.SettingsScreen
 import io.github.haeyeonyou.familytrip.ui.CourseScreen
 import io.github.haeyeonyou.familytrip.ui.DevScreen
 import io.github.haeyeonyou.familytrip.ui.ExperienceScreen
+import io.github.haeyeonyou.familytrip.guide.ArrivalChoice
+import io.github.haeyeonyou.familytrip.guide.classifyArrivalReply
+import io.github.haeyeonyou.familytrip.guide.stageOf
+import io.github.haeyeonyou.familytrip.ui.GuideActions
+import io.github.haeyeonyou.familytrip.ui.GuidePicker
 import io.github.haeyeonyou.familytrip.ui.GuideScreen
 import io.github.haeyeonyou.familytrip.ui.HomeActions
 import io.github.haeyeonyou.familytrip.ui.HomeScreen
@@ -305,6 +310,9 @@ class MainActivity : ComponentActivity() {
                         celebrated = container.births.celebrated()
                         container.voiceIo.speak(io.github.haeyeonyou.familytrip.grow.birthSpeech(state.profile?.childName.orEmpty(), born))
                     }
+                    // 코스 진행 (#218): 오른쪽 고르기 패널(장소 바꾸기·한 곳 더). 음성으로도 열고, 장소가 바뀌면 닫는다.
+                    var guidePicker by remember { mutableStateOf<GuidePicker?>(null) }
+                    LaunchedEffect(guide.index, guide.arrived, guide.finished) { guidePicker = null }
                     val backStack by nav.currentBackStackEntryAsState()
                     val route = backStack?.destination?.route
                     fun openTab(tab: MainTab) {
@@ -355,6 +363,19 @@ class MainActivity : ComponentActivity() {
                             override fun showGrow(view: io.github.haeyeonyou.familytrip.grow.GrowView) {
                                 io.github.haeyeonyou.familytrip.grow.GrowVoiceBus.show(view)
                                 openTab(MainTab.GROW)
+                            }
+
+                            override fun answerArrival(text: String): String? {
+                                val g = latestGuide
+                                val choice = classifyArrivalReply(text, stageOf(g)) ?: return null
+                                if (latestRoute != Routes.GUIDE) nav.navigate(Routes.GUIDE) { launchSingleTop = true }
+                                return when (choice) {
+                                    ArrivalChoice.NEXT -> "${g.nextVisit?.place?.name}(으)로 안내할게요.".also { vm.goToNext() }
+                                    ArrivalChoice.HOME -> "오늘 코스를 마치고 우리 집으로 안내할게요.".also { vm.goHomeFromGuide() }
+                                    ArrivalChoice.END_HERE -> "여기서 코스를 마칠게요.".also { vm.endCourseHere() }
+                                    ArrivalChoice.SWAP -> "${g.nextVisit?.place?.name} 대신 갈 곳을 화면에 띄웠어요.".also { guidePicker = GuidePicker.SWAP }
+                                    ArrivalChoice.MORE -> "근처 추천 장소를 화면에 띄웠어요.".also { guidePicker = GuidePicker.MORE }
+                                }
                             }
 
                             override fun openCourseWith(placeName: String): Boolean {
@@ -640,19 +661,38 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                         composable(Routes.GUIDE) {
+                            val navi by container.navi.state.collectAsStateWithLifecycle()
+                            fun leaveGuide() {
+                                if (!nav.popBackStack(Routes.HOME, inclusive = false)) nav.navigate(Routes.HOME) { popUpTo(0) }
+                            }
                             GuideScreen(
                                 state = guide,
-                                isParked = vehicle.isParked,
-                                onShowMap = container.navi::showNavigation,
-                                onNext = vm::goToNext,
-                                onMarkArrived = vm::markArrived,
-                                onShowRecord = { nav.navigate(Routes.EXPERIENCE) },
-                                onEnd = {
-                                    vm.endGuide()
-                                    if (!nav.popBackStack(Routes.HOME, inclusive = false)) {
-                                        nav.navigate(Routes.HOME) { popUpTo(0) }
-                                    }
-                                },
+                                course = state.course,
+                                picker = guidePicker,
+                                loading = state.loading,
+                                error = state.error,
+                                weather = state.weather,
+                                origin = state.courseOrigin,
+                                homeRemainingSeconds = navi.remainingSeconds.takeIf { navi.routing },
+                                actions = GuideActions(
+                                    onBack = ::leaveGuide,
+                                    onShowMap = container.navi::showNavigation,
+                                    onMarkArrived = vm::markArrived,
+                                    onNext = vm::goToNext,
+                                    onSwap = vm::swapNextDuringGuide,
+                                    onAddExtra = vm::addExtraDuringGuide,
+                                    onGoHome = vm::goHomeFromGuide,
+                                    onEndHere = vm::endCourseHere,
+                                    onShowJelly = {
+                                        vm.endGuide()
+                                        openTab(MainTab.GROW)
+                                    },
+                                    onHome = {
+                                        vm.endGuide()
+                                        leaveGuide()
+                                    },
+                                    onPicker = { guidePicker = it },
+                                ),
                             )
                         }
                         composable(Routes.DEV) {

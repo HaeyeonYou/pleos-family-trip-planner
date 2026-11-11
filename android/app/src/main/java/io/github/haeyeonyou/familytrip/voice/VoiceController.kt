@@ -144,6 +144,11 @@ class VoiceController(
         cancelClose()
         io.cancelListen()
         _state.update { it.copy(open = true, listening = false, notice = null, heard = text) }
+        // 코스 진행 도착 화면의 답이 먼저다 (#218). 도착 화면이 아니면 null이라 아래로 간다.
+        host?.answerArrival(text)?.let { reply ->
+            finish(reply)
+            return
+        }
         // 유아기(12개월 초과) "쉬었다 갈게" = 정차 모드 (Figma C05-T1, #217)
         if (isRestStop(text) && !care.infant()) {
             handleRestStop(text)
@@ -637,6 +642,46 @@ class VoiceController(
         io.speak(msg, care.voiceVolume)
         _state.update { it.copy(message = msg, options = emptyList(), chosen = null) }
         scheduleClose(1_500L)
+    }
+
+    /**
+     * 주행 중 코스 장소에 도착했을 때 (H03·H03-1, #218): 화면의 질문을 음성으로만 묻고 답을 듣는다.
+     * 답이 없거나 못 알아들으면 패널만 닫고 화면은 그대로 둔다 (Figma Note "답이 없으면 화면 유지").
+     */
+    fun askArrival(question: String) {
+        Log.i(TAG, "도착 질문(주행 중, 음성으로만): $question")
+        cancelClose()
+        io.cancelListen()
+        io.stopSpeaking()
+        pending = null
+        _state.value = VoiceUiState(open = true, message = question)
+        scheduleClose(PROPOSAL_SAFETY_CLOSE_MS)
+        io.speak(question, care.voiceVolume) {
+            if (_state.value.message != question) return@speak
+            scheduleClose(PROPOSAL_IDLE_CLOSE_MS)
+            listenForArrival(question, retries = 2)
+        }
+    }
+
+    private fun listenForArrival(question: String, retries: Int) {
+        _state.update { it.copy(listening = true) }
+        io.listen(onPartial = { partial -> _state.update { it.copy(heard = partial) } }) { result ->
+            _state.update { it.copy(listening = false) }
+            if (_state.value.message != question) return@listen
+            when (result) {
+                is ListenResult.Heard -> {
+                    val reply = host?.answerArrival(result.text)
+                    when {
+                        reply != null -> {
+                            _state.update { it.copy(heard = result.text) }
+                            finish(reply)
+                        }
+                        retries > 0 -> listenForArrival(question, retries - 1)
+                    }
+                }
+                is ListenResult.Failed -> if (retries > 0) listenForArrival(question, retries - 1)
+            }
+        }
     }
 
     /** 패널을 닫고 톤을 되돌린다 (수면 모드가 켜져 있으면 다크는 남는다). 경로는 그대로다. */

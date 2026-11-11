@@ -191,6 +191,19 @@ class CarePlace(Base):
     updated_at: Mapped[datetime] = mapped_column(default=utcnow)
 
 
+class CurrentTrip(Base):
+    """계정의 진행 중(또는 오늘 마친) 코스 한 개. 차가 코스를 시작·도착·변경·종료할 때마다 통째로 올리고, 폰 웹 홈이 보여 준다.
+
+    개인정보 최소화: 장소 이름·역할·예정 시각·머무는 시간·진행 상태만 둔다. 좌표는 받지 않는다.
+    """
+
+    __tablename__ = "current_trips"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    payload: Mapped[dict] = mapped_column(JSONB)
+    updated_at: Mapped[datetime] = mapped_column(default=utcnow)
+
+
 class CourseStart(Base):
     """'코스 시작'을 누른 기록. '지금 N대 가는 중' 집계용이라 장소 키와 시각만 둔다 (개인 식별 정보 없음)."""
 

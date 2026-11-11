@@ -430,6 +430,11 @@ interface TripApi {
     @PUT("me/care-places")
     suspend fun putCarePlaces(@Body body: CarePlaceList): CarePlaceList
 
+    // 진행 중 코스 (서버 app/trip.py, #218): 폰 웹 홈이 보여 준다
+
+    @PUT("me/trip")
+    suspend fun putTrip(@Body body: TripSnapshot): TripSnapshot
+
     /** 수유실(nursing)·기저귀 교환대(diaper)·잠깐 세울 곳(rest)을 현재 위치 근처에서 찾는다. 가는 곳을 주면 경로 위 우선. */
     @GET("care/nearby")
     suspend fun careNearby(

@@ -10,6 +10,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import family, feedings, presets
+from app import trip as trip_api
 from app.auth import service
 from app.auth.deps import WEB_COOKIE, get_db, optional_web_user
 from app.auth.web import _login_redirect, templates
@@ -194,6 +195,8 @@ async def home(request: Request, user: User | None = Depends(optional_web_user),
         "presets": sent,
         "cars": _car_views(await service.car_sessions(db, user)),
         "feeding": await _feeding_card(db, user),
+        # 차가 올린 오늘 코스 (#218). 바꾼 일정이 여기 바로 보인다.
+        "trip": trip_api.web_card(await trip_api.load_trip(db, user), now.date()),
     }
     context |= await _home_visits(db, user, now.date())
     return templates.TemplateResponse(request, "home.html", context)
