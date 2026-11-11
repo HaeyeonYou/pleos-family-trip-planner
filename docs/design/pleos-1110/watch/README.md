@@ -34,7 +34,7 @@ python3 -m unittest discover -s tools/tests -v
 | 1 | `GET /v1/files/:key/meta` (안 되면 `/versions?page_size=1`) | Tier 3 (Tier 2) | 매번 |
 | 2 | `GET /v1/files/:key/nodes?ids=130:5&geometry=omit` | **Tier 1** | 파일 버전이 바뀐 때만 (응답 약 23MB, 스냅샷 약 5MB) |
 
-Figma 공식 문서 기준 Tier 1은 View·Collab 좌석이면 **월 20회까지**, Dev·Full 좌석은 분당 10~20회다. 그래서 스크립트가 Tier 1을 **월 15회**로 스스로 막는다(`--tier1-cap`, `--force`로 무시). 파일 버전은 다른 페이지를 고쳐도 바뀌므로, 트리를 받았는데 이 페이지는 그대로일 수 있다(`section_unchanged`, 이름은 주기 작업과 맞추려고 유지).
+Figma 공식 문서 기준 Tier 1은 View·Collab 좌석이면 **월 20회까지**, Dev·Full 좌석은 분당 10~20회다. 스크립트가 Tier 1을 **월 20회**로 스스로 막는다(2026-11-11 사용자 결정으로 15 → 20. 좌석이 View·Collab이면 이것이 Figma 한도와 같아 429가 날 수 있다)(`--tier1-cap`, `--force`로 무시). 파일 버전은 다른 페이지를 고쳐도 바뀌므로, 트리를 받았는데 이 페이지는 그대로일 수 있다(`section_unchanged`, 이름은 주기 작업과 맞추려고 유지).
 
 ## 같은 계정으로 로그인한 다른 PC에 영향 없이 보는 방법
 
