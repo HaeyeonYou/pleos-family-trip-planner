@@ -4,116 +4,105 @@ import io.github.haeyeonyou.familytrip.data.CoursePlace
 import io.github.haeyeonyou.familytrip.data.CourseStop
 import io.github.haeyeonyou.familytrip.data.LatLng
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import kotlin.math.abs
-import kotlin.math.cos
+import kotlin.math.hypot
 
 class CourseMapGeometryTest {
     private fun stop(role: String, name: String, lat: Double, lng: Double) =
-        CourseStop(role = role, place = CoursePlace(name = name, latitude = lat, longitude = lng, source = "kakao", sourceId = name), arriveAt = "10:00", driveMinutes = 0, driveDistanceMeters = 0)
+        CourseStop(
+            role = role,
+            place = CoursePlace(name = name, latitude = lat, longitude = lng, source = "kakao", sourceId = name),
+            arriveAt = "10:00", driveMinutes = 0, driveDistanceMeters = 0,
+        )
 
     // 판교 일대 실제 좌표 (홈 화면 캡처의 코스와 같은 동네)
     private val home = stop("home", "집", 37.3947, 127.1112)
     private val meal = stop("meal", "신신원", 37.4040, 127.1180)
     private val park = stop("outing", "고산근린공원", 37.4052, 127.1150)
     private val cafe = stop("cafe", "이디야커피", 37.4020, 127.1210)
+    private val start = LatLng(37.3947, 127.1112)
 
     @Test
-    fun `서버 경로가 있으면 그대로 경로선으로 쓰고 첫 점을 출발지로 둔다`() {
-        val path = listOf(LatLng(37.3947, 127.1112), LatLng(37.3990, 127.1150), LatLng(37.4040, 127.1180))
-        val shape = CourseMapGeometry.shape(listOf(meal, park, cafe, home), path)
-        assertEquals(path, shape.line)
-        assertEquals(path.first(), shape.origin)
-        assertEquals(listOf("신신원", "고산근린공원", "이디야커피"), shape.visits.map { it.place.name })
-        assertEquals(LatLng(37.3947, 127.1112), shape.home)
+    fun `출발지 다음 장소 번호 순서로 지점을 고르고 집에서 출발하면 출발·귀가로 합친다`() {
+        val roadPath = listOf(start, LatLng(37.3990, 127.1150), LatLng(37.4040, 127.1180))
+        val a = CourseMapGeometry.anchors(listOf(meal, park, cafe, home), roadPath)
+        assertEquals(listOf("출발·귀가", "신신원", "고산근린공원", "이디야커피"), a.map { it.label })
+        assertEquals(listOf(null, 1, 2, 3), a.map { it.number })
+        // 도로 경로의 중간 점은 쓰지 않는다 (출발 위치만)
+        assertEquals(start, a.first().at)
     }
 
     @Test
-    fun `경로가 비면 장소 순서대로 직선으로 잇고 귀가 지점에서 끝낸다`() {
-        val shape = CourseMapGeometry.shape(listOf(meal, park, cafe, home), emptyList())
-        assertEquals(
-            listOf(LatLng(37.4040, 127.1180), LatLng(37.4052, 127.1150), LatLng(37.4020, 127.1210), LatLng(37.3947, 127.1112)),
-            shape.line,
-        )
-        assertNull(shape.origin)
+    fun `출발지와 귀가 지점이 다르면 귀가를 마지막 지점으로 따로 둔다`() {
+        val a = CourseMapGeometry.anchors(listOf(meal, cafe, home), listOf(LatLng(37.4200, 127.1000)))
+        assertEquals(listOf("출발", "신신원", "이디야커피", "귀가"), a.map { it.label })
     }
 
     @Test
-    fun `경로가 한 점뿐이거나 좌표 없는 점만 있으면 직선으로 대신한다`() {
-        val shape = CourseMapGeometry.shape(listOf(meal, park), listOf(LatLng(37.4, 127.1), LatLng(0.0, 0.0)))
-        assertEquals(listOf(LatLng(37.4040, 127.1180), LatLng(37.4052, 127.1150)), shape.line)
-        assertNull(shape.origin)
+    fun `좌표가 없는 장소는 빼고 번호를 이어 붙인다`() {
+        val a = CourseMapGeometry.anchors(listOf(meal, stop("outing", "수동 입력", 0.0, 0.0), cafe), emptyList())
+        assertEquals(listOf("신신원", "이디야커피"), a.map { it.label })
+        assertEquals(listOf(1, 2), a.map { it.number })
     }
 
     @Test
-    fun `좌표가 없는 장소는 핀과 선에서 뺀다`() {
-        val shape = CourseMapGeometry.shape(listOf(meal, stop("outing", "수동 입력", 0.0, 0.0), cafe), emptyList())
-        assertEquals(listOf("신신원", "이디야커피"), shape.visits.map { it.place.name })
-        assertEquals(2, shape.line.size)
+    fun `북쪽은 위 동쪽은 오른쪽 순서를 지키고 여백 안 영역을 끝까지 쓴다`() {
+        val pts = listOf(start, meal.latLng(), park.latLng(), cafe.latLng())
+        val s = CourseMapGeometry.place(pts, width = 800f, height = 600f, padLeft = 50f, padTop = 40f, padRight = 50f, padBottom = 100f)
+        // 남쪽 끝(출발)이 가장 아래, 북쪽 끝(공원)이 가장 위
+        assertEquals(500f, s[0].y, 0.01f)
+        assertEquals(40f, s[2].y, 0.01f)
+        // 서쪽 끝(출발)이 가장 왼쪽, 동쪽 끝(카페)이 가장 오른쪽
+        assertEquals(50f, s[0].x, 0.01f)
+        assertEquals(750f, s[3].x, 0.01f)
+        // 남북 순서 유지: 공원(37.4052) > 식당(37.4040) > 카페(37.4020)
+        assertTrue(s[2].y < s[1].y && s[1].y < s[3].y)
     }
 
     @Test
-    fun `북쪽은 위, 동쪽은 오른쪽이고 여백 안에 모두 들어간다`() {
-        val points = listOf(home, meal, park, cafe).map { LatLng(it.place.latitude, it.place.longitude) }
-        val proj = CourseMapGeometry.fit(points, width = 800f, height = 600f, padLeft = 50f, padTop = 40f, padRight = 50f, padBottom = 100f)
-        val screen = points.map(proj::toScreen)
-        screen.forEach {
-            assertTrue("x=${it.x}", it.x in 49.9f..750.1f)
-            assertTrue("y=${it.y}", it.y in 39.9f..500.1f)
+    fun `한곳에 몰린 장소도 순위 간격을 섞어 서로 떨어뜨린다`() {
+        // 출발지는 멀고 세 장소는 수십 m 안에 몰려 있다
+        val pts = listOf(LatLng(37.30, 127.00), LatLng(37.4000, 127.1000), LatLng(37.4001, 127.1001), LatLng(37.4002, 127.1002))
+        val s = CourseMapGeometry.place(pts, width = 400f, height = 400f)
+        // 실제 비율만 쓰면 세 장소가 1px 안에 겹치지만, 섞으면 이웃끼리 순위 간격의 절반쯤(400/3/2) 떨어진다
+        val d = hypot(s[1].x - s[2].x, s[1].y - s[2].y)
+        assertTrue("d=$d", d > 60f)
+    }
+
+    @Test
+    fun `점이 하나거나 값이 모두 같으면 가운데에 놓는다`() {
+        val s = CourseMapGeometry.place(listOf(start), width = 400f, height = 300f, padBottom = 100f)
+        assertEquals(MapPoint(200f, 100f), s.single())
+        assertEquals(listOf(0.5f, 0.5f), CourseMapGeometry.spreadAxis(listOf(3.0, 3.0)))
+    }
+
+    @Test
+    fun `곡선은 모든 지점을 순서대로 지난다`() {
+        val pts = listOf(MapPoint(0f, 100f), MapPoint(50f, 20f), MapPoint(120f, 80f), MapPoint(200f, 10f))
+        val c = CourseMapGeometry.smoothCurve(pts)
+        assertEquals(3, c.size)
+        assertEquals(pts.dropLast(1), c.map { it.from })
+        assertEquals(pts.drop(1), c.map { it.to })
+        // 이어지는 토막의 접선 방향이 같아 꺾이지 않는다 (앞 토막 c2→to 와 뒤 토막 from→c1 이 한 직선)
+        c.zipWithNext().forEach { (a, b) ->
+            val cross = (a.to.x - a.c2.x) * (b.c1.y - b.from.y) - (a.to.y - a.c2.y) * (b.c1.x - b.from.x)
+            assertEquals(0f, cross, 0.01f)
         }
-        val north = proj.toScreen(LatLng(37.4052, 127.1150))
-        val south = proj.toScreen(LatLng(37.3947, 127.1112))
-        assertTrue(north.y < south.y)
-        val east = proj.toScreen(LatLng(37.4020, 127.1210))
-        assertTrue(east.x > south.x)
-        // 한 축은 여백 안 영역을 꽉 채운다 (맞춤)
-        val xs = screen.map { it.x }
-        val ys = screen.map { it.y }
-        val filledX = abs((xs.max() - xs.min()) - 700f) < 0.5f
-        val filledY = abs((ys.max() - ys.min()) - 460f) < 0.5f
-        assertTrue("가로나 세로 한쪽은 꽉 차야 한다", filledX || filledY)
     }
 
     @Test
-    fun `가로 세로 축척이 같아 모양이 찌그러지지 않는다`() {
-        // 위도 0.01도와 같은 실제 거리만큼 동쪽으로 간 점은 화면에서도 같은 길이여야 한다
-        val lat = 37.4
-        val dLng = 0.01 / cos(Math.toRadians(lat))
-        val a = LatLng(lat, 127.0)
-        val b = LatLng(lat + 0.01, 127.0)
-        val c = LatLng(lat, 127.0 + dLng)
-        val proj = CourseMapGeometry.fit(listOf(a, b, c), width = 1000f, height = 300f)
-        val pa = proj.toScreen(a)
-        val up = pa.y - proj.toScreen(b).y
-        val right = proj.toScreen(c).x - pa.x
-        assertEquals(up, right, up * 0.01f)
-    }
-
-    @Test
-    fun `점이 하나면 가운데에 놓는다`() {
-        val proj = CourseMapGeometry.fit(listOf(LatLng(37.4, 127.1)), width = 400f, height = 300f, padBottom = 100f)
-        val p = proj.toScreen(LatLng(37.4, 127.1))
-        assertEquals(200f, p.x, 0.01f)
-        assertEquals(100f, p.y, 0.01f)
-    }
-
-    @Test
-    fun `가로로만 늘어선 장소도 0으로 나누지 않고 가로를 채운다`() {
-        val a = LatLng(37.4, 127.10)
-        val b = LatLng(37.4, 127.12)
-        val proj = CourseMapGeometry.fit(listOf(a, b), width = 500f, height = 300f, padLeft = 50f, padRight = 50f)
-        assertEquals(50f, proj.toScreen(a).x, 0.01f)
-        assertEquals(450f, proj.toScreen(b).x, 0.01f)
-        assertEquals(150f, proj.toScreen(a).y, 0.01f)
+    fun `지점이 하나면 곡선이 없다`() {
+        assertTrue(CourseMapGeometry.smoothCurve(listOf(MapPoint(1f, 1f))).isEmpty())
     }
 
     @Test
     fun `겹친 핀은 앞 핀을 두고 뒤 핀만 밀어낸다`() {
         val out = CourseMapGeometry.spread(listOf(MapPoint(100f, 100f), MapPoint(100f, 100f), MapPoint(300f, 100f)), minGap = 30f)
         assertEquals(MapPoint(100f, 100f), out[0])
-        assertTrue(kotlin.math.hypot(out[1].x - 100f, out[1].y - 100f) >= 29.9f)
+        assertTrue(hypot(out[1].x - 100f, out[1].y - 100f) >= 29.9f)
         assertEquals(MapPoint(300f, 100f), out[2])
     }
+
+    private fun CourseStop.latLng() = LatLng(place.latitude, place.longitude)
 }
