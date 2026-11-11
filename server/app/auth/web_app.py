@@ -313,6 +313,10 @@ def _preset_page_context(slot: str, settings: dict, state: presets.PresetState, 
         "toggles": _TOGGLES,
         "volumes": _VOLUMES,
         "volume": "" if settings.get("media_volume") is None else str(settings["media_volume"]),
+        # 적용 시점 (C08과 같은 값, #168)
+        "apply_choices": list(presets.APPLY_AT.items()),
+        "apply_at": state.apply_at,
+        "when": state.when,
         "status": _preset_status(state),
         # 차에서 적용하면 '적용됨' 표시를 바꾸려고 주기적으로 확인한다. 보낸 직후 화면은 POST 결과라 GET 주소로 다시 연다.
         "sync_poll": True,
@@ -367,15 +371,16 @@ async def send_preset(request: Request, user: User | None = Depends(optional_web
     values |= {"temperature": form.get("temperature"), "fan_speed": form.get("fan_speed"), "media_volume": form.get("media_volume") or None}
     # 체크박스는 꺼져 있으면 아예 오지 않는다.
     values |= {key: key in form for key, _ in _TOGGLES}
+    values |= {"apply_at": form.get("apply_at") or None}
     try:
-        settings = presets.ClimateSettings(**values)
+        settings = presets.PresetEdit(**values)
     except ValidationError:
         state = await _slot_state(db, user, slot, picked)
         context = _preset_page_context(slot, state.settings.model_dump(), state, picked, status="값을 다시 확인해 주세요", error=True)
         return templates.TemplateResponse(request, "preset.html", context, status_code=400)
-    await presets.save(db, user, settings, slot, child_id=picked.id if picked else None)
+    await presets.save(db, user, settings, slot, child_id=picked.id if picked else None, apply_at=settings.apply_at)
     state = await _slot_state(db, user, slot, picked)
-    context = _preset_page_context(slot, settings.model_dump(), state, picked, advice=_preset_advice(picked, slot))
+    context = _preset_page_context(slot, settings.model_dump(exclude={"apply_at"}), state, picked, advice=_preset_advice(picked, slot))
     return templates.TemplateResponse(request, "preset.html", context)
 
 

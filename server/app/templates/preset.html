@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block header %}<div class="topbar"><a class="back" href="/m/care{{ '?child=' ~ child.id if child }}" aria-label="케어로 돌아가기">←</a></div><h1 class="title">{{ title }}</h1>{% if child %}<p class="muted small">{{ child.nickname }}의 케어 모드 값이에요. 아이마다 따로 저장돼요.</p>{% endif %}{% endblock %}
 {% block body %}
-<p class="lead">정해 두고 「차로 보내기」를 누르면, 시동을 걸고 차 앱을 켰을 때 이 설정을 확인하고 「차에 적용」으로 적용할 수 있어요. ({{ meta.when }})</p>
+<p class="lead">정해 두고 「차로 보내기」를 누르면, 시동을 걸고 차 앱을 켰을 때 이 설정을 확인하고 「차에 적용」으로 적용할 수 있어요. ({{ when }})</p>
 {% if status %}<p class="{{ 'form-error' if error else 'form-ok' }}" role="status">{{ status }}</p>{% endif %}
 {% for a in advice %}<p class="notice" style="margin-top:12px">{{ a }}</p>{% endfor %}
 <form method="post">
@@ -51,6 +51,16 @@
     <label class="switch-row"><span>{{ label }}</span><input type="checkbox" name="{{ key }}" value="1" {{ 'checked' if s[key] }}><span class="sw" aria-hidden="true"></span></label>
     {% endfor %}
   </div>
+
+  <fieldset class="group">
+    <legend>적용 시점</legend>
+    <div class="seg" role="radiogroup">
+      {% for value, label in apply_choices %}
+      <label><input type="radio" name="apply_at" value="{{ value }}" {{ 'checked' if apply_at == value }}><span>{{ label }}</span></label>
+      {% endfor %}
+    </div>
+    <p class="muted small">출발 시각은 차 앱에서 고른 코스의 출발 시각이에요. 차 앱이 켜져 있을 때만 켜지고, 코스를 고르지 않으면 자동으로 켜지지 않아요.</p>
+  </fieldset>
 
   <p class="notice">원격으로 미리 켜기는 지원하지 않아요 (안전 정책). 차 안 앱은 시동이 켜져야 동작해서, 보낸 설정은 시동 후 차 앱에서 적용해요.</p>
   <button class="btn" type="submit">차로 보내기</button>

@@ -75,6 +75,8 @@ class ClimatePreset(Base):
     slot: Mapped[str] = mapped_column(String(20), default="boarding", server_default="boarding")
     # 설정 값은 app/presets.py의 ClimateSettings 모양 그대로 둔다 (항목이 늘어도 테이블은 그대로)
     settings: Mapped[dict] = mapped_column(JSONB)
+    # 적용 시점 (C08, #168): boarding(탑승하면 바로) / departure(출발 시각) / manual(직접 실행). 비면 슬롯 기본값
+    apply_at: Mapped[str | None] = mapped_column(String(12), default=None)
     sent_at: Mapped[datetime] = mapped_column(default=utcnow)
     applied_at: Mapped[datetime | None] = mapped_column(default=None)
 
