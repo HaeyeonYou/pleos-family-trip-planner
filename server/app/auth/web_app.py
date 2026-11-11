@@ -75,7 +75,7 @@ def _summary(s: presets.ClimateSettings) -> str:
     return " · ".join(parts)
 
 
-def _preset_cards(states: list[presets.PresetState]) -> list[dict]:
+def _preset_cards(states: list[presets.PresetState], nickname: str | None = None) -> list[dict]:
     cards = []
     for st in states:
         if not st.sent:
@@ -85,7 +85,18 @@ def _preset_cards(states: list[presets.PresetState]) -> list[dict]:
         else:
             status, tone = "차에서 적용함", "ok"
         cards.append(
-            {"slot": st.slot, "label": st.label, "when": st.when, "name": st.settings.name, "summary": _summary(st.settings), "status": status, "tone": tone, "sent": st.sent}
+            {
+                "slot": st.slot,
+                "child": str(st.child_id) if st.child_id else "",
+                # 홈처럼 여러 아이 것을 함께 보여 줄 때 "서아 · 탑승 준비"
+                "label": f"{nickname} · {st.label}" if nickname else st.label,
+                "when": st.when,
+                "name": st.settings.name,
+                "summary": _summary(st.settings),
+                "status": status,
+                "tone": tone,
+                "sent": st.sent,
+            }
         )
     return cards
 
@@ -158,7 +169,10 @@ async def home(request: Request, user: User | None = Depends(optional_web_user),
     if user is None:
         return _login_redirect("/m/")
     now = datetime.now(KST)
-    sent = [c for c in _preset_cards(await presets.states(db, user)) if c["sent"]]
+    # 아이별 케어 모드(#192). 아이가 있으면 아이 값만, 없으면 가족 기본값을 보여 준다.
+    groups = await presets.all_states(db, user)
+    groups = groups[1:] or groups
+    sent = [c for g in groups for c in _preset_cards(g.presets, g.nickname if len(groups) > 1 else None) if c["sent"]]
     context = {
         "title": "홈",
         "tab": "home",
@@ -177,15 +191,22 @@ async def home(request: Request, user: User | None = Depends(optional_web_user),
 
 
 @router.get("/care", response_class=HTMLResponse)
-async def care_page(request: Request, notice: str = "", user: User | None = Depends(optional_web_user), db: AsyncSession = Depends(get_db)):
+async def care_page(
+    request: Request, notice: str = "", child: str = "", user: User | None = Depends(optional_web_user), db: AsyncSession = Depends(get_db)
+):
     if user is None:
         return _login_redirect("/m/care")
+    children = await family.list_children(db, user)
+    selected = _pick_child(children, child)
     context = {
         "notice": "수유 시각을 기록했어요." if notice == "fed" else "",
         "title": "케어",
         "tab": "care",
         "feeding": await _feeding_card(db, user),
-        "presets": _preset_cards(await presets.states(db, user)),
+        # 케어 모드 값은 아이별(#192). 아이 탭으로 고른다.
+        "mode_children": [{"id": str(c.id), "name": c.nickname, "selected": c is selected} for c in children],
+        "mode_child": selected,
+        "presets": _preset_cards(await presets.states(db, user, selected.id if selected else None)),
     }
     return templates.TemplateResponse(request, "care.html", context)
 
@@ -274,11 +295,18 @@ async def feed_delete(feeding_id: uuid.UUID, user: User | None = Depends(optiona
 # 공조 프리셋 편집
 
 
-def _preset_page_context(slot: str, settings: dict, state: presets.PresetState, **extra) -> dict:
+def _pick_child(children: list, child: str | None):
+    """주소의 child(id)에 맞는 아이. 없거나 모르는 값이면 첫째. 아이가 없으면 None (가족 기본값)."""
+    return next((c for c in children if str(c.id) == (child or "")), children[0] if children else None)
+
+
+def _preset_page_context(slot: str, settings: dict, state: presets.PresetState, child=None, **extra) -> dict:
     meta = presets.SLOTS[slot]
+    child_q = f"&child={child.id}" if child else ""
     context = {
-        "title": meta["label"],
+        "title": f"{child.nickname} · {meta['label']}" if child else meta["label"],
         "slot": slot,
+        "child": child,
         "meta": meta,
         "s": settings,
         "seats": _SEATS,
@@ -288,17 +316,16 @@ def _preset_page_context(slot: str, settings: dict, state: presets.PresetState, 
         "status": _preset_status(state),
         # 차에서 적용하면 '적용됨' 표시를 바꾸려고 주기적으로 확인한다. 보낸 직후 화면은 POST 결과라 GET 주소로 다시 연다.
         "sync_poll": True,
-        "reload_to": f"/m/preset?slot={slot}",
+        "reload_to": f"/m/preset?slot={slot}{child_q}",
     }
     return context | extra
 
 
-async def _preset_advice(db: AsyncSession, user: User, slot: str) -> list[str]:
-    """아이 케어 정보로 정한 권장값 안내 (C03). 더위·추위는 온도 ±1℃, 소리 예민은 낮잠 음량."""
-    children = await family.list_children(db, user)
-    if not children:
+def _preset_advice(child, slot: str) -> list[str]:
+    """그 아이 케어 정보로 정한 권장값 안내 (C03). 더위·추위는 온도 ±1℃, 소리 예민은 낮잠 음량."""
+    if child is None:
         return []
-    child, defaults, advice = children[0], presets.SLOTS[slot]["defaults"], []
+    defaults, advice = presets.SLOTS[slot]["defaults"], []
     shift = {"hot": -1, "cold": 1}.get(child.heat_sensitivity or "", 0)
     if shift:
         trait = "더위를 타는" if shift < 0 else "추위를 타는"
@@ -308,19 +335,24 @@ async def _preset_advice(db: AsyncSession, user: User, slot: str) -> list[str]:
     return advice
 
 
-async def _slot_state(db: AsyncSession, user: User, slot: str) -> presets.PresetState:
-    return next(st for st in await presets.states(db, user) if st.slot == slot)
+async def _slot_state(db: AsyncSession, user: User, slot: str, child=None) -> presets.PresetState:
+    return next(st for st in await presets.states(db, user, child.id if child else None) if st.slot == slot)
 
 
 @router.get("/preset", response_class=HTMLResponse)
 async def preset_page(
-    request: Request, slot: str = "boarding", user: User | None = Depends(optional_web_user), db: AsyncSession = Depends(get_db)
+    request: Request,
+    slot: str = "boarding",
+    child: str = "",
+    user: User | None = Depends(optional_web_user),
+    db: AsyncSession = Depends(get_db),
 ):
     if user is None:
         return _login_redirect(f"/m/preset?slot={slot}" if slot in presets.SLOTS and slot != "boarding" else "/m/preset")
     slot = slot if slot in presets.SLOTS else "boarding"
-    state = await _slot_state(db, user, slot)
-    context = _preset_page_context(slot, state.settings.model_dump(), state, advice=await _preset_advice(db, user, slot))
+    picked = _pick_child(await family.list_children(db, user), child)
+    state = await _slot_state(db, user, slot, picked)
+    context = _preset_page_context(slot, state.settings.model_dump(), state, picked, advice=_preset_advice(picked, slot))
     return templates.TemplateResponse(request, "preset.html", context)
 
 
@@ -330,6 +362,7 @@ async def send_preset(request: Request, user: User | None = Depends(optional_web
         return _login_redirect("/m/preset")
     form = await request.form()
     slot = form.get("slot") if form.get("slot") in presets.SLOTS else "boarding"
+    picked = _pick_child(await family.list_children(db, user), form.get("child"))
     values = {key: form.get(key) or 0 for key, _ in _SEATS} | {"name": form.get("name") or presets.SLOTS[slot]["defaults"].name}
     values |= {"temperature": form.get("temperature"), "fan_speed": form.get("fan_speed"), "media_volume": form.get("media_volume") or None}
     # 체크박스는 꺼져 있으면 아예 오지 않는다.
@@ -337,12 +370,12 @@ async def send_preset(request: Request, user: User | None = Depends(optional_web
     try:
         settings = presets.ClimateSettings(**values)
     except ValidationError:
-        state = await _slot_state(db, user, slot)
-        context = _preset_page_context(slot, state.settings.model_dump(), state, status="값을 다시 확인해 주세요", error=True)
+        state = await _slot_state(db, user, slot, picked)
+        context = _preset_page_context(slot, state.settings.model_dump(), state, picked, status="값을 다시 확인해 주세요", error=True)
         return templates.TemplateResponse(request, "preset.html", context, status_code=400)
-    await presets.save(db, user, settings, slot)
-    state = await _slot_state(db, user, slot)
-    context = _preset_page_context(slot, settings.model_dump(), state, advice=await _preset_advice(db, user, slot))
+    await presets.save(db, user, settings, slot, child_id=picked.id if picked else None)
+    state = await _slot_state(db, user, slot, picked)
+    context = _preset_page_context(slot, settings.model_dump(), state, picked, advice=_preset_advice(picked, slot))
     return templates.TemplateResponse(request, "preset.html", context)
 
 
@@ -372,6 +405,8 @@ async def _my_context(db: AsyncSession, user: User, notice: str = "", **extra) -
         "joined": joined,
         "notice": notice,
         "children": [_child_view(c) for c in await family.list_children(db, user)],
+        # 아이별 케어 모드(#192): 탑승 준비 값 한 줄
+        "child_modes": {str(g.child_id): _summary(g.presets[0].settings) for g in (await presets.all_states(db, user))[1:]},
         "members": [m for m in members if m.is_default],
         "frequent": [m for m in members if not m.is_default],
         **extra,
