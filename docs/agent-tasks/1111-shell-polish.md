@@ -1,6 +1,6 @@
 # 첫인상 다듬기: 앱 아이콘·날씨 아이콘·알림 띠·음성 패널·"경험 나무" 문구 (2026-11-11 지시서)
 
-- 상태: **완료**(shell-polish 세션, 이슈 #214, 브랜치 `feature/214-shell-polish`) · 접수 전 필수: **예**(5건 모두)
+- 상태: **완료**(shell-polish 세션, 이슈 #214, PR #220, 브랜치 `feature/214-shell-polish`) · 접수 전 필수: **예**(5건 모두)
 - 근거: 감사 `docs/audit/2026-11-11-figma-vs-app.md` 1절 상위 목록 2~6위(O-2, H-1, O-1, D-3, H-2)와 6절 F-6.
 - child-mode 세션과 파일 겹침: **가능성 있음** — `MainActivity.kt`(O-1)와 `ui/onboarding/OnboardingScreen.kt`(H-2 O01 문구). 2026-11-11 기준 child-mode 작업 트리의 미커밋 변경은 `CareController`·`PresetSync`·`SyncModels`·`TripApi`·`CareModeEditSheet`·`CareScreen`·`TripViewModel`·새 `ModeApplyAt`로, 이 지시서 파일과 직접 겹치지 않는다. 시작 전에 다시 확인할 것.
 
