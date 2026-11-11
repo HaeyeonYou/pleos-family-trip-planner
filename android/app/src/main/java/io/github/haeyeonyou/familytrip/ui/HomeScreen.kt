@@ -215,6 +215,14 @@ private fun RadiusPanel(radiusKm: Int, onPick: (Int) -> Unit) {
                 thumb = {
                     Box(Modifier.size(28.dp).clip(CircleShape).background(s.card).border(3.dp, s.primary, CircleShape))
                 },
+                // Figma처럼 이어진 막대 하나 (M3 기본 트랙의 손잡이 틈·끝 점을 쓰지 않는다)
+                track = { state ->
+                    val range = state.valueRange
+                    val fraction = ((state.value - range.start) / (range.endInclusive - range.start)).coerceIn(0f, 1f)
+                    Box(Modifier.fillMaxWidth().height(8.dp).clip(SitterShapes.Pill).background(s.line)) {
+                        Box(Modifier.fillMaxWidth(fraction).height(8.dp).clip(SitterShapes.Pill).background(s.primary))
+                    }
+                },
             )
             Row {
                 Text("${HOME_RADIUS_MIN_KM}km", style = SitterText.Body1, color = s.ink, modifier = Modifier.weight(1f))
