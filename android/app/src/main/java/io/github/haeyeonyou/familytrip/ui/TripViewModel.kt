@@ -139,6 +139,10 @@ class TripViewModel(private val container: AppContainer) : ViewModel() {
     val guide = container.guide.state
 
     init {
+        // 안내 중에 앱 프로세스가 다시 떴으면 안내 중인 코스를 되살린다 (장소 바꾸기·한 곳 더 후보에 쓴다).
+        if (_state.value.course == null && container.guide.state.value.active) {
+            container.guide.course?.let { c -> _state.update { it.copy(course = c) } }
+        }
         // 고른 코스의 출발 시각에 적용 시점 '출발 시각'인 케어 모드를 켠다 (C08, #168).
         viewModelScope.launch {
             _state.map { it.course?.departureAt }.distinctUntilChanged().collect { container.care.planDeparture(it) }
@@ -637,6 +641,7 @@ class TripViewModel(private val container: AppContainer) : ViewModel() {
     fun startGuide() {
         val course = _state.value.course ?: return
         container.guide.start(course.stops, course.departureAt)
+        container.guide.rememberCourse(course)
         // '지금 N대 가는 중' 집계: 나들이 장소 키만 서버에 알린다 (실패해도 안내는 계속).
         course.stops.firstOrNull { it.role == "outing" }?.place?.let { place ->
             viewModelScope.launch {
@@ -679,6 +684,7 @@ class TripViewModel(private val container: AppContainer) : ViewModel() {
     }
 
     private fun applyToGuide(course: CourseResponse) {
+        container.guide.rememberCourse(course)
         if (!container.guide.replaceStops(course.stops, thenGoNext = true)) {
             _state.update { it.copy(error = "안내 중인 코스와 달라 일정을 바꾸지 못했어요") }
         }

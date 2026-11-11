@@ -649,6 +649,7 @@ class VoiceController(
      * 답이 없거나 못 알아들으면 패널만 닫고 화면은 그대로 둔다 (Figma Note "답이 없으면 화면 유지").
      */
     fun askArrival(question: String) {
+        Log.i(TAG, "도착 질문(주행 중, 음성으로만): $question")
         cancelClose()
         io.cancelListen()
         io.stopSpeaking()

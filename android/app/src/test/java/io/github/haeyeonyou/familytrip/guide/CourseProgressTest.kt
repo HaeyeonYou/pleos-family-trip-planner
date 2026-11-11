@@ -177,4 +177,40 @@ class CourseProgressTest {
         assertTrue(arrivalQuestion(guide(2))!!.contains("\"한 곳 더\""))
         assertNull(arrivalQuestion(guide(0, arrived = false)))
     }
+
+    private val seoul = java.time.ZoneId.of("Asia/Seoul")
+    private fun at(text: String) = java.time.LocalDateTime.parse(text).atZone(seoul).toInstant().toEpochMilli()
+
+    @Test
+    fun `다시 뜬 앱은 오늘 시작한 코스만 이어 간다`() {
+        val started = guide(0).copy(startedAtMillis = at("2026-11-11T10:00"))
+        assertTrue(resumableToday(started, at("2026-11-11T23:59"), seoul))
+        // 자정을 넘기면 어제 코스
+        assertTrue(!resumableToday(started.copy(startedAtMillis = at("2026-11-11T23:30")), at("2026-11-12T00:10"), seoul))
+        assertTrue(!resumableToday(started, at("2026-11-12T09:00"), seoul))
+        // 시작 시각이 없는 옛 저장 파일은 이어 가지 않는다
+        assertTrue(!resumableToday(started.copy(startedAtMillis = null), at("2026-11-11T10:05"), seoul))
+    }
+
+    @Test
+    fun `지난 코스는 시작한 날짜로 여기서 끝냄을 올린다`() {
+        val stale = guide(1, arrived = false, visited = setOf(0)).copy(startedAtMillis = at("2026-11-10T10:00"))
+        val snap = expiredSnapshot(stale, LocalDate.of(2026, 11, 11), seoul)!!
+        assertEquals("2026-11-10", snap.startedOn)
+        assertEquals("finished", snap.status)
+        assertEquals("here", snap.endedBy)
+        assertEquals(listOf("visited", "skipped", "skipped", "skipped"), snap.stops.map { it.state })
+        assertEquals("2026-11-11", expiredSnapshot(stale.copy(startedAtMillis = null), LocalDate.of(2026, 11, 11), seoul)!!.startedOn)
+    }
+
+    @Test
+    fun `저장 파일은 안내 상태와 코스를 그대로 되살린다`() {
+        val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+        val state = guide(1).copy(startedAtMillis = 1L, arrivedAtMillis = 2L)
+        val back = json.decodeFromString(SavedGuide.serializer(), json.encodeToString(SavedGuide.serializer(), SavedGuide(state)))
+        assertEquals(state, back.state)
+        // 옛 파일(시작 시각 없음)도 읽힌다
+        val old = json.encodeToString(SavedGuide.serializer(), SavedGuide(state.copy(startedAtMillis = null))).replace(",\"startedAtMillis\":null", "")
+        assertNull(json.decodeFromString(SavedGuide.serializer(), old).state.startedAtMillis)
+    }
 }

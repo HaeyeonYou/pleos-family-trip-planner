@@ -29,6 +29,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.distinctUntilChanged
 
 /**
  * 앱 전체에서 하나씩 쓰는 의존성. 차량·내비 연결은 프로세스가 살아 있는 동안 유지한다.
@@ -51,10 +54,15 @@ class AppContainer(private val app: Application) {
     val births = io.github.haeyeonyou.familytrip.grow.BirthStore(app)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val notifier = GuideNotifier(app)
-    val guide = GuideSession(app, navi, location, notifier, visits, scope)
+    val guide = GuideSession(
+        app, navi, location, notifier, visits, scope,
+        store = io.github.haeyeonyou.familytrip.data.JsonFile(java.io.File(app.filesDir, "guide.json"), io.github.haeyeonyou.familytrip.guide.SavedGuide.serializer()) { io.github.haeyeonyou.familytrip.guide.SavedGuide() },
+    )
     /** 진행 중 코스를 계정에 올려 폰 웹 홈에 바로 보이게 한다 (#218, 로그인했을 때만). */
     private val tripSync = io.github.haeyeonyou.familytrip.data.TripSync({ account.token != null }, { api.putTrip(it) }).also {
         it.start(guide.state.map { g -> io.github.haeyeonyou.familytrip.guide.tripSnapshot(g, java.time.LocalDate.now()) }, scope)
+        // 지난 날 코스라 이어 가지 않은 안내는 서버에도 끝남으로 올린다.
+        guide.expired?.let { g -> it.upload(io.github.haeyeonyou.familytrip.guide.expiredSnapshot(g, java.time.LocalDate.now()), scope) }
     }
     /** 차 앱 ↔ 서버 동기화 (로그인했을 때만 동작). 도착 기록 같은 차의 변경을 바로 올린다. */
     val serverSync = ServerSync(app, api, account, visits, profile, feeding, scope).also { it.start() }
@@ -68,6 +76,19 @@ class AppContainer(private val app: Application) {
     val delayAlert = DelayAlertController(app, navi, location, api, { guide.state.value.current?.place?.let { Place(it.name, it.latitude, it.longitude) } }, scope)
     val voiceIo = VoiceIo(app)
     val voice = VoiceController(voiceIo, care, vehicle, navi, api, scope)
+
+    init {
+        // 주행 중 코스 장소에 도착하면 같은 질문을 음성으로만 묻는다 (H03·H03-1, #218). 도착은 내비가 앞에 있을 때
+        // 일어나므로 화면(Compose)이 아니라 앱 단위에서 건다. 기어를 모르면 묻지 않는다. 답이 없으면 화면은 그대로.
+        scope.launch {
+            guide.state.map { it.index to it.arrived }.distinctUntilChanged().drop(1).collect { (_, arrived) ->
+                val g = guide.state.value
+                val v = vehicle.state.value
+                if (!arrived || g.finished || v.isParked || v.gear == io.github.haeyeonyou.familytrip.vehicle.GearState.UNKNOWN) return@collect
+                io.github.haeyeonyou.familytrip.guide.arrivalQuestion(g)?.let(voice::askArrival)
+            }
+        }
+    }
 
     private var locationStarted = false
 
