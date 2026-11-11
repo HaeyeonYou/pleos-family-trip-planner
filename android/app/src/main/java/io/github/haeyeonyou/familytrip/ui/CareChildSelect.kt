@@ -33,8 +33,8 @@ import io.github.haeyeonyou.familytrip.care.ChildOption
 private val AVATAR_COLORS = listOf(Color(0xFFFFE79A) to Color(0xFF5B4A00), Color(0xFFDCE6FF) to Color(0xFF2F3FA8), Color(0xFFE6F6EA) to Color(0xFF1F6B3A))
 
 /**
- * 아이 선택 드롭다운 (C07, 앱 프레임 (24,160) 480 폭, 막 0.35). 아이를 바꾸면 수유 타이머가 그 아이 기준이 되고
- * 모드 값은 가족 공통이다 (D4).
+ * 아이 선택 드롭다운 (C07, 앱 프레임 (24,160) 480 폭, 막 0.35). 아이를 바꾸면 수유 타이머와 케어 모드 값(공조 프리셋)이
+ * 그 아이 기준이 된다 (QO5, #192). 행마다 그 아이의 베이비케어 값을 한 줄 더 보여 준다.
  */
 @Composable
 fun BoxScope.ChildSelectDropdown(options: List<ChildOption>, onSelect: (String?) -> Unit, onDismiss: () -> Unit) {
@@ -55,7 +55,7 @@ fun BoxScope.ChildSelectDropdown(options: List<ChildOption>, onSelect: (String?)
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .height(100.dp)
+                    .height(if (o.mode != null) 116.dp else 100.dp)
                     .clip(SitterShapes.Row)
                     .background(if (o.selected) s.primarySoft else Color.Transparent)
                     .clickable(enabled = o.enabled, role = Role.RadioButton) { onSelect(o.key) }
@@ -72,6 +72,7 @@ fun BoxScope.ChildSelectDropdown(options: List<ChildOption>, onSelect: (String?)
                         Text("${o.ageMonths}개월", style = SitterText.Label, color = s.inkMute)
                     }
                     Text(o.line, style = SitterText.Caption, color = s.inkSoft, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
+                    o.mode?.let { Text("베이비케어 $it", style = SitterText.Caption, color = s.inkMute, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp)) }
                 }
                 if (o.selected) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -84,8 +85,8 @@ fun BoxScope.ChildSelectDropdown(options: List<ChildOption>, onSelect: (String?)
         }
         Box(Modifier.padding(horizontal = 12.dp, vertical = 12.dp).fillMaxWidth().height(1.dp).background(s.line))
         Column(Modifier.padding(horizontal = 12.dp)) {
-            Text("아이를 바꾸면 수유 타이머가 그 아이 기준으로 바뀌어요", style = SitterText.Label, color = s.ink)
-            Text("모드 값(베이비케어·낮잠·수유 정차)은 가족 공통이에요", style = SitterText.Caption, color = s.inkMute, modifier = Modifier.padding(top = 8.dp))
+            Text("아이를 바꾸면 케어 화면 전체가 그 아이 기준으로 바뀌어요", style = SitterText.Label, color = s.ink)
+            Text("수유 타이머와 모드 값(베이비케어·낮잠·수유 정차)을 아이마다 따로 써요", style = SitterText.Caption, color = s.inkMute, modifier = Modifier.padding(top = 8.dp))
             Text("아이 추가 · 정보 수정은 웹앱 MY에서", style = SitterText.Caption, color = s.inkSoft, modifier = Modifier.padding(top = 18.dp, bottom = 12.dp))
         }
     }

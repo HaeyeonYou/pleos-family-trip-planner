@@ -69,10 +69,23 @@ class ServerSync(
         JsonFile(File(dir, "preset_outbox.json"), PresetOutbox.serializer()) { PresetOutbox() },
     )
 
+    private val _allPresets = MutableStateFlow<List<PresetState>>(emptyList())
     private val _presets = MutableStateFlow<List<PresetState>>(emptyList())
 
-    /** 서버의 프리셋 슬롯 3개. 로그인 전이거나 아직 못 받았으면 빈 목록. */
+    /** 가족 기본값과 아이마다의 프리셋 (QO5 아이별 케어 모드, #192). 온보딩 O05가 아이 카드마다 쓴다. */
+    val allPresets: StateFlow<List<PresetState>> = _allPresets.asStateFlow()
+
+    /** **지금 고른 아이**의 프리셋 슬롯 3개 (케어·공조가 쓴다). 로그인 전이거나 아직 못 받았으면 빈 목록. */
     val presets: StateFlow<List<PresetState>> = _presets.asStateFlow()
+
+    /** 지금 고른 아이의 서버 id (모드 값의 주인). 서버와 아직 안 맞춘 아이면 null (가족 기본값). */
+    fun presetChildId(): String? = presetChildId(profileStore.load()?.children.orEmpty(), feedingStore.selectedChildId.value)
+
+    /** 받은 전체 목록에서 고른 아이 것을 [presets]로 낸다. 아이를 바꾸면 곧바로 부른다. */
+    private fun publishPresets(all: List<PresetState> = _allPresets.value) {
+        _allPresets.value = all
+        _presets.value = presetsForChild(all, presetChildId())
+    }
 
     private fun loginId(): String? = account.account.value?.user?.loginId
     private val loggedIn get() = account.token != null
@@ -80,7 +93,9 @@ class ServerSync(
     /** 차에서 일어난 변경을 바로 서버에 올리는 관찰을 시작한다. 앱이 켜져 있는 동안 계속된다. */
     fun start() {
         scope.launch { visitStore.revision.drop(1).collectLatest { kick { visits.reconcile() } } }
-        scope.launch { account.account.collectLatest { if (it == null) _presets.value = emptyList() } }
+        scope.launch { account.account.collectLatest { if (it == null) publishPresets(emptyList()) } }
+        // 아이 목록(서버 id)이 바뀌어도 고른 아이의 모드 값을 다시 고른다
+        scope.launch { profileStore.profile.drop(1).collectLatest { publishPresets() } }
     }
 
     /** 방금 수유했다: 차에 이미 저장한 시각을 대기열에 넣고 바로 올린다. */
@@ -89,8 +104,11 @@ class ServerSync(
         kick { feedings.flush(); feedings.pull() }
     }
 
-    /** 케어 대상 아이를 바꿨다: 그 아이의 마지막 수유를 서버에서 받는다 (C07). */
-    fun onChildSelected() = kick { feedings.flush(); feedings.pull() }
+    /** 케어 대상 아이를 바꿨다: 그 아이의 모드 값으로 바로 바꾸고, 마지막 수유를 서버에서 받는다 (C07). */
+    fun onChildSelected() {
+        publishPresets()
+        kick { feedings.flush(); feedings.pull() }
+    }
 
     /** 차에서 고친 아이 정보·수유 간격을 서버에 올린다. */
     fun onFamilyEdited() = kick { family.reconcile() }
@@ -108,14 +126,16 @@ class ServerSync(
     }
 
     /** 서버의 프리셋을 지금 다시 받는다. */
-    fun refreshPresets() = kick { _presets.value = presetSync.fetch() }
+    fun refreshPresets() = kick { publishPresets(presetSync.fetch()) }
 
-    /** 정차 중 고친 프리셋을 서버에 저장한다. 실패하면 대기열에 남아 다음 주기에 다시 올라가고 false를 돌려준다. */
-    suspend fun savePresetEdit(slot: String, settings: ClimateSettings): Boolean {
+    /**
+     * 정차 중 고친 프리셋을 [childId] 아이(기본: 지금 고른 아이)의 슬롯에 서버로 저장한다.
+     * 실패하면 대기열에 남아 다음 주기에 다시 올라가고 false를 돌려준다.
+     */
+    suspend fun savePresetEdit(slot: String, settings: ClimateSettings, childId: String? = presetChildId()): Boolean {
         if (!loggedIn) return false
         return try {
-            val saved = presetSync.saveEdit(slot, settings)
-            _presets.value = _presets.value.map { if (it.slot == slot) saved else it }
+            publishPresets(presetSync.saveEdit(slot, childId, settings))
             true
         } catch (e: CancellationException) {
             throw e
@@ -127,7 +147,7 @@ class ServerSync(
 
     /** 차에서 적용했다고 서버에 알린다 (실패하면 남겨 두고 다시 시도). 화면의 슬롯도 바로 적용됨으로 바꾼다. */
     fun onPresetApplied(slot: String, id: String) {
-        _presets.value = _presets.value.map { if (it.slot == slot && it.id == id) it.copy(pending = false) else it }
+        publishPresets(_allPresets.value.map { if (it.slot == slot && it.id == id) it.copy(pending = false) else it })
         presetSync.queueApplied(id)
         kick { presetSync.flush() }
     }
@@ -180,7 +200,7 @@ class ServerSync(
         val visitsDone = area("visits", change.visits || visits.hasPendingUpload()) { visits.reconcile() }
         // 케어 장소는 방문 기록을 따라간다. 실패해도(예: 아직 이 API가 없는 서버) 방문 영역의 '반영 끝'은 막지 않는다.
         area("care places", visitsDone && (change.visits || carePlaces.hasPendingUpload())) { carePlaces.reconcile() }
-        val presetsDone = area("presets", change.presets || presetSync.hasPending()) { _presets.value = presetSync.fetch() }
+        val presetsDone = area("presets", change.presets || presetSync.hasPending()) { publishPresets(presetSync.fetch()) }
         return RefreshResult(
             done = SyncChange(
                 presets = presetsDone,
@@ -207,7 +227,7 @@ class ServerSync(
             family.forget()
             carePlaces.forget()
             presetSync.forget()
-            _presets.value = emptyList()
+            publishPresets(emptyList())
             profileStore.load()?.let { p -> profileStore.save(p.copy(children = p.children.map { it.copy(serverId = null) })) }
         }
         feedings.onAccountChanged(id)
