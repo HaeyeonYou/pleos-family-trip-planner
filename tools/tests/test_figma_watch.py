@@ -127,10 +127,11 @@ class PageTest(unittest.TestCase):
         for name, code in [("H02-1 · 코스 상세", "H02-1"), ("O04-1 · 온보딩", "O04-1"), ("S02 아이 정보 · 기본", "S02"),
                            ("S02-1 아이 정보", "S02-1"), ("G02-B · 그로우", "G02-B"), ("Lib · 공통 UI 셸", "Lib"),
                            ("Tile · 다음 수유", "Tile"), ("Note · K7-2 · 급한 케어", "K7-2"), ("HF 01 홈", ""),
-                           ("Group 1", ""), ("17 04 사용자 여정 지도", "slide"), ("image 1", "")]:
+                           ("Group 1", ""), ("C05-T1 · 케어 — 유아기", "C05-T1"), ("Note · C05-T1", "C05-T1"), ("17 04 사용자 여정 지도", "slide"), ("image 1", "")]:
             self.assertEqual(fw.screen_code(name), code, name)
         self.assertEqual(fw.sessions_of_code("C05"), ("child-mode", "1111-feeding-cleanup"))
         self.assertEqual(fw.sessions_of_code("G03"), ("1111-grow-jelly",))
+        self.assertEqual(fw.sessions_of_code("C05-T1"), ("child-mode", "1111-feeding-cleanup"))
         self.assertEqual(fw.sessions_of_code("D01"), ("1111-shell-polish",))
         self.assertEqual(fw.sessions_of_code("O02"), ())
         self.assertEqual(fw.sessions_of_code("slide"), ())

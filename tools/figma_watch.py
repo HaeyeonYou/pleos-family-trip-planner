@@ -55,9 +55,9 @@ CHANGELOG = WATCH_DIR / "CHANGELOG.md"
 # Tier 1(View/Collab 좌석은 월 20회까지) 보호용 월 상한. 넘으면 --force 없이는 조회하지 않는다.
 DEFAULT_TIER1_MONTHLY_CAP = 20  # 사용자 결정 2026-11-11 (15 → 20)
 
-# 이름 앞의 화면 코드: H01, H02-1, C05, D01, G03, G01-B, O04-1, S02-1, K7-2, HF03 … 또는 Lib·Type·Tile.
+# 이름 앞의 화면 코드: H01, H02-1, C05, C05-T1(유아기 변형), D01, G03, G01-B, O04-1, S02-1, K7-2, HF03 … 또는 Lib·Type·Tile.
 # "Note · C05"는 C05 화면의 노트로 본다. "S02 아이 정보"처럼 가운뎃점 없이 이어져도 된다.
-_CODE_RE = re.compile(r"^(?:Note\s*·\s*)?([A-Z]{1,2}\d{1,2}(?:-(?:\d+|B))?|Lib|Type|Tile)(?=\s|$|·)")
+_CODE_RE = re.compile(r"^(?:Note\s*·\s*)?([A-Z]{1,2}\d{1,2}(?:-(?:\d+|B|T\d+))?|Lib|Type|Tile)(?=\s|$|·)")
 # 발표 슬라이드("01 Title", "17 04 사용자 여정 지도" …): 기록은 하되 세션 알림은 없다.
 _SLIDE_RE = re.compile(r"^\d{2} ")
 
@@ -65,7 +65,7 @@ _SLIDE_RE = re.compile(r"^\d{2} ")
 # 출처: 감사 지시서 docs/agent-tasks/2026-11-11-full-audit.md (이슈 #201) "figma-watch 감시 범위" 절.
 SESSION_RULES: list[tuple[str, tuple[str, ...]]] = [
     (r"G\d{2}(?:-B)?", ("1111-grow-jelly",)),
-    (r"C\d{2}", ("child-mode", "1111-feeding-cleanup")),
+    (r"C\d{2}(?:-T\d+)?", ("child-mode", "1111-feeding-cleanup")),
     (r"H\d{2}(?:-\d+)?|D\d{2}|Lib|Type|Tile", ("1111-shell-polish",)),
 ]
 SESSION_TASK_FILES = {
