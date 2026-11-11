@@ -24,6 +24,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -88,6 +90,8 @@ const val BABY_TARGET_TEMPERATURE = 24f
 private const val BABY_FAN_LEVEL = 1
 private const val SLEEP_FAN_LEVEL = 1
 private const val ARRIVING_SOON_SECONDS = 300
+/** 앱이 켜진 뒤 모드 값을 기다리는 시간. 이 안에 받으면 탑승으로 보고 '탑승하면 바로' 모드를 켠다 (#168). */
+private const val BOARDING_WAIT_MS = 2 * 60_000L
 private const val TAG = "CareController"
 
 /** 위치를 아직 못 받았을 때 쓰는 출발지 (PT 장소, 강남). */
@@ -134,6 +138,10 @@ class CareController(
     private var askedFor: Long? = null
     private var feedingStopBusy = false
 
+    /** 고른 코스의 출발 시각에 모드를 켜는 작업 (적용 시점 '출발 시각', #168). */
+    private var departureJob: Job? = null
+    private var plannedDeparture: String? = null
+
     /** 경유지를 넣은 뒤 안내가 한 번이라도 시작됐는지. 그 뒤 안내가 끝나면 경유지 카드를 내린다. */
     private var waypointRouting = false
     /** 안내가 끝난 것처럼 보일 때 잠시 기다렸다 카드를 내리는 작업. 내비가 경로를 바꿀 때 "종료→시작"을 잠깐 보내서다. */
@@ -142,6 +150,12 @@ class CareController(
     init {
         notifier.quiet = _state.value.sleepMode
         ToneState.sleep = _state.value.sleepMode
+        // 탑승 (D8: 지금은 앱이 켜진 때가 탑승 신호): 적용 시점이 '탑승하면 바로'인 모드를 켠다. 모드 값(로그인 후 서버 값)을
+        // 받을 때까지 잠시 기다리고, 그 안에 못 받으면 이번 탑승에서는 켜지 않는다 (나중에 로그인했다고 주행 중에 갑자기 켜지 않게).
+        scope.launch {
+            val presets = withTimeoutOrNull(BOARDING_WAIT_MS) { serverSync.presets.first { it.isNotEmpty() } } ?: return@launch
+            autoApply(APPLY_BOARDING, presets)
+        }
         // 수유 루틴은 저장소가 하나뿐이다: 홈·음성·서버에서 받은 변경도 같은 값을 본다.
         scope.launch { feedingStore.routine.collect { f -> _state.update { it.copy(feeding = f, selectedChildId = feedingStore.selectedChildId.value) } } }
         // 방문 기록이 바뀌면(도착·서버에서 받은 변경) 자주 가는 케어 장소를 다시 고른다.
@@ -341,6 +355,55 @@ class CareController(
                 )
             }
         }
+    }
+
+    // 적용 시점 (C08, #168)
+
+    /**
+     * 고른(시작할) 코스의 출발 시각("HH:MM", 없으면 null)을 알려 준다. 적용 시점이 '출발 시각'인 모드는 그 시각에 켠다.
+     * 차 앱이 켜져 있을 때만이고(원격 공조 없음), 이미 지난 출발 시각이나 코스가 없으면 켜지 않는다.
+     */
+    fun planDeparture(departureAt: String?) {
+        val at = departureAt?.takeIf { it.isNotBlank() }
+        if (at == plannedDeparture) return
+        plannedDeparture = at
+        departureJob?.cancel()
+        val wait = departureDelay(at, System.currentTimeMillis()) ?: return
+        Log.i(TAG, "출발 시각 $at 에 적용 시점 '출발 시각' 모드를 켬 (${wait / 1000}초 뒤)")
+        departureJob = scope.launch {
+            delay(wait)
+            autoApply(APPLY_DEPARTURE, serverSync.presets.value)
+        }
+    }
+
+    /**
+     * [trigger](탑승·출발 시각)에 맞춘 모드를 켠다: 베이비케어 → 수면 → 수유 정차 순서(공조는 뒤의 것이 이긴다). 이미 켠 모드는 그대로 두고,
+     * 공조를 제어할 수 없는 차면 아무것도 하지 않는다 (자동으로 켜는 것이라 실패 안내를 띄우지 않는다).
+     */
+    private suspend fun autoApply(trigger: String, presets: List<PresetState>) {
+        val slots = autoSlots(presets, trigger)
+        if (slots.isEmpty()) return
+        if (!vehicle.readClimate().supported) {
+            Log.i(TAG, "자동 적용($trigger) 건너뜀: 공조 제어 불가")
+            return
+        }
+        val turnedOn = mutableListOf<String>()
+        for (slot in slots) {
+            val st = _state.value
+            when (slot) {
+                "boarding" -> if (!st.babyCare) {
+                    setBabyCare(true, presets.firstOrNull { it.slot == "boarding" }).join()
+                    if (_state.value.babyCare) turnedOn += slot
+                }
+                "nap" -> if (!st.sleepMode) {
+                    setSleepMode(true)
+                    turnedOn += slot
+                }
+                "feeding_stop" -> if (st.feedingStop == null && startFeedingStop()) turnedOn += slot
+            }
+        }
+        Log.i(TAG, "자동 적용($trigger): $slots → 켬 $turnedOn")
+        if (turnedOn.isNotEmpty()) _state.update { it.copy(notice = autoApplyNotice(trigger, turnedOn), noticeAt = System.currentTimeMillis()) }
     }
 
     /** [childId] 아이의 수유 루틴 (드롭다운의 다음 수유 표시). */

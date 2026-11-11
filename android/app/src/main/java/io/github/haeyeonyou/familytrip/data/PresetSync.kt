@@ -16,10 +16,10 @@ interface PresetRemote {
 class TripApiPresetRemote(private val api: TripApi) : PresetRemote {
     /** `GET /presets/children`을 펼친다. 이 API가 없는 예전 서버(404)는 가족 공통 3개(`GET /presets`)를 쓴다. */
     override suspend fun list(): List<PresetState> = try {
-        api.childPresets().flatMap { group -> group.presets.map { it.copy(childId = group.childId) } }
+        api.childPresets().flatMap { group -> group.presets.map { it.copy(childId = group.childId).withApplyAt() } }
     } catch (e: HttpException) {
         if (e.code() != 404) throw e
-        api.presets()
+        api.presets().map { it.withApplyAt() }
     }
 
     override suspend fun markApplied(id: String) {
@@ -28,8 +28,11 @@ class TripApiPresetRemote(private val api: TripApi) : PresetRemote {
     }
 
     override suspend fun put(slot: String, childId: String?, settings: ClimateSettings) =
-        api.putPreset(slot, settings, appliedOnCar = true, childId = childId)
+        api.putPreset(slot, settings, appliedOnCar = true, childId = childId).withApplyAt()
 }
+
+/** 서버가 따로 주는 적용 시점을 설정 묶음에도 넣는다 (편집 시트의 바뀐 값 비교·저장 대기열이 한 묶음으로 다루게, #168). */
+fun PresetState.withApplyAt(): PresetState = if (applyAt == null) this else copy(settings = settings.copy(applyAt = applyAt))
 
 /**
  * 서버에 아직 못 알린 것: 차에서 적용한 프리셋 id, 차에서 고쳐 저장한 슬롯.
