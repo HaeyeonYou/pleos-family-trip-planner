@@ -12,40 +12,38 @@ data class MapPoint(val x: Float, val y: Float)
 /** 곡선 한 토막: [from]에서 [to]까지, 조절점 [c1]·[c2]인 3차 베지어. */
 data class CurveSegment(val from: MapPoint, val c1: MapPoint, val c2: MapPoint, val to: MapPoint)
 
-/** 지도에 꽂을 지점 하나. [number]가 있으면 장소 번호 핀, 없으면 출발·귀가 고리. */
+/** 지도에 꽂을 지점 하나. [number]가 있으면 장소 번호 핀, 없으면 출발 고리. */
 data class MapAnchor(val at: LatLng, val number: Int?, val label: String)
 
 /**
  * 가상 코스 지도(#231)의 배치 계산. 화면 그리기와 떼어 단위 테스트한다.
  *
- * 사용자 결정(2026-11-12 추가): 경로선은 실제 도로 경로처럼 그리지 않고, Figma 디자인처럼
+ * 사용자 결정(2026-11-12 추가, #233·#239): Figma H01·H02와 같게. 경로선은 실제 도로 경로처럼 그리지 않고, Figma 디자인처럼
  * 출발지 → 장소들 → 귀가 지점의 **순서만 맞게** 부드러운 곡선으로 잇는다. 핀 위치는 위경도 비율을
  * 대략 따르되 한곳에 몰리지 않게 순서 간격과 섞어 펼친다.
  */
 object CourseMapGeometry {
 
-    /** 출발지와 귀가 지점이 이 거리(m)보다 가까우면 같은 곳으로 보고 표시를 하나로 합친다. */
-    private const val SAME_PLACE_M = 200.0
-
     /** 실제 위경도 비율과 순위(고른 간격)를 섞는 비율. 0이면 실제 비율 그대로, 1이면 고른 간격. */
     private const val RANK_BLEND = 0.5f
 
     /**
-     * 지도에 꽂을 지점을 경로 순서대로 고른다.
-     * 출발지는 코스 응답에 따로 없어 서버 경로의 첫 점([path] 첫 점, 위치로만 쓴다)을 쓴다. 없으면 생략한다.
-     * 귀가 지점이 출발지와 같은 곳이면 출발 고리 하나("출발·귀가")로 합치고 선은 마지막 장소에서 끝낸다.
+     * 지도에 꽂을 지점을 경로 순서대로 고른다: 출발 지점 → 장소 ①②③ (Figma H01·H02, #239).
+     * 귀가 지점과 돌아오는 선은 그리지 않는다. 출발지는 코스 응답에 따로 없어 서버 경로의 첫 점([path] 첫 점, 위치로만 쓴다)을 쓰고,
+     * 없으면 ①에서 시작한다. [label]은 장소 이름에 수유실이 있으면 " · 수유실"을 붙인다 (H01 "숲속 카페 · 수유실 2F" 라벨).
      */
     fun anchors(stops: List<CourseStop>, path: List<LatLng>): List<MapAnchor> {
         val visits = stops.filter { it.role != "home" && it.place.hasCoordinates() }
-        val home = stops.lastOrNull { it.role == "home" && it.place.hasCoordinates() }?.place?.let { LatLng(it.latitude, it.longitude) }
         val origin = path.firstOrNull { it.hasCoordinates() }
-        val sameAsOrigin = origin != null && home != null && distanceMeters(origin, home) < SAME_PLACE_M
         return buildList {
-            origin?.let { add(MapAnchor(it, number = null, label = if (sameAsOrigin) "출발·귀가" else "출발")) }
-            visits.forEachIndexed { i, s -> add(MapAnchor(LatLng(s.place.latitude, s.place.longitude), number = i + 1, label = s.place.name)) }
-            if (home != null && !sameAsOrigin) add(MapAnchor(home, number = null, label = "귀가"))
+            origin?.let { add(MapAnchor(it, number = null, label = "")) }
+            visits.forEachIndexed { i, s -> add(MapAnchor(LatLng(s.place.latitude, s.place.longitude), number = i + 1, label = placeLabel(s.place))) }
         }
     }
+
+    /** 홈 미리보기 라벨: 이름, 수유실이 확인되면 " · 수유실". */
+    fun placeLabel(place: CoursePlace): String =
+        if (place.amenities["nursing_room"] == "available") "${place.name} · 수유실" else place.name
 
     /**
      * 지점들을 [width]×[height]에서 사방 여백(px)을 뺀 영역에 배치한다. 북쪽이 위, 동쪽이 오른쪽.
@@ -111,27 +109,42 @@ object CourseMapGeometry {
     /**
      * 지점을 순서대로 지나는 부드러운 곡선 (Catmull-Rom → 3차 베지어). 모든 지점을 정확히 지난다.
      * [tension]이 작을수록 직선에 가깝다 (1/6이 표준 Catmull-Rom).
+     * 앞뒤 토막과 거의 반대로 꺾이는 토막(예: 출발 → ① 가는 길 중간에 ②가 있어 되돌아오는 경우)은
+     * 선이 겹쳐 순서가 안 보이므로, 진행 방향 왼쪽으로 [bow]만큼(토막 길이 비율) 휘게 한다.
      */
-    fun smoothCurve(points: List<MapPoint>, tension: Float = 1f / 6f): List<CurveSegment> {
+    fun smoothCurve(points: List<MapPoint>, tension: Float = 1f / 6f, bow: Float = 0.3f): List<CurveSegment> {
         if (points.size < 2) return emptyList()
-        return points.indices.toList().zipWithNext().map { (i, j) ->
+        val segments = points.zipWithNext()
+        fun reverses(i: Int, j: Int): Boolean {
+            if (i !in segments.indices || j !in segments.indices) return false
+            val (a0, a1) = segments[i]
+            val (b0, b1) = segments[j]
+            val ax = a1.x - a0.x; val ay = a1.y - a0.y
+            val bx = b1.x - b0.x; val by = b1.y - b0.y
+            val la = hypot(ax, ay); val lb = hypot(bx, by)
+            if (la < 0.01f || lb < 0.01f) return false
+            return (ax * bx + ay * by) / (la * lb) < -0.3f
+        }
+        return segments.indices.map { k ->
+            val i = k
+            val j = k + 1
             val p0 = points[(i - 1).coerceAtLeast(0)]
             val p1 = points[i]
             val p2 = points[j]
             val p3 = points[(j + 1).coerceAtMost(points.lastIndex)]
-            CurveSegment(
-                from = p1,
-                c1 = MapPoint(p1.x + (p2.x - p0.x) * tension, p1.y + (p2.y - p0.y) * tension),
-                c2 = MapPoint(p2.x - (p3.x - p1.x) * tension, p2.y - (p3.y - p1.y) * tension),
-                to = p2,
-            )
+            var c1 = MapPoint(p1.x + (p2.x - p0.x) * tension, p1.y + (p2.y - p0.y) * tension)
+            var c2 = MapPoint(p2.x - (p3.x - p1.x) * tension, p2.y - (p3.y - p1.y) * tension)
+            if (reverses(k - 1, k) || reverses(k, k + 1)) {
+                // 진행 방향의 왼쪽 수직(화면 좌표: (dy, -dx))으로 조절점을 민다. 되돌아오는 토막은 방향이 반대라 반대쪽으로 휘어 겹치지 않는다.
+                val dx = p2.x - p1.x
+                val dy = p2.y - p1.y
+                val ox = dy * bow
+                val oy = -dx * bow
+                c1 = MapPoint(c1.x + ox, c1.y + oy)
+                c2 = MapPoint(c2.x + ox, c2.y + oy)
+            }
+            CurveSegment(from = p1, c1 = c1, c2 = c2, to = p2)
         }
-    }
-
-    private fun distanceMeters(a: LatLng, b: LatLng): Double {
-        val dy = (a.latitude - b.latitude) * 111_320.0
-        val dx = (a.longitude - b.longitude) * 111_320.0 * cos(Math.toRadians((a.latitude + b.latitude) / 2))
-        return hypot(dx, dy)
     }
 }
 
