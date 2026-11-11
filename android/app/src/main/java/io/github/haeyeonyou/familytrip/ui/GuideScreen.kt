@@ -52,7 +52,13 @@ import io.github.haeyeonyou.familytrip.guide.progressPoints
 import io.github.haeyeonyou.familytrip.guide.remainingStops
 import io.github.haeyeonyou.familytrip.guide.stageOf
 import io.github.haeyeonyou.familytrip.guide.visitedStops
+import io.github.haeyeonyou.familytrip.data.Visit
+import io.github.haeyeonyou.familytrip.grow.courseExperiences
+import io.github.haeyeonyou.familytrip.grow.courseJellyLines
+import io.github.haeyeonyou.familytrip.grow.courseVisits
+import io.github.haeyeonyou.familytrip.grow.stayedMinutes
 import java.time.Instant
+import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
 
@@ -93,6 +99,8 @@ fun GuideScreen(
     weather: WeatherInfo? = null,
     origin: LatLng? = null,
     homeRemainingSeconds: Int? = null,
+    /** 기기 방문 기록 (VisitStore). H04 젤리 수를 그로우와 같은 규칙으로 센다 (#234) */
+    visits: List<Visit> = emptyList(),
 ) {
     if (!state.active) return
     val s = SitterSurface.current
@@ -130,7 +138,7 @@ fun GuideScreen(
             horizontalArrangement = Arrangement.spacedBy(SitterGrid.GAP.dp),
         ) {
             if (stage == GuideStage.FINISHED) {
-                FinishedCard(state, Modifier.width(SitterGrid.DOUBLE_W.dp).fillMaxHeight())
+                FinishedCard(state, visits, Modifier.width(SitterGrid.DOUBLE_W.dp).fillMaxHeight())
                 Column(Modifier.width(SitterGrid.COLUMN_W.dp).fillMaxHeight()) { FinishedSide(state, homeRemainingSeconds, actions) }
             } else {
                 SitterCard(Modifier.width(SitterGrid.DOUBLE_W.dp).fillMaxHeight(), contentPadding = PaddingValues(start = 32.dp, top = 28.dp, end = 32.dp, bottom = 20.dp)) {
@@ -375,9 +383,15 @@ private fun ColumnScope.PickerPanel(
 // ───────────── H04 코스 종료 ─────────────
 
 @Composable
-private fun FinishedCard(state: GuideState, modifier: Modifier) {
+private fun FinishedCard(state: GuideState, visits: List<Visit>, modifier: Modifier) {
     val s = SitterSurface.current
     val visited = visitedStops(state)
+    // 실제로 생긴 젤리만 센다: 이번 코스에서 10분 이상 머문 곳 (grow/JellyModel.kt, #234)
+    val since = state.startedAtMillis?.let { LocalDateTime.ofInstant(Instant.ofEpochMilli(it), ZoneId.systemDefault()) }
+    val names = visited.map { it.place.name }.toSet()
+    val (jellyTitle, jellyCaption) = remember(visits, names, since) { courseJellyLines(courseExperiences(visits, names, since).size) }
+    // 장소별 실제 머문 분 (기록이 없으면 표시하지 않는다)
+    val stayed = remember(visits, names, since) { courseVisits(visits, names, since).associate { it.placeName to stayedMinutes(it) } }
     SitterCard(modifier, contentPadding = PaddingValues(start = 32.dp, top = 32.dp, end = 32.dp, bottom = 32.dp)) {
         Box(Modifier.size(72.dp).clip(CircleShape).background(SitterPalette.Gradient), contentAlignment = Alignment.Center) {
             SitterIcon(SitterIcons.Check, Color.White, size = SitterIconSize.Large)
@@ -395,7 +409,7 @@ private fun FinishedCard(state: GuideState, modifier: Modifier) {
                     }
                     Text(stop.arriveAt, style = SitterText.Body2, color = s.inkMute, modifier = Modifier.padding(start = 14.dp).width(64.dp))
                     Text(stop.place.name, style = SitterText.Body1, color = s.ink, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    if (stop.stayMinutes > 0) Text("${stop.stayMinutes}분", style = SitterText.Body2, color = s.inkMute)
+                    stayed[stop.place.name]?.let { Text("${it}분 머묾", style = SitterText.Body2, color = s.inkMute) }
                 }
             }
         }
@@ -412,11 +426,8 @@ private fun FinishedCard(state: GuideState, modifier: Modifier) {
                 SitterIcon(SitterIcons.Sprout, s.primary, size = SitterIconSize.Medium)
             }
             Column(Modifier.padding(start = 16.dp)) {
-                Text(
-                    if (visited.isEmpty()) "이번에는 쌓인 경험 젤리가 없어요" else "경험 젤리 ${visited.size}개가 자랐어요",
-                    style = SitterText.Title3, color = s.ink,
-                )
-                Text("그로우에서 오늘 다녀온 곳을 다시 볼 수 있어요", style = SitterText.Caption, color = s.inkMute, modifier = Modifier.padding(top = 4.dp))
+                Text(jellyTitle, style = SitterText.Title3, color = s.ink)
+                Text(jellyCaption, style = SitterText.Caption, color = s.inkMute, modifier = Modifier.padding(top = 4.dp))
             }
         }
     }

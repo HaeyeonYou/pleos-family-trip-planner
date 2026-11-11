@@ -169,4 +169,60 @@ class JellyModelTest {
         assertEquals("서아의 유니콘 캐릭터가 태어났어요", birthSpeech("서아", listOf(JellyKind.ART)))
         assertEquals("우리 아이의 유니콘, 공룡 캐릭터가 태어났어요", birthSpeech("", listOf(JellyKind.ART, JellyKind.SCIENCE)))
     }
+
+    // ── #234: H04·홈 타일·G01이 같은 숫자 ──
+
+    private fun at(name: String, role: String, arrive: String, stay: Long?) = Visit(
+        id = nextId++, placeName = name, role = role, arrivedAt = arrive,
+        departedAt = stay?.let { LocalDateTime.parse(arrive).plusMinutes(it).toString() },
+    )
+
+    @Test
+    fun 시뮬레이션처럼_10분_안쪽으로_지나간_코스는_어디서나_0개() {
+        // 통합 테스트 상황: 식사·나들이·카페를 모두 10분 안쪽으로 지나갔다 (H04 3개, 홈 1곳, G01 0곳으로 달랐다)
+        val visits = listOf(
+            at("소담 한식당", "meal", "2026-11-10T10:00:00", 4),
+            at("고산근린공원", "outing", "2026-11-10T10:10:00", 3),
+            at("모닝 베이커리", "cafe", "2026-11-10T10:20:00", 2),
+        )
+        val since = LocalDateTime.parse("2026-11-10T09:50:00")
+        val names = visits.map { it.placeName }.toSet()
+        assertEquals(0, courseExperiences(visits, names, since, now).size)
+        assertEquals(0, homeJellyTile(experiences(visits, now), today).places)
+        assertEquals(0, monthTile(experiences(visits, now), today).places)
+        val (title, caption) = courseJellyLines(0)
+        assertEquals("이번 코스에서는 자란 젤리가 없어요", title)
+        assertTrue("10분 이상" in caption)
+    }
+
+    @Test
+    fun 십분_넘게_머문_곳만_H04_홈_G01에서_같은_수로_센다() {
+        val visits = listOf(
+            at("서울숲", "outing", "2026-11-03T10:00:00", 90), // 지난 코스 (H04에는 안 들어감)
+            at("소담 한식당", "meal", "2026-11-10T10:00:00", 40),
+            at("고산근린공원", "outing", "2026-11-10T11:00:00", 5),
+            at("모닝 베이커리", "cafe", "2026-11-10T11:10:00", null), // 아직 머무는 중: 50분 지남
+        )
+        val since = LocalDateTime.parse("2026-11-10T09:50:00")
+        val course = courseExperiences(visits, setOf("소담 한식당", "고산근린공원", "모닝 베이커리"), since, now)
+        assertEquals(listOf("소담 한식당", "모닝 베이커리"), course.map { it.visit.placeName })
+        assertEquals("경험 젤리 2개가 자랐어요", courseJellyLines(course.size).first)
+        val all = experiences(visits, now)
+        val tile = homeJellyTile(all, today)
+        assertEquals(3, tile.places)
+        assertEquals(monthTile(all, today).places, tile.places) // 홈 "이번 달 N곳" = G01 "이번 달 N곳"
+        assertEquals(2, tile.kinds) // 자연·숲, 맛 탐험
+    }
+
+    @Test
+    fun 코스_시작_시각이_없으면_오늘_도착한_방문만_본다() {
+        val visits = listOf(at("서울숲", "outing", "2026-11-09T10:00:00", 60), at("서울숲", "outing", "2026-11-10T10:00:00", 60))
+        assertEquals(1, courseExperiences(visits, setOf("서울숲"), null, now).size)
+    }
+
+    @Test
+    fun H04에는_계획이_아니라_실제_머문_분을_보인다() {
+        assertEquals(3L, stayedMinutes(at("고산근린공원", "outing", "2026-11-10T10:10:00", 3), now))
+        assertEquals(50L, stayedMinutes(at("모닝 베이커리", "cafe", "2026-11-10T11:10:00", null), now))
+    }
 }
