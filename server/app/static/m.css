@@ -147,6 +147,9 @@ fieldset.group legend { padding: 0; margin-bottom: 6px; color: var(--muted); fon
 .seg input { position: absolute; opacity: 0; pointer-events: none; }
 .seg span { display: flex; align-items: center; justify-content: center; min-height: 44px; border-radius: 10px; color: var(--muted); font-size: 14px; font-weight: 500; cursor: pointer; }
 .seg input:checked + span { background: #fff; color: var(--ink); font-weight: 700; box-shadow: 0 0 0 1.5px var(--line); }
+/* 아이 고르기 (케어 모드 아이별, #192): 링크로 된 세그먼트 */
+.seg a { flex: 1 0 22%; text-decoration: none; }
+.seg a.on span { background: #fff; color: var(--ink); font-weight: 700; box-shadow: 0 0 0 1.5px var(--line); }
 .seg input:focus-visible + span { outline: 3px solid #7aa8c4; outline-offset: 1px; }
 .switch-row { display: flex; align-items: center; justify-content: space-between; min-height: 52px; border-top: 1px solid var(--line-soft); }
 .switch-row:first-child { border-top: 0; }

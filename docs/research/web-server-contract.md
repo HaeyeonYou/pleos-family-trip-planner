@@ -84,8 +84,9 @@ GET    /me/experience-map     → 경험맵 (웹 그로우 화면이 쓴다)
 ## 5. 공조 프리셋 3개와 미디어 음량 (하위 호환)
 슬롯 3개: `boarding`(탑승 준비) · `nap`(낮잠) · `feeding_stop`(수유 정차).
 ```
-GET  /presets                 → [PresetState × 3]   (슬롯 순서 고정, 보낸 적 없으면 sent=false에 기본값)
-PUT  /presets/{slot}?applied_on_car=false   ClimateSettings → PresetState
+GET  /presets[?child_id=]      → [PresetState × 3]   (슬롯 순서 고정. child_id 없으면 가족 기본값, 있으면 그 아이 값. 보낸 적 없으면 sent=false에 가족 기본값→슬롯 기본값)
+GET  /presets/children        → [{child_id, nickname, presets:[PresetState × 3]}]  (맨 앞 child_id=null 가족 기본값, 이어서 /me/family 순서의 아이들, #192)
+PUT  /presets/{slot}?applied_on_car=false&child_id=   ClimateSettings → PresetState   (다른 가족의 child_id면 404)
 GET  /presets/pending         → (예전 앱용) 슬롯에 상관없이 미적용 프리셋 중 가장 최근에 보낸 것 {id, settings, sent_at, slot}, 없으면 204
 POST /presets/{id}/applied    → 204   (슬롯과 상관없이 id로 적용 완료 표시)   [변경 없음]
 ```
@@ -99,6 +100,7 @@ POST /presets/{id}/applied    → 204   (슬롯과 상관없이 id로 적용 완
 ```
 - **하위 호환**: ① `GET /presets/pending`과 `POST /presets/{id}/applied`는 예전 앱이 그대로 쓸 수 있다. `pending`은 낮잠·수유 정차로 보낸 것도 (가장 최근에 보낸 순으로) 주고, 응답에 선택 필드 `slot`만 늘었다. ② 예전 웹 폼(`/m/preset`)과 예전 앱이 쓰던 1개는 `boarding` 슬롯이다(기존 DB 행도 `boarding`으로 이어진다). ③ `settings`에 `media_volume`이 늘었지만 앱이 `ignoreUnknownKeys=true`라 파싱이 깨지지 않는다. ④ 새 필드는 모두 선택값이다.
 - 기본값: 탑승 준비 24℃·풍량 2·음량 30, 낮잠 23℃·풍량 1·음량 20, 수유 정차 24℃·풍량 1·음량 10.
+- **아이별 케어 모드 (2026-11-11 QO5, #192)**: 프리셋은 아이마다 따로 둔다(`climate_presets.child_id`, 유일 키 `(user_id, child_id, slot)` NULLS NOT DISTINCT). `child_id` 없는 행은 가족 기본값으로, 아이를 모르는 예전 차 앱이 쓰고 자기 값이 없는 아이의 시작 값이 된다. 마이그레이션 `c4f1a8e2d6b9`가 기존 계정 행을 그대로 두고 지금 있는 아이마다 복사했다. 아이를 지우면 그 아이 값도 지워진다. `PresetState`에 `child_id`가 늘었다. 웹 케어(`/m/care?child=`)·편집(`/m/preset?slot=&child=`)은 아이를 골라 그 아이 값을 보내고, 홈은 아이 이름을 붙여 보여 준다.
 - 차에서 정차 중 직접 고쳐 저장하는 것은 `PUT /presets/{slot}?applied_on_car=true` (이미 차에 적용된 값이라 대기로 남지 않는다). 마지막 수정이 이긴다.
 
 ## 5-1. 주기적 동기화 (`GET /me/sync`)
