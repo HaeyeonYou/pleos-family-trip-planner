@@ -188,7 +188,8 @@ fun ShortcutDock(
     val s = SitterSurface.current
     Row(
         modifier = modifier
-            .width(392.dp)
+            // 좁은 창에서 열을 쌓으면 칸 폭에 맞춘다 (#245)
+            .then(if (sitterStacked()) Modifier.fillMaxWidth() else Modifier.width(392.dp))
             .height(92.dp)
             .clip(SitterShapes.Card)
             .background(s.card),
