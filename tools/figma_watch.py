@@ -53,7 +53,7 @@ STATE = WATCH_DIR / "state.json"
 CHANGELOG = WATCH_DIR / "CHANGELOG.md"
 
 # Tier 1(View/Collab 좌석은 월 20회까지) 보호용 월 상한. 넘으면 --force 없이는 조회하지 않는다.
-DEFAULT_TIER1_MONTHLY_CAP = 15
+DEFAULT_TIER1_MONTHLY_CAP = 20  # 사용자 결정 2026-11-11 (15 → 20)
 
 # 이름 앞의 화면 코드: H01, H02-1, C05, D01, G03, G01-B, O04-1, S02-1, K7-2, HF03 … 또는 Lib·Type·Tile.
 # "Note · C05"는 C05 화면의 노트로 본다. "S02 아이 정보"처럼 가운뎃점 없이 이어져도 된다.
