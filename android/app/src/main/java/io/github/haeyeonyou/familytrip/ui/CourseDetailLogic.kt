@@ -5,6 +5,8 @@ import io.github.haeyeonyou.familytrip.data.CoursePlace
 import io.github.haeyeonyou.familytrip.data.CourseResponse
 import io.github.haeyeonyou.familytrip.data.CourseStop
 import io.github.haeyeonyou.familytrip.data.LatLng
+import io.github.haeyeonyou.familytrip.data.StopParking
+import io.github.haeyeonyou.familytrip.data.chosenParking
 import java.time.Duration
 import java.time.LocalTime
 
@@ -29,16 +31,19 @@ internal fun totalLabel(course: CourseResponse): String? = runCatching {
 }.getOrNull()
 
 /**
- * H02 요약 태그 5종: 총 시간 · 수유실 N곳 · 유모차 · 주차 · 반려동물.
+ * H02-2 요약 태그: 총 시간 · (수유실 N곳) · 유모차 · 주차 N곳 · 대체 M곳 · 반려동물.
+ * 수유실 태그는 수유를 보일 때만(12개월 이하 아이, #217): H02-1(수유 지점이 있는 코스)에는 있고 H02-2에는 없다.
  * 편의 정보가 '정보 없음'(unknown)이면 없다고 단정하지 않고 "확인 필요"로 쓴다.
  */
-internal fun courseTags(course: CourseResponse): List<CourseTag> {
+internal fun courseTags(course: CourseResponse, showNursing: Boolean = true): List<CourseTag> {
     val visits = course.stops.filter { it.isVisit() }
     val places = visits.map { it.place }
     return buildList {
         totalLabel(course)?.let { add(CourseTag(it, CourseTag.Kind.TIME)) }
-        val nursing = places.count { it.has("nursing_room") }
-        add(CourseTag(if (nursing > 0) "수유실 ${nursing}곳" else "수유실 확인 필요", CourseTag.Kind.NURSING, nursing > 0))
+        if (showNursing) {
+            val nursing = places.count { it.has("nursing_room") }
+            add(CourseTag(if (nursing > 0) "수유실 ${nursing}곳" else "수유실 확인 필요", CourseTag.Kind.NURSING, nursing > 0))
+        }
         val stroller = places.count { it.has("stroller") }
         add(
             CourseTag(
@@ -51,8 +56,7 @@ internal fun courseTags(course: CourseResponse): List<CourseTag> {
                 stroller > 0,
             ),
         )
-        val lots = visits.sumOf { it.parking.size }
-        add(CourseTag(if (lots > 0) "주차 ${lots}곳 확인" else "주차 정보 없음", CourseTag.Kind.PARKING, lots > 0))
+        add(parkingTag(visits))
         val pet = places.count { it.has("pet") }
         add(
             CourseTag(
@@ -136,14 +140,13 @@ internal fun replacements(course: CourseResponse, stopIndex: Int, origin: LatLng
 internal fun replacementMeta(r: Replacement): String =
     distanceLabel(r.distanceM) + " · " + if (r.detourMinutes == 0) "추가 이동 없음" else "경로에서 +${r.detourMinutes}분"
 
-/** 타임라인 행 보조 줄: "식사 · 60분 머무름 · 주차 공영 도보 약 3분". 주유·충전(#215)은 "주유 · 10분"·"충전 · 30분" */
+/** 타임라인 행 보조 줄: "식사 · 60분 머무름". 주차는 행 아래 주차 줄이 따로 보인다(H02-2). 주유·충전(#215)은 "주유 · 10분"·"충전 · 30분" */
 internal fun stopLine(stop: CourseStop): String = if (stop.role == "fuel") {
     val label = if ("전기차" in stop.place.category || "충전소" in stop.place.name) "충전" else ROLE_LABELS[stop.role]
     listOfNotNull(label, stop.stayMinutes.takeIf { it > 0 }?.let { "${it}분" }).joinToString(" · ")
 } else listOfNotNull(
     ROLE_LABELS[stop.role],
     stop.stayMinutes.takeIf { it > 0 }?.let { "${it}분 머무름" },
-    stop.parking.firstOrNull()?.let { "주차 " + listOfNotNull(it.kind, it.name.takeIf { _ -> it.kind == null }).joinToString(" ") + " 도보 약 ${it.walkMinutes}분" },
 ).joinToString(" · ")
 
 /** 장소 추가 후보: 서버 `alternatives`의 식사·나들이·카페 중 코스에 아직 없는 곳 (역할 순서 그대로, 빈 역할은 뺀다). */
@@ -172,3 +175,49 @@ internal fun mergeAlternatives(
     }
     return old + fresh
 }
+
+// ───────────── 주차 (H02-2 `428:16045`, #250) ─────────────
+// 서버가 장소마다 추천순 최대 3곳을 준다(공공 주차장 표 + 카카오 보충). 카카오에서 온 곳은 요금·운영시간이 비어 있다.
+// 유모차 경사로·혼잡도는 데이터가 없어 보이지 않는다(지어내지 않음).
+
+private fun CourseStop.hasParkingRow() = isVisit() && role != "fuel"
+
+/** "주차 3곳 · 대체 5곳": 주차장이 있는 장소 수와, 장소마다 고른 곳 말고 고를 수 있는 나머지 수. */
+internal fun parkingTag(visits: List<CourseStop>): CourseTag {
+    val withLots = visits.filter { it.hasParkingRow() && it.parking.isNotEmpty() }
+    val others = withLots.sumOf { it.parking.size - 1 }
+    val label = when {
+        withLots.isEmpty() -> "주차 정보 없음"
+        others > 0 -> "주차 ${withLots.size}곳 · 대체 ${others}곳"
+        else -> "주차 ${withLots.size}곳"
+    }
+    return CourseTag(label, CourseTag.Kind.PARKING, withLots.isNotEmpty())
+}
+
+/** 접힌 주차 줄의 주차장: 고른 곳(없으면 추천). 주차 줄이 없는 행(귀가·주유)과 정보 없는 장소는 null. */
+internal fun parkingRowLot(stop: CourseStop): StopParking? = if (stop.hasParkingRow()) stop.chosenParking() else null
+
+/** 요금 한 줄. 모르면 "요금 정보 없음" (카카오에서 온 곳). */
+internal fun feeLabel(lot: StopParking): String = lot.feeSummary.ifBlank { "요금 정보 없음" }
+
+/** 접힌 줄 보조 글: "식사 시 2시간 무료 · 도보 1분" → 앱: "30분 400원·일 최대 6,000원 · 도보 6분" */
+internal fun parkingRowDetail(lot: StopParking): String = "${feeLabel(lot)} · 도보 ${lot.walkMinutes}분"
+
+/** 펼친 추천 칸 둘째 줄: "공영 · 5분 400원 · 일 최대 6,000원 · 도보 6분". 도착 때 운영하지 않으면 덧붙인다. */
+internal fun parkingCardDetail(lot: StopParking): String = listOfNotNull(
+    lot.kind,
+    feeLabel(lot),
+    "도보 ${lot.walkMinutes}분",
+    lot.capacity?.let { "${it}면" },
+    "도착 때 운영 안 함 (${lot.hours})".takeIf { lot.openAtArrival == false },
+).joinToString(" · ")
+
+/** "대체 2곳": 고른 곳 말고 고를 수 있는 수. 없으면 null. */
+internal fun parkingOthersLabel(stop: CourseStop): String? = (stop.parking.size - 1).takeIf { it > 0 }?.let { "대체 ${it}곳" }
+
+/** "다른 주차장 · 덕수궁까지 걷는 거리순" 목록: 걷는 거리 가까운 순(같으면 서버 순서). */
+internal fun parkingChoices(stop: CourseStop): List<StopParking> = stop.parking.sortedBy { it.distanceMeters }
+
+/** 라디오 줄 보조 글: "도보 6분 · 5분 400원" (요금은 첫 항목만, 모르면 "요금 정보 없음") */
+internal fun parkingChoiceDetail(lot: StopParking): String =
+    "도보 ${lot.walkMinutes}분 · " + (lot.feeSummary.substringBefore("·").trim().ifBlank { "요금 정보 없음" })

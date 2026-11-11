@@ -3,6 +3,7 @@ package io.github.haeyeonyou.familytrip.guide
 import android.content.Context
 import io.github.haeyeonyou.familytrip.data.CourseStop
 import io.github.haeyeonyou.familytrip.data.VisitStore
+import io.github.haeyeonyou.familytrip.data.arrivalPoint
 import io.github.haeyeonyou.familytrip.location.LocationRepository
 import io.github.haeyeonyou.familytrip.navi.NaviRepository
 import io.github.haeyeonyou.familytrip.navi.Place
@@ -101,7 +102,7 @@ class GuideSession(
         scope.launch { _state.collect(::persist) }
         // 저장해 둔 안내를 이어 간다: 아직 도착하지 않은 목적지의 도착 판정을 다시 건다 (내비 경로는 내비가 가지고 있다).
         _state.value.current?.takeIf { _state.value.active && !_state.value.arrived }?.let { stop ->
-            val place = Place(stop.place.name, stop.place.latitude, stop.place.longitude)
+            val place = stop.arrivalPoint().let { Place(stop.place.name, it.latitude, it.longitude) } // 고른 주차장이 도착지 (#250)
             location.watchArrival(place)
             GuideService.update(context, "${stop.place.name}(으)로 가는 중")
         }
@@ -225,7 +226,7 @@ class GuideSession(
         // 앱이 뒤에 있어도 도착 판정이 돌도록 안내 중에는 포그라운드 서비스를 유지한다.
         val label = if (stop.role == "home") "귀가" else ROLE_LABELS[stop.role]
         GuideService.update(context, "$label · ${stop.place.name}(으)로 가는 중")
-        val place = Place(stop.place.name, stop.place.latitude, stop.place.longitude)
+        val place = stop.arrivalPoint().let { Place(stop.place.name, it.latitude, it.longitude) } // 고른 주차장이 도착지 (#250)
         navi.requestRoute(place)
         // 안내 중에는 지도가 보여야 하므로 내장 내비를 앞으로 가져온다.
         // 귀가는 코스가 끝난 뒤라 H04(코스 요약)를 먼저 보이고, 안내는 내비가 뒤에서 이어 간다 ("Pleos 내비로 안내를 넘겼어요").
