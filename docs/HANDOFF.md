@@ -188,7 +188,7 @@
 | 홈 H01 주행 가능 거리 타일 + 연료 부족 시 주유소·충전소 자동 경유지 (감사 P-4 필수, QP1·QP4) | ✅ 완료(2026-11-11): 서버 판정·자동 넣기·`/course/fuel`, 앱 연료 타일·[여기 들르기], 유아의자 문구, 에뮬레이터 확인. QP2 기준은 디자이너 답 대기(상수 하나). P-5 반경 50km 슬라이더는 서버 검색 반경 20km 상한 때문에 보류 | #215 · PR #223 · `feature/215-home-fuel` | [1111-home-fuel.md](docs/agent-tasks/1111-home-fuel.md) |
 | 코스 진행 H03 도착·H03-1 마지막 장소·H04 코스 종료 (감사 P-1~P-3 필수) | ✅ 완료: H03·H03-1·H04 새 화면, 장소 바꾸기·한 곳 더·귀가·여기서 끝내기, 음성 답, 서버 `/me/trip`·웹 홈 카드, 안내 상태 저장·오늘 코스만 이어 가기. 확인 못 함: 실차 시동 꺼짐·TTS 소리 | #218 · PR #226 · `feature/218-course-progress` | [1111-course-progress.md](docs/agent-tasks/1111-course-progress.md) |
 | 코스 지도를 가상 배경 + 경로선으로 (홈 미리보기·코스 상세·진행 지도, 카카오맵 제거) | ✅ 완료 (#231, 곡선 #233, Figma 맞춤 #239) | PR #232 · #235 · #241 (`feature/239-course-map-figma`) | [1112-course-map-virtual.md](docs/agent-tasks/1112-course-map-virtual.md) |
-| 방문 기록·경험 젤리 숫자를 화면마다 같게 (통합 테스트 문제, 접수 전 필수) | ⏳ 진행 중(jelly-count 세션) | 이슈 #234 | [234-jelly-count-mismatch.md](docs/agent-tasks/234-jelly-count-mismatch.md) |
+| 방문 기록·경험 젤리 숫자를 화면마다 같게 (통합 테스트 문제, 접수 전 필수) | ✅ 완료(2026-11-12): H04·홈 타일·G01·G03·음성이 `JellyModel` 10분 규칙 하나로 셈, H04 0개 문구·실제 머문 분, 식사·카페도 `role`과 함께 서버 업로드(서버 `visit_records.role`, **서버 반영 시 `alembic upgrade head` 필요**). 남은 일: 짧은 시뮬레이션 시연에서 그로우가 비는 문제 처리 방법 사용자 결정(PR #242 본문 3안), 폰 웹 그로우 브라우저 확인 | #234 · PR #242 · `feature/234-jelly-count` | [234-jelly-count-mismatch.md](docs/agent-tasks/234-jelly-count-mismatch.md) |
 | NAS 배포와 Claude Code 자동 배포 확인 | ⏳ 진행 중(nas-deploy 세션) | 이슈 #15 | [15-nas-deploy.md](docs/agent-tasks/15-nas-deploy.md) |
 | 좁은 창(분할 화면)용 배치 | ⏳ 진행 중(narrow-layout 세션) | (세션이 정함) | [1112-narrow-layout.md](docs/agent-tasks/1112-narrow-layout.md) |
 

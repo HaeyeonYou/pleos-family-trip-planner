@@ -141,7 +141,7 @@ def test_visits_upload_confirm_summary_and_privacy():
             all_visits = (await mom.get("/me/visits")).json()
             assert len(all_visits) == 2
             # 받지 않는 정보는 응답에도 없다: 좌표·음성·도착 시각
-            assert set(all_visits[0]) == {"id", "place_key", "place_name", "theme", "category", "jelly", "visited_on", "stayed_minutes", "status", "mood"}
+            assert set(all_visits[0]) == {"id", "place_key", "place_name", "theme", "category", "jelly", "visited_on", "stayed_minutes", "role", "status", "mood"}
             extra = visit("몰래", "nature", "2026-11-01") | {"latitude": 37.5, "longitude": 127.0, "voice_url": "x"}
             saved = (await mom.put(f"/me/visits/{uuid.uuid4()}", json=extra)).json()
             assert "latitude" not in saved and "voice_url" not in saved
@@ -242,6 +242,32 @@ def test_visits_carry_server_jelly_and_map_groups_by_jelly():
             assert move["places"][0]["place_name"] == "블루타이거 서초" and move["places"][0]["visits"] == 2
             assert sum(j["experiences"] for j in m["jellies"]) == 6  # 5분 머문 곳은 빠진다
             assert "water" in m["empty_jellies"] and "move" not in m["empty_jellies"] and len(m["jellies"]) + len(m["empty_jellies"]) == 12
+
+    run(scenario)
+
+
+def test_meal_and_cafe_visits_count_like_the_car():
+    """식사·카페 방문 (#234): 차 앱과 같은 규칙으로 10분 이상 머물면 맛 탐험 경험. 북카페는 분류대로 책. 역할을 안 보내면 나들이."""
+    async def scenario(client):
+        async with phone(client) as mom:
+            await signup(mom, "mom_meal")
+            rows = [
+                visit("소담 한식당", None, "2026-11-11", key="kakao:1", category="음식점 > 한식", role="meal", stayed_minutes=45),
+                visit("모닝 베이커리", None, "2026-11-11", key="kakao:2", category="", role="cafe", stayed_minutes=30),  # 분류 없어도 역할로 맛 탐험
+                visit("그림책 북카페", None, "2026-11-11", key="kakao:3", category="음식점 > 카페 > 테마카페 > 북카페", role="cafe", stayed_minutes=20),
+                visit("고산근린공원", "nature", "2026-11-11", key="tour:9", stayed_minutes=3),  # 3분: 경험 아님
+                visit("빠른 김밥", None, "2026-11-11", key="kakao:4", category="음식점 > 분식", role="meal", stayed_minutes=6),  # 6분: 경험 아님
+            ]
+            assert (await mom.post("/me/visits/bulk", json={"visits": rows})).status_code == 200
+            got = {v["place_name"]: v for v in (await mom.get("/me/visits")).json()}
+            assert got["소담 한식당"]["role"] == "meal" and got["소담 한식당"]["jelly"] == "food"
+            assert got["모닝 베이커리"]["jelly"] == "food"
+            assert got["그림책 북카페"]["jelly"] == "book"
+            assert got["고산근린공원"]["role"] == "outing"
+            m = (await mom.get("/me/experience-map")).json()
+            assert sum(j["experiences"] for j in m["jellies"]) == 3
+            assert {j["jelly"]: j["experiences"] for j in m["jellies"]} == {"food": 2, "book": 1}
+            assert (await mom.put(f"/me/visits/{got['소담 한식당']['id']}", json=visit("소담 한식당", None, "2026-11-11", role="lunch"))).status_code == 422
 
     run(scenario)
 

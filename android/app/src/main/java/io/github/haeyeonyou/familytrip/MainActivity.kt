@@ -674,6 +674,7 @@ class MainActivity : ComponentActivity() {
                                 weather = state.weather,
                                 origin = state.courseOrigin,
                                 homeRemainingSeconds = navi.remainingSeconds.takeIf { navi.routing },
+                                visits = remember(visitRevision) { container.visits.all() },
                                 actions = GuideActions(
                                     onBack = ::leaveGuide,
                                     onShowMap = container.navi::showNavigation,
