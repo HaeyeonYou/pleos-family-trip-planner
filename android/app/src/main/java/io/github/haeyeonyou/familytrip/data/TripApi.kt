@@ -347,12 +347,17 @@ interface TripApi {
     @GET("presets")
     suspend fun presets(): List<PresetState>
 
-    /** 정차 중 차에서 고친 설정을 슬롯에 저장한다. 이미 차에 적용된 값이라 [appliedOnCar]=true. */
+    /** 가족 기본값과 아이마다의 모드 3개 (#192). 이 API가 없는 예전 서버는 404. */
+    @GET("presets/children")
+    suspend fun childPresets(): List<ChildPresets>
+
+    /** 정차 중 차에서 고친 설정을 슬롯에 저장한다. 이미 차에 적용된 값이라 [appliedOnCar]=true. [childId]가 null이면 가족 기본값. */
     @PUT("presets/{slot}")
     suspend fun putPreset(
         @Path("slot") slot: String,
         @Body settings: ClimateSettings,
         @Query("applied_on_car") appliedOnCar: Boolean = true,
+        @Query("child_id") childId: String? = null,
     ): PresetState
 
     // 방문 기록 (서버 app/visits.py)

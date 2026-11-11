@@ -50,7 +50,7 @@ import io.github.haeyeonyou.familytrip.data.ClimateSettings
 import io.github.haeyeonyou.familytrip.data.PresetState
 
 /**
- * 모드 편집 시트 (C08, 800x766 앱 프레임 (228,60)). 탭 3개(베이비케어 기본 · 낮잠·수면 · 수유 정차) × 목표 온도 · 풍량 · 음량.
+ * 모드 편집 시트 (C08, 800x766 앱 프레임 (228,60)). [presets]는 한 아이의 모드 3개이고 [childName]이 그 아이다 (QO5, 모드 값은 아이별). 탭 3개(베이비케어 기본 · 낮잠·수면 · 수유 정차) × 목표 온도 · 풍량 · 음량.
  * 탭을 바꿔도 고친 값은 남고, 저장하면 바뀐 모드만 서버(웹앱과 같은 값)에 올린다. 정차 중에만 연다.
  */
 @Composable
@@ -59,6 +59,7 @@ fun BoxScope.ModeEditSheet(
     initialSlot: String,
     error: String?,
     onSave: (Map<String, ClimateSettings>) -> Unit,
+    childName: String? = null,
     onDismiss: () -> Unit,
 ) {
     val s = SitterSurface.current
@@ -81,8 +82,8 @@ fun BoxScope.ModeEditSheet(
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {}
             .padding(start = 32.dp, top = 28.dp, end = 32.dp, bottom = 16.dp),
     ) {
-        Text("모드 편집", style = SitterText.Title1, color = s.ink)
-        Text("정차 중에만 바꿀 수 있어요 · 웹앱에서도 같은 값으로 바뀌어요", style = SitterText.Caption, color = s.inkMute, modifier = Modifier.padding(top = 6.dp))
+        Text(childName?.takeIf { it.isNotBlank() }?.let { "$it · 모드 편집" } ?: "모드 편집", style = SitterText.Title1, color = s.ink)
+        Text(if (childName.isNullOrBlank()) "정차 중에만 바꿀 수 있어요 · 웹앱에서도 같은 값으로 바뀌어요" else "${childName}의 값이에요 · 정차 중에만 바꿀 수 있어요 · 웹앱에서도 같은 값으로 바뀌어요", style = SitterText.Caption, color = s.inkMute, modifier = Modifier.padding(top = 6.dp))
         Segments(
             options = slots.map { slot -> modeTabLabel(slot) + if (original[slot] != drafts[slot]) " •" else "" },
             selected = slots.indexOf(tab),
