@@ -198,6 +198,7 @@ fun CareScreen(
             ModeEditSheet(
                 presets = state.presets,
                 childName = child?.name?.takeIf { children.size > 1 },
+                departureAt = state.course?.departureAt,
                 initialSlot = slot,
                 error = modeSaveError,
                 onSave = { edits ->

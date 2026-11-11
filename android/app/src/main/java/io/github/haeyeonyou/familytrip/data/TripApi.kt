@@ -233,6 +233,11 @@ data class ClimateSettings(
     @EncodeDefault @SerialName("steering_wheel_heat") val steeringWheelHeat: Int = 0,
     /** 미디어 음량(0~100 %). null이면 음량은 건드리지 않는다. */
     @EncodeDefault @SerialName("media_volume") val mediaVolume: Int? = null,
+    /**
+     * 적용 시점 (C08, #168): boarding 탑승하면 바로 / departure 출발 시각 / manual 직접 실행. 서버는 프리셋의 `apply_at`으로 따로 두고,
+     * 앱은 편집·저장 대기열이 한 묶음으로 다루게 여기에 함께 싣는다 ([withApplyAt]). null이면 보내지 않아 서버 값을 그대로 둔다. 공조에는 쓰지 않는다.
+     */
+    @SerialName("apply_at") val applyAt: String? = null,
 )
 
 // 급한 케어 찾기 (서버 app/care.py)

@@ -137,6 +137,10 @@ class TripViewModel(private val container: AppContainer) : ViewModel() {
     val guide = container.guide.state
 
     init {
+        // 고른 코스의 출발 시각에 적용 시점 '출발 시각'인 케어 모드를 켠다 (C08, #168).
+        viewModelScope.launch {
+            _state.map { it.course?.departureAt }.distinctUntilChanged().collect { container.care.planDeparture(it) }
+        }
         // 케어 탭에서 수유를 기록하면 홈의 수유 카드도 같은 값을 본다.
         viewModelScope.launch {
             container.care.state.map { it.feeding }.distinctUntilChanged().collect { f ->

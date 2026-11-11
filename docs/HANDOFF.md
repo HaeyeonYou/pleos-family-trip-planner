@@ -171,13 +171,14 @@
 | 작업 | 상태 | 브랜치·PR | 지시·기록 파일 |
 |---|---|---|---|
 | 홈 H01 · 코스 상세 H02 · 대체 장소 H02-1 | ✅ 완료(2026-11-10): H01·H02·H02-1·경유지 편집(H02-1 안에서)·서버 #160 값 반영 | #149 · PR #153, #158, #161, #173 | [home-h01-h02.md](docs/agent-tasks/home-h01-h02.md) |
-| 케어 C01~C12 | ✅ 12화면 모두 에뮬레이터 확인·병합 (2026-11-10). 1차 PR #156, 2차 C09~C12 #166 · C08 #169 · C03 #171 · C04 #172 · C07 #174. 남은 일: 적용 시점 서버 필드 #168, 주행 중 전환·실차 확인 | #150 | [care-c01.md](docs/agent-tasks/care-c01.md) |
+| 케어 C01~C12 | ✅ 12화면 모두 에뮬레이터 확인·병합 (2026-11-10). 1차 PR #156, 2차 C09~C12 #166 · C08 #169 · C03 #171 · C04 #172 · C07 #174. 남은 일: 주행 중 전환·실차 확인 (적용 시점은 #168 완료) | #150 | [care-c01.md](docs/agent-tasks/care-c01.md) |
 | 주행 중 음성 1곳 제안 D01 | ✅ 에뮬레이터 모양 확인·보정 병합(2026-11-10), 실차 확인 남음 | #151 · PR #152, #158 | [drive-voice-d01.md](docs/agent-tasks/drive-voice-d01.md) |
 | 그로우 G01 경험 우주 + 젤리 12종 성장 | ✅ 에뮬레이터 확인·병합, 원본 젤리 그림 반영(#181, 2026-11-11). 서버 12분류·그로우 음성 명령은 다른 세션 | #164 · PR #170, #181 | [164-grow-g01.md](docs/agent-tasks/164-grow-g01.md) |
 | 그로우 음성 명령 (기간·분류 보기, 다시 가볼 곳, ○○ 다시 가자) | ✅ 서버 의도·규칙 해석, 앱 연결, 에뮬레이터 정차·주행(D01) 확인 (2026-11-11). 남은 일: grow_go 화면 흐름·실제 STT 확인 | #185 · PR #189 | [185-grow-voice.md](docs/agent-tasks/185-grow-voice.md) |
 | Figma 11/10 디자인 변경 감시 (주기 확인·기록·세션 전달) | 🔶 3시간 주기 감시 중, 기준선 저장(2026-11-11). 온보딩 O01~O06 정리 → [1110-onboarding-o01.md](docs/agent-tasks/1110-onboarding-o01.md) | #157 · `feature/157-figma-watch` | [157-figma-watch.md](docs/agent-tasks/157-figma-watch.md) |
 | 온보딩 O01~O06 (차 앱·서버 생년월일 일·카시트·케어 장소 API·웹 S02) | ✅ 에뮬레이터 확인·병합(2026-11-11). QO5(아이별 모드 값)는 임시로 가족 공통 | #184 · PR #187, #190 | [1110-onboarding-o01.md](docs/agent-tasks/1110-onboarding-o01.md) |
-| 케어 모드 값 아이별 (QO5: 서버 `child_id`·웹, 앱 O05·C07·C08·공조) | ✅ 완료(2026-11-11): 서버·웹 아이별 프리셋, 앱 O05 카드별 값·바꾸기, C07·C08·공조가 고른 아이 값, 에뮬레이터 아이 2명 확인. 서버 반영 시 `alembic upgrade head`. #168 적용 시점은 결정 대기 | #192 · PR #193, #194 | [192-child-care-mode.md](docs/agent-tasks/192-child-care-mode.md) |
+| 케어 모드 값 아이별 (QO5: 서버 `child_id`·웹, 앱 O05·C07·C08·공조) | ✅ 완료(2026-11-11): 서버·웹 아이별 프리셋, 앱 O05 카드별 값·바꾸기, C07·C08·공조가 고른 아이 값, 에뮬레이터 아이 2명 확인. 서버 반영 시 `alembic upgrade head`. #168 적용 시점은 아래 행 | #192 · PR #193, #194 | [192-child-care-mode.md](docs/agent-tasks/192-child-care-mode.md) |
+| 케어 모드 적용 시점 (C08 탑승하면 바로·출발 시각·직접 실행, 서버 `apply_at`) | ✅ 완료(2026-11-11): 서버·웹·앱 C08 같은 값, 탑승(앱 실행) 때 자동 켜기 에뮬레이터 확인, 출발 시각=고른 코스 출발 시각(단위 테스트만). 서버 반영 시 `alembic upgrade head` | #168 · PR #200, 앱 PR | [168-preset-apply-at.md](docs/agent-tasks/168-preset-apply-at.md) |
 | 서버: 대체 후보 우회 시간·거리, 재계산 뒤 나들이 후보 | ✅ 완료 (2026-11-10), 앱 반영은 home-finish 몫 | #160 · `feature/160-server-detour` | [160-server-detour.md](docs/agent-tasks/160-server-detour.md) |
 | 서버: 그로우 젤리 12분류 판정·앱/웹 반영 | ✅ 완료 (2026-11-11). 코스 장소·방문 기록에 `jelly`, 앱 `classify` 서버 값 우선, 웹 그로우 12분류. 서버 반영 시 `alembic upgrade head` 필요 | #186 · `feature/186-server-jelly12` | [186-server-jelly12.md](docs/agent-tasks/186-server-jelly12.md) |
 | 전체 감사: Figma(11/10) ↔ 실제 앱 (기능·디자인 부족분) | ✅ 완료(2026-11-11, main `dc6e85c` 기준): 필수 8·좋음 31·나중 21. 상위: 그로우 최신 '경험 젤리' 안, 앱 아이콘, 날씨 아이콘, 첫 실행 알림 띠, 음성 패널 | #196 · PR #197 | [2026-11-11-full-audit.md](docs/agent-tasks/2026-11-11-full-audit.md) · [감사 문서](docs/audit/2026-11-11-figma-vs-app.md) |

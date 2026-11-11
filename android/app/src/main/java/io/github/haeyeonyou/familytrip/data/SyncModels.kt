@@ -131,6 +131,8 @@ data class PresetState(
     /** 이 값의 아이(서버 아이 id). null이면 가족 기본값 (예전 서버이거나 서버와 아직 안 맞춘 아이). */
     @SerialName("child_id") val childId: String? = null,
     @SerialName("when") val whenLabel: String = "",
+    /** 적용 시점 (boarding · departure · manual, #168). 예전 서버면 없음 → 슬롯 기본값 ([io.github.haeyeonyou.familytrip.care.applyAtOf]) */
+    @SerialName("apply_at") val applyAt: String? = null,
     val sent: Boolean = false,
     val id: String? = null,
     val settings: ClimateSettings = ClimateSettings(),
