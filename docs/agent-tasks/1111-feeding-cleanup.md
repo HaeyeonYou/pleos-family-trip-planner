@@ -1,6 +1,6 @@
 # 수유 표시를 아이 월령으로 나누기 (2026-11-11 지시서, QD1 결정으로 목표 변경)
 
-- 상태: **✅ 완료(2026-11-11, 이슈 #217, 브랜치 `feature/217-feeding-by-age`)** · 접수 전 필수: **예**(H-12)
+- 상태: **✅ 완료(2026-11-11, 이슈 #217, PR #221, 브랜치 `feature/217-feeding-by-age`)** · 접수 전 필수: **예**(H-12)
 - 근거: 감사 `docs/audit/2026-11-11-figma-vs-app.md` 1절 7위(H-12 + H-15, O-13, W-5, 설정 루틴), 2절 "의도된 차이"(수유 기록 기능 삭제 예정), 3-4절 C-6·C-12, 6절 F-7.
 - child-mode 세션과 파일 겹침: **겹침** — `ui/CareScreen.kt`, `ui/TripViewModel.kt`, `care/CareController.kt`, `data/SyncModels.kt`·`TripApi.kt`(2026-11-11 그 세션 작업 트리에서 수정 중), 또 `data/FeedingStore.kt`·`FeedingSync.kt`(그 세션이 아이별로 바꾼 파일). child-mode(#168 적용 시점) PR이 병합된 뒤 그 main에서 시작한다.
 
