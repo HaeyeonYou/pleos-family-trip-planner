@@ -133,18 +133,24 @@ fun GuideScreen(
                 )
             }
         }
-        Row(
-            Modifier.padding(start = SitterGrid.MARGIN.dp, top = 120.dp, end = SitterGrid.MARGIN.dp, bottom = SitterGrid.MARGIN.dp).fillMaxSize(),
-            horizontalArrangement = Arrangement.spacedBy(SitterGrid.GAP.dp),
-        ) {
-            if (stage == GuideStage.FINISHED) {
-                FinishedCard(state, visits, Modifier.width(SitterGrid.DOUBLE_W.dp).fillMaxHeight())
-                Column(Modifier.width(SitterGrid.COLUMN_W.dp).fillMaxHeight()) { FinishedSide(state, homeRemainingSeconds, actions) }
-            } else {
-                SitterCard(Modifier.width(SitterGrid.DOUBLE_W.dp).fillMaxHeight(), contentPadding = PaddingValues(start = 32.dp, top = 28.dp, end = 32.dp, bottom = 20.dp)) {
+        // 본문 (y 120): 넓은 카드 800 + 3열 392. 좁은 창에서는 쌓고, 후보 목록을 열면 3열로 스크롤한다.
+        if (stage == GuideStage.FINISHED) {
+            SitterWideAndColumn(
+                top = GUIDE_BODY_TOP,
+                thirdWrapsWhenStacked = true,
+                wide = { FinishedCard(state, visits, Modifier.fillMaxSize()) },
+                third = { FinishedSide(state, homeRemainingSeconds, actions) },
+            )
+        } else {
+            SitterWideAndColumn(
+                top = GUIDE_BODY_TOP,
+                focusThird = picker != null,
+                wide = {
+                SitterCard(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 32.dp, top = 28.dp, end = 32.dp, bottom = 20.dp)) {
                     if (stage == GuideStage.HEADING) Heading(state, actions) else Arrived(state, stage, sameCourse, picker, loading, actions)
                 }
-                Column(Modifier.width(SitterGrid.COLUMN_W.dp).fillMaxHeight()) {
+                },
+                third = {
                     val current = state.current
                     when {
                         picker == GuidePicker.SWAP && sameCourse != null && state.nextVisit != null -> {
@@ -158,13 +164,16 @@ fun GuideScreen(
                         }
                         else -> MapAndRemaining(state, sameCourse, error)
                     }
-                }
-            }
+                },
+            )
         }
     }
 }
 
 private const val ROLE_KEEP = ""
+
+/** 코스 진행 본문 시작 y (머리 줄 아래) */
+private const val GUIDE_BODY_TOP = 120
 
 // ───────────── 가는 중 ─────────────
 
@@ -217,19 +226,20 @@ private fun ColumnScope.Arrived(
     Text("다음엔 어떻게 할까요?", style = SitterText.Title3, color = s.ink, modifier = Modifier.padding(bottom = 14.dp))
     val home = state.stops.lastOrNull()?.takeIf { it.role == "home" }
     val homeLine = "우리 집 · ${home?.driveMinutes ?: "--"}분 · 코스 끝"
-    Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+    // 좁은 창(분할 화면): 카드 3개를 가로로 나누면 글자가 잘려서, 한 줄짜리 카드로 세로로 쌓는다 (#245)
+    ChoiceGroup(sitterStacked()) {
         if (!last) {
             val next = state.nextVisit
-            ChoiceCard(SitterIcons.Nav, "다음 장소로", "${next?.place?.name} · ${next?.driveMinutes}분 거리", primary = picker == null, enabled = !loading, onClick = actions.onNext)
+            ChoiceCard(it, SitterIcons.Nav, "다음 장소로", "${next?.place?.name} · ${next?.driveMinutes}분 거리", primary = picker == null, enabled = !loading, onClick = actions.onNext)
             ChoiceCard(
-                SitterIcons.Pencil, "장소 바꾸기", "${next?.place?.name} 대신 다른 곳",
+                it, SitterIcons.Pencil, "장소 바꾸기", "${next?.place?.name} 대신 다른 곳",
                 primary = picker == GuidePicker.SWAP, enabled = !loading && course != null && !course.alternatives[next?.role].isNullOrEmpty(),
             ) { actions.onPicker(if (picker == GuidePicker.SWAP) null else GuidePicker.SWAP) }
-            ChoiceCard(SitterIcons.Home, "귀가", homeLine, primary = false, enabled = !loading, onClick = actions.onGoHome)
+            ChoiceCard(it, SitterIcons.Home, "귀가", homeLine, primary = false, enabled = !loading, onClick = actions.onGoHome)
         } else {
-            ChoiceCard(SitterIcons.Home, "귀가", homeLine, primary = picker == null, enabled = !loading, onClick = actions.onGoHome)
+            ChoiceCard(it, SitterIcons.Home, "귀가", homeLine, primary = picker == null, enabled = !loading, onClick = actions.onGoHome)
             ChoiceCard(
-                SitterIcons.Plus, "한 곳 더 가기", "근처 추천 장소 고르기",
+                it, SitterIcons.Plus, "한 곳 더 가기", "근처 추천 장소 고르기",
                 primary = picker == GuidePicker.MORE, enabled = !loading && course != null && addCandidates(course).isNotEmpty(),
             ) { actions.onPicker(if (picker == GuidePicker.MORE) null else GuidePicker.MORE) }
         }
@@ -269,19 +279,41 @@ private fun Chip(text: String, strong: Boolean = false) {
     )
 }
 
+/** 선택 카드 묶음: 넓으면 가로로 나눠 높이 180, [stacked]면 한 줄 카드(높이 88)를 세로로 쌓는다. */
 @Composable
-private fun RowScope.ChoiceCard(icon: ImageVector, title: String, sub: String, primary: Boolean, enabled: Boolean, onClick: () -> Unit) {
+private fun ChoiceGroup(stacked: Boolean, cards: @Composable (ChoiceLayout) -> Unit) {
+    if (stacked) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) { cards(ChoiceLayout(Modifier.fillMaxWidth(), compact = true)) }
+    } else {
+        Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) { cards(ChoiceLayout(Modifier.weight(1f), compact = false)) }
+    }
+}
+
+private class ChoiceLayout(val modifier: Modifier, val compact: Boolean)
+
+@Composable
+private fun ChoiceCard(layout: ChoiceLayout, icon: ImageVector, title: String, sub: String, primary: Boolean, enabled: Boolean, onClick: () -> Unit) {
     val s = SitterSurface.current
-    Column(
-        Modifier
-            .weight(1f)
-            .height(180.dp)
-            .clip(SitterShapes.Row)
-            .background(if (primary) s.primarySoft else s.card)
-            .border(if (primary) 2.dp else 1.5.dp, if (primary) s.primary else s.line, SitterShapes.Row)
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(24.dp),
-    ) {
+    val box = layout.modifier
+        .height(if (layout.compact) 88.dp else 180.dp)
+        .clip(SitterShapes.Row)
+        .background(if (primary) s.primarySoft else s.card)
+        .border(if (primary) 2.dp else 1.5.dp, if (primary) s.primary else s.line, SitterShapes.Row)
+        .clickable(enabled = enabled, onClick = onClick)
+    if (layout.compact) {
+        Row(box.padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier.size(52.dp).clip(CircleShape).background(if (primary) s.primary else s.tile),
+                contentAlignment = Alignment.Center,
+            ) { SitterIcon(icon, if (primary) Color.White else if (enabled) s.inkSoft else s.inkMute, size = SitterIconSize.Medium) }
+            Column(Modifier.padding(start = 16.dp).weight(1f)) {
+                Text(title, style = SitterText.Title2, color = if (!enabled) s.inkMute else if (primary) s.primary else s.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(sub, style = SitterText.Body2, color = if (primary) s.primary else s.inkSoft, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+        return
+    }
+    Column(box.padding(24.dp)) {
         Box(
             Modifier.size(52.dp).clip(CircleShape).background(if (primary) s.primary else s.tile),
             contentAlignment = Alignment.Center,

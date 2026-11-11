@@ -49,7 +49,8 @@ fun DrivingVoiceCard(
             Column(
                 modifier = Modifier
                     .align(Alignment.Center)
-                    .size(width = 1000.dp, height = 660.dp)
+                    // 좁은 창(분할 화면): 캔버스 폭에 맞춘다. 높이는 그대로라 큰 버튼 2개가 첫 화면에 보인다.
+                    .then(if (sitterStacked()) Modifier.padding(horizontal = 24.dp).fillMaxWidth().height(660.dp) else Modifier.size(width = 1000.dp, height = 660.dp))
                     .clip(SitterShapes.Sheet)
                     .background(s.card)
                     .padding(horizontal = 40.dp, vertical = 38.dp),
