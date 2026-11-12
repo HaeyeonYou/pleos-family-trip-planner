@@ -220,4 +220,31 @@ class CourseProgressTest {
         val withFuel = guide(2).copy(stops = stops.take(1) + fuel + stops.drop(1), visited = setOf(0, 1, 2))
         assertEquals(listOf("올데이 브런치", "덕수궁"), visitedStops(withFuel).map { it.place.name })
     }
+    @Test
+    fun `장소 바꾸기 목록은 서버 대체 후보를 번호 · 지금 장소에서 거리 · 경로 위나 +N분 · 유아의자 태그로 보인다 (11-12 새 판)`() {
+        val all = mapOf("stroller" to "available", "nursing_room" to "available", "kids_chair" to "available")
+        // 덕수궁(나들이)의 대체 후보: 서버 detour_minutes 0(경로 위)과 2, 조건 일부만 있는 곳
+        val museum = place("서울시립미술관", 37.5640, 126.9737).copy(amenities = all, distanceM = 300, detourMinutes = 0)
+        val park = place("정동공원", 37.5660, 126.9700).copy(amenities = all, distanceM = 500, detourMinutes = 2)
+        val gallery = place("작은 화랑", 37.5700, 126.9800).copy(amenities = mapOf("stroller" to "available"), distanceM = 800, detourMinutes = 1)
+        val course = CourseResponse(
+            stops = stops.mapIndexed { i, st -> if (i == 1) st.copy(place = palace.copy(amenities = all)) else st },
+            totalDriveMinutes = 92, returnAt = "14:40", routeSource = "test",
+            alternatives = mapOf("outing" to listOf(gallery, park, museum)),
+        )
+        val options = swapOptions(guide(0), course, origin = null)
+        // 수유실·유모차 조건을 지키는 곳 먼저, 그다음 덜 돌아가는 순 (H02-1과 같은 순서)
+        assertEquals(listOf("서울시립미술관", "정동공원", "작은 화랑"), options.map { it.place.name })
+        assertEquals(listOf(1, 2, 3), options.map { it.number })
+        assertTrue(options[0].onRoute)
+        assertEquals(listOf("유모차", "수유실", "유아의자"), options[0].tags)
+        assertEquals(listOf("유모차"), options[2].tags)
+        // 거리는 지금 있는 올데이 브런치에서 잰다 (서버 distance_m은 덕수궁에서 잰 값이라 쓰지 않음)
+        val first = options[0]
+        assertTrue(first.distanceM in 100..300)
+        assertEquals("${first.distanceM}m · ${first.driveMinutes}분 · 경로 위", swapMeta(first))
+        assertEquals("1.5km · 4분 · +2분", swapMeta(first.copy(distanceM = 1500, driveMinutes = 4, detourMinutes = 2)))
+        // 마지막 장소에서는 바꿀 다음 장소가 없다
+        assertTrue(swapOptions(guide(2), course, origin = null).isEmpty())
+    }
 }

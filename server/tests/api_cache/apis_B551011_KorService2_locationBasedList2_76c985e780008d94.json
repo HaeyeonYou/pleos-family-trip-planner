@@ -1,0 +1,6 @@
+{
+ "request": "GET apis.data.go.kr/B551011/KorService2/locationBasedList2?MobileApp=FamilyTrip&MobileOS=ETC&_type=json&arrange=E&contentTypeId=14&mapX=127.0276&mapY=37.81266&numOfRows=60&pageNo=1&radius=20000",
+ "status": 200,
+ "content_type": "application/json",
+ "body": "{\"response\": {\"header\":{\"resultCode\":\"0000\",\"resultMsg\":\"OK\"},\"body\": {\"items\": {\"item\":[{\"addr1\":\"경기도 파주시 법원읍 초리골길 278\",\"addr2\":\"\",\"zipcode\":\"10826\",\"areacode\":\"31\",\"cat1\":\"A02\",\"cat2\":\"A0206\",\"cat3\":\"A02060100\",\"contentid\":\"130417\",\"contenttypeid\":\"14\",\"createdtime\":\"20071106105624\",\"dist\":\"12682.844475529391\",\"firstimage\":\"http://tong.visitkorea.or.kr/cms/resource/89/3514189_image2_1.jpg\",\"firstimage2\":\"http://tong.visitkorea.or.kr/cms/resource/89/3514189_image3_1.jpg\",\"cpyrhtDivCd\":\"Type1\",\"mapx\":\"126.8960036269\",\"mapy\":\"37.8567856366\",\"mlevel\":\"6\",\"modifiedtime\":\"20250729173719\",\"sigungucode\":\"27\",\"tel\":\"\",\"title\":\"두루뫼박물관\",\"lDongRegnCd\":\"41\",\"lDongSignguCd\":\"480\",\"lclsSystm1\":\"VE\",\"lclsSystm2\":\"VE07\",\"lclsSystm3\":\"VE070100\"}]},\"numOfRows\":1,\"pageNo\":1,\"totalCount\":1}}}"
+}

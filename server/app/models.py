@@ -163,6 +163,8 @@ class VisitRecord(Base):
     category: Mapped[str] = mapped_column(String(120), default="", server_default="")
     visited_on: Mapped[date] = mapped_column(Date)
     stayed_minutes: Mapped[int | None] = mapped_column(Integer, default=None)
+    # outing(나들이) / meal(식사) / cafe(카페). 식사·카페도 경험 젤리(맛 탐험)가 되어 차와 같은 수를 센다 (#234). 예전 기록은 outing
+    role: Mapped[str] = mapped_column(String(8), default="outing", server_default="outing")
     # confirmed(방문 확정) / pending(다녀왔는지 확인 대기) / dismissed(안 갔어요)
     status: Mapped[str] = mapped_column(String(10), default="confirmed")
     # excited / normal / sleepy / bad (아이 기분 한 번 탭)

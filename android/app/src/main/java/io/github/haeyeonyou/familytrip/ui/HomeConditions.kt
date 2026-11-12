@@ -33,7 +33,13 @@ enum class HomeDuration(val label: String, private val hours: Int?) {
 }
 
 const val HOME_RADIUS_DEFAULT_KM = 10
-val HOME_RADIUS_STEPS_KM = listOf(5, 10, 20)
+
+/** 반경 설정 슬라이더 범위 (Figma H01-2 `369:19634`: 5km ~ 50km, 1km 단위). 서버 최대도 50km(20km 넘으면 여러 중심점 검색, #250). */
+const val HOME_RADIUS_MIN_KM = 5
+const val HOME_RADIUS_MAX_KM = 50
+
+/** 슬라이더 값을 1km 단위로 반올림해 범위 안에 둔다. */
+fun clampRadiusKm(value: Float): Int = Math.round(value).coerceIn(HOME_RADIUS_MIN_KM, HOME_RADIUS_MAX_KM)
 
 /** 서버는 반경을 이동 시간으로 받는다 (planner의 METERS_PER_DRIVE_MINUTE = 500m/분 가정과 같은 값) */
 fun driveMinutesForRadius(radiusKm: Int): Int = radiusKm * 1000 / 500

@@ -37,6 +37,7 @@ class VisitIn(BaseModel):
     category: str = Field("", max_length=120, description="장소 분류 원문 (코스 장소의 category). 젤리 12분류 판정 근거")
     visited_on: date
     stayed_minutes: int | None = Field(None, ge=0, le=1440)
+    role: Literal["outing", "meal", "cafe"] = Field("outing", description="코스에서 맡은 자리. 식사·카페는 젤리 판정에서 맛 탐험 쪽으로 본다 (#234)")
     status: Status = "confirmed"
     mood: Mood | None = None
 
@@ -61,7 +62,7 @@ class VisitPatch(BaseModel):
 
 def jelly_of(row: VisitRecord) -> Jelly:
     """방문 기록의 젤리 12분류. 저장하지 않고 조회할 때마다 정해서 판정 규칙이 바뀌면 예전 기록에도 반영된다."""
-    return judge(row.place_name, row.category or "", row.theme)
+    return judge(row.place_name, row.category or "", row.theme, row.role or "outing")
 
 
 def out(row: VisitRecord) -> VisitOut:
@@ -74,6 +75,7 @@ def out(row: VisitRecord) -> VisitOut:
         jelly=jelly_of(row),
         visited_on=row.visited_on,
         stayed_minutes=row.stayed_minutes,
+        role=row.role or "outing",
         status=row.status,
         mood=row.mood,
     )
@@ -86,6 +88,7 @@ def _apply(row: VisitRecord, body: VisitIn) -> None:
     row.category = body.category.strip()
     row.visited_on = body.visited_on
     row.stayed_minutes = body.stayed_minutes
+    row.role = body.role
     row.status = body.status
     row.mood = body.mood
 
