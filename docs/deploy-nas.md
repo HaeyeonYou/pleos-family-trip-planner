@@ -49,6 +49,19 @@ tools/deploy_nas.sh
 - 서버는 프록시가 붙인 `X-Forwarded-*`를 믿는다(compose `FORWARDED_ALLOW_IPS`).
 - `tools/deploy_nas.sh`는 배포 뒤 외부 주소 `/health`도 확인한다(`PUBLIC_URL=`로 끄거나 바꿈).
 
+## 로그 (서버·앱 원격 수집, #261)
+NAS 공유 폴더 **`/volume1/docker/pleos/logs`** (File Station: `docker` → `pleos` → `logs`)에 남는다. 시각은 한국 시간.
+
+| 파일 | 내용 |
+|---|---|
+| `server.log` (자정마다 `server.log.YYYY-MM-DD`) | 서버 요청·코스·외부 API 호출 로그. API 키는 남지 않는다 |
+| `app-YYYY-MM-DD.jsonl` | 차 앱이 보낸 크래시·오류 한 줄씩: `received_at, install_id, user_id(로그인했을 때만), app_version, device, os, ts, level(crash/error/warn/info), tag, message, stack, count` |
+
+- 보관: `LOG_KEEP_DAYS`(기본 30일) 지난 파일은 서버가 지운다. Docker 자체 로그는 컨테이너마다 10MB×3개까지만.
+- 앱: 처리되지 않은 예외(크래시)와 `AppLog.w/e`(기존 `Log.w` 자리)를 기기 `files/applog/queue.jsonl`(최대 300줄)에 모았다가 시작 5초 뒤와 5분마다 `POST /logs/app`으로 50줄씩 보낸다. 같은 경고가 10분 안에 되풀이되면 한 줄로 묶고 `count`로 센다. 위경도처럼 보이는 숫자는 `<좌표>`로 지운다. 클라이언트 IP는 저장하지 않는다.
+- 터미널에서 보기: `ssh -p 9022 -i ~/.ssh/pleos_nas_ed25519 pleosdeploy@192.168.219.108 'tail -f /volume1/docker/pleos/logs/server.log'`
+- 크래시만 보기: `... 'grep "\"level\": \"crash\"" /volume1/docker/pleos/logs/app-*.jsonl'`
+
 ## 운영 설정
 - `EXPOSE_DOCS`(기본 `false`): `/docs`, `/redoc`, `/openapi.json`을 끈다. 잠깐 볼 때만 NAS `.env`에 `EXPOSE_DOCS=true`를 넣고 다시 배포한다.
 - `/`는 어디서나 `/m/`(폰 웹)로 넘긴다.
