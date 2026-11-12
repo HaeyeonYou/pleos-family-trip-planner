@@ -1,6 +1,6 @@
 # Figma 변경 감시 (11/10 디자인)
 
-디자이너가 Figma를 계속 고치고 있어, 페이지 `종합 정리`(`130:5`) 전체의 변경을 주기적으로 확인해 기록한다(2026-11-11 섹션 `351:2611`에서 넓힘). 이슈 #157, 지시 파일 `docs/agent-tasks/157-figma-watch.md`.
+디자이너가 Figma를 계속 고치고 있어, 페이지 `종합 정리`(`130:5`) 전체의 변경을 확인해 기록한다. 2026-11-12부터 주기 실행은 멈췄고 **사용자가 요청할 때만** 확인한다(2026-11-11 섹션 `351:2611`에서 넓힘). 이슈 #157, 지시 파일 `docs/agent-tasks/157-figma-watch.md`.
 
 화면 단위는 페이지 최상위 노드와 모든 섹션의 자식이다. 피드백 반영 섹션(`369:11525`)이 원본 섹션의 복사본이라 같은 이름 화면이 두 번 나오므로, 기록과 세션 전달에는 `코드@섹션id`(예: `H01@369:11525`)를 쓴다. 화면 코드는 이름 앞부분(H01, C05, O04-1, S02-1, G01-B, Lib …, `Note · C05`는 C05)에서 읽는다.
 
@@ -20,7 +20,7 @@
 ## 실행
 
 ```bash
-python3 tools/figma_watch.py check        # 주기 확인 (바뀌었을 때만 트리 조회)
+python3 tools/figma_watch.py check        # 변경 확인 (사용자 요청 시, 바뀌었을 때만 트리 조회)
 python3 tools/figma_watch.py baseline     # 처음 한 번: 기준선 저장
 python3 -m unittest discover -s tools/tests -v
 ```
@@ -34,7 +34,7 @@ python3 -m unittest discover -s tools/tests -v
 | 1 | `GET /v1/files/:key/meta` (안 되면 `/versions?page_size=1`) | Tier 3 (Tier 2) | 매번 |
 | 2 | `GET /v1/files/:key/nodes?ids=130:5&geometry=omit` | **Tier 1** | 파일 버전이 바뀐 때만 (응답 약 23MB, 스냅샷 약 5MB) |
 
-Figma 공식 문서 기준 Tier 1은 View·Collab 좌석이면 **월 20회까지**, Dev·Full 좌석은 분당 10~20회다. 스크립트가 Tier 1을 **월 20회**로 스스로 막는다(2026-11-11 사용자 결정으로 15 → 20. 좌석이 View·Collab이면 이것이 Figma 한도와 같아 429가 날 수 있다)(`--tier1-cap`, `--force`로 무시). 파일 버전은 다른 페이지를 고쳐도 바뀌므로, 트리를 받았는데 이 페이지는 그대로일 수 있다(`section_unchanged`, 이름은 주기 작업과 맞추려고 유지).
+Figma 공식 문서 기준 Tier 1은 View·Collab 좌석이면 **월 20회까지**, Dev·Full 좌석은 분당 10~20회다. 스크립트가 Tier 1을 **월 30회**로 스스로 막는다(사용자 결정: 2026-11-11 15 → 20, 2026-11-12 20 → 30. 11/12 21번째 호출이 실제로 막히지 않았다. 실제 한도는 모르므로 429가 나면 `rate_limited`로 멈춘다)(`--tier1-cap`, `--force`로 무시). 파일 버전은 다른 페이지를 고쳐도 바뀌므로, 트리를 받았는데 이 페이지는 그대로일 수 있다(`section_unchanged`, 이름은 주기 작업과 맞추려고 유지).
 
 ## 같은 계정으로 로그인한 다른 PC에 영향 없이 보는 방법
 
