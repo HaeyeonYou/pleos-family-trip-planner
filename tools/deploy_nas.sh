@@ -40,7 +40,7 @@ echo "▶ server/ 올리기 (HEAD $REV)"
 git archive --format=tar HEAD server | ssh_nas "set -e; cd $NAS_DIR; rm -rf .incoming; mkdir .incoming; tar -x -C .incoming; rm -rf server.prev; if [ -d server ]; then mv server server.prev; fi; mv .incoming/server server; rmdir .incoming; echo $REV > server/REVISION"
 
 echo "▶ 빌드·재시작 (DB 마이그레이션은 api 컨테이너가 시작할 때 alembic upgrade head로 적용)"
-ssh_nas "cd $NAS_DIR/server && $COMPOSE up -d --build --remove-orphans && $DOCKER image prune -f >/dev/null"
+ssh_nas "cd $NAS_DIR/server && $COMPOSE up -d --build --remove-orphans"
 
 if [[ "$MODE" == "--seed-parking" ]]; then
   echo "▶ 주차장 데이터 적재 (같은 행은 덮어써서 여러 번 해도 안전)"
