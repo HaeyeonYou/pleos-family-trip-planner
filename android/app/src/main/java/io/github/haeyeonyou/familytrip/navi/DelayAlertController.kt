@@ -1,5 +1,6 @@
 package io.github.haeyeonyou.familytrip.navi
 
+import io.github.haeyeonyou.familytrip.care.ToneState
 import io.github.haeyeonyou.familytrip.data.AppLog
 import android.app.Notification
 import android.app.NotificationChannel
@@ -71,6 +72,13 @@ class DelayAlertController(
         manager.createNotificationChannel(
             NotificationChannel(CHANNEL_ID, "지연 알림", NotificationManager.IMPORTANCE_HIGH).apply {
                 description = "정체로 도착이 늦어질 때 알려요"
+            },
+        )
+        manager.createNotificationChannel(
+            NotificationChannel(QUIET_CHANNEL_ID, "지연 알림 (수면 모드)", NotificationManager.IMPORTANCE_LOW).apply {
+                description = "아이가 잘 때: 소리와 팝업 없이 알림 목록에만 남겨요"
+                setSound(null, null)
+                enableVibration(false)
             },
         )
         scope.launch {
@@ -179,7 +187,7 @@ class DelayAlertController(
             Intent(context, DelayActionReceiver::class.java).setAction(ACTION_KEEP_GOING),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
-        val notification = Notification.Builder(context, CHANNEL_ID)
+        val notification = Notification.Builder(context, channelFor(ToneState.sleep))
             .setSmallIcon(android.R.drawable.ic_dialog_alert)
             .setCategory(Notification.CATEGORY_NAVIGATION)
             .setContentTitle(headline(ui))
@@ -196,6 +204,10 @@ class DelayAlertController(
     companion object {
         private const val TAG = "DelayAlert"
         private const val CHANNEL_ID = "trip_delay"
+        private const val QUIET_CHANNEL_ID = "trip_delay_quiet"
+
+        /** 수면 모드에서는 시스템 팝업(헤즈업)과 소리 없이 알린다. 시스템 팝업은 차 시스템 색(주간)으로 그려져 앱의 어두운 화면 위에 흰 창으로 뜨기 때문이다. */
+        fun channelFor(sleep: Boolean): String = if (sleep) QUIET_CHANNEL_ID else CHANNEL_ID
         private const val NOTIFICATION_ID = 3
         const val ACTION_KEEP_GOING = "io.github.haeyeonyou.familytrip.action.DELAY_KEEP_GOING"
         private val TIME: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
