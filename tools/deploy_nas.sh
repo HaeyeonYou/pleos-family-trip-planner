@@ -12,6 +12,7 @@ NAS_USER="${NAS_USER:-pleosdeploy}"
 NAS_KEY="${NAS_KEY:-$HOME/.ssh/pleos_nas_ed25519}"
 NAS_DIR="${NAS_DIR:-pleos}"          # NAS 홈 기준 경로 (~/pleos)
 API_PORT="${API_PORT:-8000}"
+LOG_HOST_DIR="${LOG_HOST_DIR:-/volume1/docker/pleos/logs}"   # 서버·앱 로그 (compose 기본값과 같게, File Station: docker/pleos/logs)
 PUBLIC_URL="${PUBLIC_URL:-https://pleos.kwonstar.synology.me}"   # DSM 리버스 프록시 주소 (비우면 확인 안 함)
 DOCKER="sudo /usr/local/bin/docker"
 COMPOSE="$DOCKER compose --env-file ../.env -p pleos"
@@ -41,7 +42,7 @@ echo "▶ server/ 올리기 (HEAD $REV)"
 git archive --format=tar HEAD server | ssh_nas "set -e; cd $NAS_DIR; rm -rf .incoming; mkdir .incoming; tar -x -C .incoming; rm -rf server.prev; if [ -d server ]; then mv server server.prev; fi; mv .incoming/server server; rmdir .incoming; echo $REV > server/REVISION"
 
 echo "▶ 빌드·재시작 (DB 마이그레이션은 api 컨테이너가 시작할 때 alembic upgrade head로 적용)"
-ssh_nas "cd $NAS_DIR/server && $COMPOSE up -d --build --remove-orphans"
+ssh_nas "mkdir -p $LOG_HOST_DIR && cd $NAS_DIR/server && $COMPOSE up -d --build --remove-orphans"
 
 echo "▶ /health 확인 (최대 90초)"
 for _ in $(seq 1 45); do
