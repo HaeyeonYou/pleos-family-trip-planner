@@ -10,7 +10,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from app import care, care_places, family, feedings, places, presets, sync, trip, visits, voice, weather
+from app import applogs, care, care_places, family, feedings, places, presets, sync, trip, visits, voice, weather
 from app.course import starts
 from app.auth import api as auth_api
 from app.auth import web as auth_web
@@ -74,6 +74,7 @@ app.include_router(visits.router)
 app.include_router(care_places.router)
 app.include_router(trip.router)
 app.include_router(sync.router)
+app.include_router(applogs.router)
 
 
 @app.get("/", include_in_schema=False)

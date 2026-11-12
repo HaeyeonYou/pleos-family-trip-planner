@@ -1,5 +1,6 @@
 package io.github.haeyeonyou.familytrip.navi
 
+import io.github.haeyeonyou.familytrip.data.AppLog
 import ai.pleos.playground.navi.constants.NaviErrorCode
 import ai.pleos.playground.navi.constants.NavigationStatus
 import ai.pleos.playground.navi.constants.RouteOption
@@ -161,7 +162,7 @@ class PleosNaviRepository(context: Context) : NaviRepository {
                 naviHelper.getCurrentLocationInfo()
             },
             { e ->
-                Log.w(TAG, "NaviHelper initialize failed", e)
+                AppLog.w(TAG, "NaviHelper initialize failed", e)
                 log("NaviHelper 연결 실패: ${e.message}")
             },
         )

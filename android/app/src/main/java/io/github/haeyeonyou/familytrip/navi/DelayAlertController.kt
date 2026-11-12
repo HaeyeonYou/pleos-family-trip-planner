@@ -1,5 +1,6 @@
 package io.github.haeyeonyou.familytrip.navi
 
+import io.github.haeyeonyou.familytrip.data.AppLog
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -7,7 +8,6 @@ import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.util.Log
 import io.github.haeyeonyou.familytrip.FamilyTripApp
 import io.github.haeyeonyou.familytrip.MainActivity
 import io.github.haeyeonyou.familytrip.care.CareKind
@@ -124,7 +124,7 @@ class DelayAlertController(
                             .places.firstOrNull()?.let { DelayCandidate(kind, it) }
                     } catch (e: Exception) {
                         // 요청 주소가 로그에 남지 않게 예외 종류만 적는다.
-                        Log.w(TAG, "careNearby ${kind.api} failed: ${e.javaClass.simpleName}")
+                        AppLog.w(TAG, "careNearby ${kind.api} failed: ${e.javaClass.simpleName}")
                         null
                     }
                 }

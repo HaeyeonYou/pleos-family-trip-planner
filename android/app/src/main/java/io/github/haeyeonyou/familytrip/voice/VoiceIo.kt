@@ -1,5 +1,6 @@
 package io.github.haeyeonyou.familytrip.voice
 
+import io.github.haeyeonyou.familytrip.data.AppLog
 import ai.pleos.playground.stt.SpeechToText
 import ai.pleos.playground.stt.constant.ErrorType as SttError
 import ai.pleos.playground.stt.constant.Mode as SttMode
@@ -92,7 +93,7 @@ class VoiceIo(private val context: Context) {
                     }
 
                     override fun onError(type: TtsError) {
-                        Log.w(TAG, "Pleos TTS error $type")
+                        AppLog.w(TAG, "Pleos TTS error $type")
                         main.post { finishSpeak() }
                     }
 
@@ -107,13 +108,13 @@ class VoiceIo(private val context: Context) {
                     }
 
                     override fun onFailure(type: TtsError) {
-                        Log.w(TAG, "Pleos TTS init failed $type")
+                        AppLog.w(TAG, "Pleos TTS init failed $type")
                         pleosTtsFailed = true
                     }
                 })
                 pleosTts = tts
             }.onFailure {
-                Log.w(TAG, "Pleos TTS unavailable", it)
+                AppLog.w(TAG, "Pleos TTS unavailable", it)
                 pleosTtsFailed = true
             }
         }
@@ -122,7 +123,7 @@ class VoiceIo(private val context: Context) {
 
     private fun speakPleos(text: String) {
         runCatching { pleosTts?.speak(text, true) }.onFailure {
-            Log.w(TAG, "Pleos TTS speak failed", it)
+            AppLog.w(TAG, "Pleos TTS speak failed", it)
             pleosTtsFailed = true
             if (androidTtsUsable()) speakAndroid(text, 1f) else finishSpeak()
         }
@@ -214,7 +215,7 @@ class VoiceIo(private val context: Context) {
                     override fun onStartedRecognition() = Unit
                     override fun onEndedRecognition() = Unit
                     override fun onError(type: SttError) {
-                        Log.w(TAG, "Pleos STT error $type")
+                        AppLog.w(TAG, "Pleos STT error $type")
                         main.post {
                             if (pendingListen != null) {
                                 pleosSttFailed = true
@@ -235,14 +236,14 @@ class VoiceIo(private val context: Context) {
                     }
 
                     override fun onFailure(type: SttError) {
-                        Log.w(TAG, "Pleos STT init failed $type")
+                        AppLog.w(TAG, "Pleos STT init failed $type")
                         pleosSttFailed = true
                         main.post { if (pendingListen != null) startAndroidStt() }
                     }
                 })
                 stt
             }.onFailure {
-                Log.w(TAG, "Pleos STT unavailable", it)
+                AppLog.w(TAG, "Pleos STT unavailable", it)
                 pleosSttFailed = true
             }.getOrNull() ?: return false
             pleosStt = created
@@ -254,7 +255,7 @@ class VoiceIo(private val context: Context) {
 
     private fun requestPleos() {
         runCatching { pleosStt?.request() }.onFailure {
-            Log.w(TAG, "Pleos STT request failed", it)
+            AppLog.w(TAG, "Pleos STT request failed", it)
             pleosSttFailed = true
             startAndroidStt()
         }
@@ -273,7 +274,7 @@ class VoiceIo(private val context: Context) {
                 }
 
                 override fun onError(error: Int) {
-                    Log.w(TAG, "Android STT error $error")
+                    AppLog.w(TAG, "Android STT error $error")
                     finishListen(ListenResult.Failed("잘 알아듣지 못했어요"))
                 }
 
@@ -298,7 +299,7 @@ class VoiceIo(private val context: Context) {
                     .putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true),
             )
         }.onFailure {
-            Log.w(TAG, "Android STT start failed", it)
+            AppLog.w(TAG, "Android STT start failed", it)
             finishListen(ListenResult.Failed("음성 인식을 시작하지 못했어요"))
         }
     }

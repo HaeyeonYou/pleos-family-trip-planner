@@ -1,5 +1,6 @@
 package io.github.haeyeonyou.familytrip.ui
 
+import io.github.haeyeonyou.familytrip.data.AppLog
 import io.github.haeyeonyou.familytrip.data.withParkingPick
 import android.util.Log
 import androidx.lifecycle.ViewModel
@@ -204,10 +205,10 @@ class TripViewModel(private val container: AppContainer) : ViewModel() {
         } catch (e: CancellationException) {
             throw e
         } catch (e: HttpException) {
-            if (e.code() == 401) unauthorized = true else Log.w(TAG, "sync failed: ${e.code()}")
+            if (e.code() == 401) unauthorized = true else AppLog.w(TAG, "sync failed: ${e.code()}")
             null
         } catch (e: Exception) {
-            Log.w(TAG, "sync failed", e)
+            AppLog.w(TAG, "sync failed", e)
             null
         }
         if (unauthorized) {
@@ -367,7 +368,7 @@ class TripViewModel(private val container: AppContainer) : ViewModel() {
                         _state.update { it.copy(homeFilters = it.homeFilters.copy(indoor = true)) }
                     }
                 }
-                .onFailure { e -> Log.w(TAG, "weather failed", e) }
+                .onFailure { e -> AppLog.w(TAG, "weather failed", e) }
             val s = _state.value
             val filters = s.homeFilters
             val conditions = homeConditions(s.profile, filters)
@@ -395,7 +396,7 @@ class TripViewModel(private val container: AppContainer) : ViewModel() {
         viewModelScope.launch {
             runCatching { container.api.going(keys.joinToString(",")) }
                 .onSuccess { going -> _state.update { it.copy(going = going) } }
-                .onFailure { e -> Log.w(TAG, "going failed", e) }
+                .onFailure { e -> AppLog.w(TAG, "going failed", e) }
         }
     }
 
@@ -651,7 +652,7 @@ class TripViewModel(private val container: AppContainer) : ViewModel() {
         course.stops.firstOrNull { it.role == "outing" }?.place?.let { place ->
             viewModelScope.launch {
                 runCatching { container.api.recordStart(StartBody("${place.source}:${place.sourceId}")) }
-                    .onFailure { e -> Log.w(TAG, "record start failed", e) }
+                    .onFailure { e -> AppLog.w(TAG, "record start failed", e) }
             }
         }
     }
@@ -716,7 +717,7 @@ class TripViewModel(private val container: AppContainer) : ViewModel() {
     } catch (e: kotlinx.coroutines.CancellationException) {
         throw e
     } catch (e: Exception) {
-        Log.w(TAG, "fuel station failed", e)
+        AppLog.w(TAG, "fuel station failed", e)
         null
     }
 

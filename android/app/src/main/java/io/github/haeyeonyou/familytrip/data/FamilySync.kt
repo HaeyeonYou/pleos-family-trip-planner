@@ -1,6 +1,5 @@
 package io.github.haeyeonyou.familytrip.data
 
-import android.util.Log
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.builtins.ListSerializer
@@ -217,7 +216,7 @@ class FamilySync(
                 if (at >= 0) current[at] = saved else current += saved
             } catch (e: HttpException) {
                 if (!isPermanentFailure(e.code())) throw e
-                Log.w(TAG, "서버가 아이 정보를 받지 않아 서버 값을 따릅니다: ${e.code()}")
+                AppLog.w(TAG, "서버가 아이 정보를 받지 않아 서버 값을 따릅니다: ${e.code()}")
             }
         }
         for (id in plan.deletes) {

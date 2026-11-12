@@ -140,7 +140,7 @@ class ServerSync(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Log.w(TAG, "preset edit upload failed, will retry", e)
+            AppLog.w(TAG, "preset edit upload failed, will retry", e)
             false
         }
     }
@@ -162,7 +162,7 @@ class ServerSync(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                Log.w(TAG, "kick failed, will retry on next sync", e)
+                AppLog.w(TAG, "kick failed, will retry on next sync", e)
             }
         }
     }
@@ -184,10 +184,10 @@ class ServerSync(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: HttpException) {
-                if (e.code() == 401) unauthorized = true else Log.w(TAG, "$name sync failed: ${e.code()}")
+                if (e.code() == 401) unauthorized = true else AppLog.w(TAG, "$name sync failed: ${e.code()}")
                 false
             } catch (e: Exception) {
-                Log.w(TAG, "$name sync failed", e)
+                AppLog.w(TAG, "$name sync failed", e)
                 false
             }
         }
