@@ -12,6 +12,7 @@ NAS_USER="${NAS_USER:-pleosdeploy}"
 NAS_KEY="${NAS_KEY:-$HOME/.ssh/pleos_nas_ed25519}"
 NAS_DIR="${NAS_DIR:-pleos}"          # NAS 홈 기준 경로 (~/pleos)
 API_PORT="${API_PORT:-8000}"
+PUBLIC_URL="${PUBLIC_URL:-https://pleos.kwonstar.synology.me}"   # DSM 리버스 프록시 주소 (비우면 확인 안 함)
 DOCKER="sudo /usr/local/bin/docker"
 COMPOSE="$DOCKER compose --env-file ../.env -p pleos"
 
@@ -49,6 +50,10 @@ for _ in $(seq 1 45); do
       # 마이그레이션이 끝나 서버가 뜬 뒤에 넣는다
       echo "▶ 주차장 데이터 적재 (같은 행은 덮어써서 여러 번 해도 안전)"
       ssh_nas "cd $NAS_DIR/server && $COMPOSE exec -T api sh -c 'mkdir -p data/parking && gunzip -c seed/parking_lots.csv.gz > data/parking/parking_lots.csv && python scripts/load_parking.py data/parking/parking_lots.csv'"
+    fi
+    if [[ -n "$PUBLIC_URL" ]]; then
+      if curl -fsS -m 8 "$PUBLIC_URL/health" >/dev/null 2>&1; then echo "✔ 외부 주소 응답: $PUBLIC_URL"
+      else echo "⚠ 외부 주소($PUBLIC_URL)가 응답하지 않습니다. DSM 리버스 프록시·공유기 443 포워딩을 확인하세요." >&2; fi
     fi
     echo "✔ 배포 완료: http://$NAS_HOST:$API_PORT (HEAD $REV)"
     exit 0
