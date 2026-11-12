@@ -292,8 +292,8 @@ async def course_page(
         return templates.TemplateResponse(request, "course.html", context, status_code=400)
     try:
         planner = _make_planner(request)
-        result = await run_in_threadpool(planner.suggest, req)
-        context["options"] = [_option_view(o) for o in result.options]
+        options = await run_in_threadpool(planner.suggest, req)  # CoursePlanner.suggest는 list[CourseOption]
+        context["options"] = [_option_view(o) for o in options]
     except HTTPException as e:
         context["error"] = "코스 추천 서버 설정이 아직 없어요. 잠시 후 다시 시도해 주세요." if e.status_code == 503 else str(e.detail)
     except NoCourseError:
