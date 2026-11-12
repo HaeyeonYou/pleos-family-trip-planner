@@ -34,6 +34,7 @@ services:
       FORWARDED_ALLOW_IPS: "*"
       # 서버 로그(server.log)·앱 크래시(app-YYYY-MM-DD.jsonl)를 남길 곳과 보관 일수 (#261)
       LOG_DIR: /logs
+      TZ: Asia/Seoul  # 로그 시각을 한국 시간으로
       LOG_KEEP_DAYS: ${LOG_KEEP_DAYS:-30}
     volumes:
       - ${LOG_HOST_DIR:-/volume1/docker/pleos/logs}:/logs
