@@ -1,10 +1,35 @@
+# NAS(Synology Container Manager) 운영용. 비밀값은 저장소 밖 ../.env에 둔다 (tools/deploy_nas.sh 참고).
+#   sudo docker compose --env-file ../.env -p pleos up -d --build
 services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: pleos
+      POSTGRES_USER: pleos
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?../.env에 POSTGRES_PASSWORD(영문·숫자)를 넣어 주세요}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pleos -d pleos"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
   api:
     build: .
     env_file: ../.env
     environment:
-      PARSER: ${PARSER:-rule}
+      DATABASE_URL: postgresql+asyncpg://pleos:${POSTGRES_PASSWORD}@db:5432/pleos
+      PARSER: ${PARSER:-auto}
       DEMO_MODE: ${DEMO_MODE:-false}
+      EXPOSE_DOCS: ${EXPOSE_DOCS:-false}
+    depends_on:
+      db:
+        condition: service_healthy
     ports:
-      - "8000:8000"
+      - "${API_PORT:-8000}:8000"
     restart: unless-stopped
+
+volumes:
+  pgdata:
