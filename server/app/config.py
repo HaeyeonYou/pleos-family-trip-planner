@@ -36,6 +36,8 @@ class Settings(BaseSettings):
     car_login_seconds: int = 300
     # 쿠키를 HTTPS로만 보낼지 (NAS HTTPS 배포에서 켠다)
     secure_cookies: bool = False
+    # API 문서(/docs, /redoc, /openapi.json) 공개 여부. 운영(NAS)에서는 끈다
+    expose_docs: bool = True
 
 
 @lru_cache
