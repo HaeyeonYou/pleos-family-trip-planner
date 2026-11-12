@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
-    <!-- 개발용 로컬 서버(Mac)만 평문 HTTP 허용. 배포 서버는 HTTPS. -->
+    <!-- 평문 HTTP는 로컬 서버(Mac)와 같은 공유기 안의 NAS 서버만 허용. 외부 공개 서버는 HTTPS. -->
     <domain-config cleartextTrafficPermitted="true">
         <domain includeSubdomains="false">10.0.2.2</domain>
         <domain includeSubdomains="false">localhost</domain>
+        <!-- 집 공유기 안의 NAS (docs/deploy-nas.md) -->
+        <domain includeSubdomains="false">192.168.219.108</domain>
     </domain-config>
 </network-security-config>
