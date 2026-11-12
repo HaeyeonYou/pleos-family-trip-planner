@@ -71,3 +71,13 @@ tools/deploy_nas.sh
 ## 되돌리기
 - 직전 버전으로: NAS에서 `cd ~/pleos && rm -rf server && mv server.prev server && cd server && sudo /usr/local/bin/docker compose --env-file ../.env -p pleos up -d --build`
 - 서버만 멈추기: `ssh ... 'cd ~/pleos/server && sudo /usr/local/bin/docker compose --env-file ../.env -p pleos down'` (DB 볼륨은 남는다. `down -v`는 DB를 지우니 쓰지 않는다)
+
+## 임시 그로우 방문 기록 (2026-11-12)
+- 사용자 요청으로 NAS DB의 사용자 계정 1개에 그로우 젤리 확인용 방문 기록 13건을 넣었다(확정 12, 확인 대기 1). 장소는 테스트 저장본의 실제 관광공사·카카오 장소이고, 방문 날짜·머문 시간·기분은 임의 값이다.
+- 넣은 SQL: `tools/seed/grow_temp_visits.sql`. 모든 행의 `created_at`이 `2026-11-12 09:09:09`이다.
+- 지우기 (NAS에서):
+  ```bash
+  ssh -p 9022 -i ~/.ssh/pleos_nas_ed25519 pleosdeploy@192.168.219.108 \
+    'cd pleos/server && sudo /usr/local/bin/docker compose --env-file ../.env -p pleos exec -T db sh -c "psql -U \$POSTGRES_USER -d \$POSTGRES_DB -c \"delete from visit_records where created_at = '"'"'2026-11-12 09:09:09'"'"'\""'
+  ```
+- 차 앱이 이 계정으로 동기화하면 차 기기에도 내려갈 수 있다. 서버에서 지운 뒤 차 기기 기록이 남는지는 확인하지 않았다.
