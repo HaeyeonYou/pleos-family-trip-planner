@@ -169,3 +169,6 @@ cd server && .venv/bin/python -m scripts.load_public_data   # 문화시설은 �
 
 ## NAS (Synology Container Manager)
 `docker compose up -d --build` (저장소 루트 `.env` 필요)
+
+## NAS 배포
+`tools/deploy_nas.sh` 한 줄로 NAS(Docker)에 배포합니다. 처음 설정과 앱 서버 바꾸기는 [`docs/deploy-nas.md`](../docs/deploy-nas.md).

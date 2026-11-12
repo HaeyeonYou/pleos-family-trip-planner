@@ -7,6 +7,7 @@ from pathlib import Path
 
 import httpx
 from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from app import care, care_places, family, feedings, places, presets, sync, trip, visits, voice, weather
@@ -47,7 +48,15 @@ async def lifespan(app: FastAPI):
     await app.state.db.close()
 
 
-app = FastAPI(title="오늘, 어디 가지? API", version="0.1.0", lifespan=lifespan)
+_docs = get_settings().expose_docs  # 운영(NAS)에서는 EXPOSE_DOCS=false로 API 문서를 숨긴다
+app = FastAPI(
+    title="오늘, 어디 가지? API",
+    version="0.1.0",
+    lifespan=lifespan,
+    docs_url="/docs" if _docs else None,
+    redoc_url="/redoc" if _docs else None,
+    openapi_url="/openapi.json" if _docs else None,
+)
 app.include_router(auth_api.router)
 app.include_router(auth_web.router)
 app.include_router(web_app.router)
@@ -65,6 +74,14 @@ app.include_router(visits.router)
 app.include_router(care_places.router)
 app.include_router(trip.router)
 app.include_router(sync.router)
+
+
+@app.get("/", include_in_schema=False)
+async def root():
+    # 서버 주소만 연 사람은 폰 웹으로 보낸다
+    return RedirectResponse("/m/", status_code=307)
+
+
 app.mount("/m/assets", StaticFiles(directory=Path(__file__).parent / "static"), name="m-assets")  # 폰 웹 CSS
 
 
