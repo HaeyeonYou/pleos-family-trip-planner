@@ -42,14 +42,14 @@ git archive --format=tar HEAD server | ssh_nas "set -e; cd $NAS_DIR; rm -rf .inc
 echo "▶ 빌드·재시작 (DB 마이그레이션은 api 컨테이너가 시작할 때 alembic upgrade head로 적용)"
 ssh_nas "cd $NAS_DIR/server && $COMPOSE up -d --build --remove-orphans"
 
-if [[ "$MODE" == "--seed-parking" ]]; then
-  echo "▶ 주차장 데이터 적재 (같은 행은 덮어써서 여러 번 해도 안전)"
-  ssh_nas "cd $NAS_DIR/server && $COMPOSE exec -T api sh -c 'mkdir -p data/parking && gunzip -c seed/parking_lots.csv.gz > data/parking/parking_lots.csv && python scripts/load_parking.py data/parking/parking_lots.csv'"
-fi
-
 echo "▶ /health 확인 (최대 90초)"
 for _ in $(seq 1 45); do
   if curl -fsS -m 3 "http://$NAS_HOST:$API_PORT/health" >/dev/null 2>&1; then
+    if [[ "$MODE" == "--seed-parking" ]]; then
+      # 마이그레이션이 끝나 서버가 뜬 뒤에 넣는다
+      echo "▶ 주차장 데이터 적재 (같은 행은 덮어써서 여러 번 해도 안전)"
+      ssh_nas "cd $NAS_DIR/server && $COMPOSE exec -T api sh -c 'mkdir -p data/parking && gunzip -c seed/parking_lots.csv.gz > data/parking/parking_lots.csv && python scripts/load_parking.py data/parking/parking_lots.csv'"
+    fi
     echo "✔ 배포 완료: http://$NAS_HOST:$API_PORT (HEAD $REV)"
     exit 0
   fi
