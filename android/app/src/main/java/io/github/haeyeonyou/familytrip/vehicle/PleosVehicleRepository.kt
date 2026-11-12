@@ -1,5 +1,6 @@
 package io.github.haeyeonyou.familytrip.vehicle
 
+import io.github.haeyeonyou.familytrip.data.AppLog
 import ai.pleos.playground.vehicle.Vehicle
 import ai.pleos.playground.vehicle.api.model.area.SeatArea
 import ai.pleos.playground.vehicle.constant.area.SeatValue
@@ -102,7 +103,7 @@ class PleosVehicleRepository(context: Context) : VehicleRepository {
                     applied += label
                     return
                 } catch (e: Exception) {
-                    Log.w(TAG, "climate $label failed (try ${attempt + 1})", e)
+                    AppLog.w(TAG, "climate $label failed (try ${attempt + 1})", e)
                     if (attempt == 0) delay(RETRY_DELAY_MS)
                 }
             }
@@ -196,7 +197,7 @@ class PleosVehicleRepository(context: Context) : VehicleRepository {
                     applied += label
                     return
                 } catch (e: Exception) {
-                    Log.w(TAG, "climate change $label failed (try ${attempt + 1})", e)
+                    AppLog.w(TAG, "climate change $label failed (try ${attempt + 1})", e)
                     if (attempt == 0) delay(RETRY_DELAY_MS)
                 }
             }
@@ -264,7 +265,7 @@ class PleosVehicleRepository(context: Context) : VehicleRepository {
                     sdk<Unit> { ok, fail -> hvac.setHvacFanSpeed(area, value, { _, _ -> ok(Unit) }, fail) }
                 }
             }
-        }.onFailure { Log.w(TAG, "setFanSpeed failed", it) }.isSuccess
+        }.onFailure { AppLog.w(TAG, "setFanSpeed failed", it) }.isSuccess
     }
 
     override suspend fun readClimate(): ClimateReading {
@@ -287,7 +288,7 @@ class PleosVehicleRepository(context: Context) : VehicleRepository {
     }
 
     private fun reportError(where: String, e: Exception?) {
-        Log.w(TAG, "$where failed", e)
+        AppLog.w(TAG, "$where failed", e)
         _state.update { it.copy(lastError = "$where: ${e?.message ?: e?.javaClass?.simpleName}") }
     }
 
@@ -301,7 +302,7 @@ class PleosVehicleRepository(context: Context) : VehicleRepository {
 /** 지원 구역 조회. 실패하면 [fallback] (빈 값)을 돌려 그 항목은 '바꾸지 못함'으로 남는다. */
 private suspend fun <T> capability(fallback: T, call: (onComplete: (T) -> Unit, onFailed: (Exception) -> Unit) -> Unit): T =
     runCatching { withTimeout(3_000L) { sdk(call) } }.getOrElse { e ->
-        Log.w("PleosVehicle", "capability check failed", e)
+        AppLog.w("PleosVehicle", "capability check failed", e)
         fallback
     }
 

@@ -1,5 +1,6 @@
 package io.github.haeyeonyou.familytrip.voice
 
+import io.github.haeyeonyou.familytrip.data.AppLog
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
@@ -174,7 +175,7 @@ class VoiceController(
             val screen = host?.screen()?.copy(hasOptions = hasOptions)
             val result = withTimeoutOrNull(INTERPRET_TIMEOUT_MS) {
                 runCatching { api.interpretVoice(VoiceInterpretRequest(text, screen ?: VoiceScreen())) }
-                    .onFailure { Log.w(TAG, "interpret failed", it) }
+                    .onFailure { AppLog.w(TAG, "interpret failed", it) }
                     .getOrNull()
             }
             val step = result?.let(::toStep)

@@ -1,4 +1,4 @@
-# NAS(Synology Container Manager) 운영용. 비밀값은 저장소 밖 ../.env에 둔다 (tools/deploy_nas.sh 참고).
+# NAS(Synology Container Manager) 운영용. 로그는 /volume1/docker/pleos/logs (File Station: docker/pleos/logs). 비밀값은 저장소 밖 ../.env에 둔다 (tools/deploy_nas.sh 참고).
 #   sudo docker compose --env-file ../.env -p pleos up -d --build
 services:
   db:
@@ -15,6 +15,12 @@ services:
       timeout: 3s
       retries: 20
     restart: unless-stopped
+    logging: &docker-log
+      # Docker 자체 로그는 최근 것만 (오래 볼 로그는 LOG_DIR 파일)
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   api:
     build: .
@@ -26,6 +32,13 @@ services:
       EXPOSE_DOCS: ${EXPOSE_DOCS:-false}
       # DSM 리버스 프록시(HTTPS)가 붙인 X-Forwarded-* 를 믿는다 (컨테이너에는 Docker 게이트웨이 주소로 들어온다)
       FORWARDED_ALLOW_IPS: "*"
+      # 서버 로그(server.log)·앱 크래시(app-YYYY-MM-DD.jsonl)를 남길 곳과 보관 일수 (#261)
+      LOG_DIR: /logs
+      TZ: Asia/Seoul  # 로그 시각을 한국 시간으로
+      LOG_KEEP_DAYS: ${LOG_KEEP_DAYS:-30}
+    volumes:
+      - ${LOG_HOST_DIR:-/volume1/docker/pleos/logs}:/logs
+    logging: *docker-log
     depends_on:
       db:
         condition: service_healthy

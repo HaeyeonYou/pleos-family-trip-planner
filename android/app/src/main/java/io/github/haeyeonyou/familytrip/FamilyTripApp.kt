@@ -1,5 +1,6 @@
 package io.github.haeyeonyou.familytrip
 
+import io.github.haeyeonyou.familytrip.data.AppLog
 import android.app.Application
 import android.content.pm.PackageManager
 import io.github.haeyeonyou.familytrip.care.CareController
@@ -77,6 +78,14 @@ class AppContainer(private val app: Application) {
     val voice = VoiceController(voiceIo, care, vehicle, navi, api, scope)
 
     init {
+        // 기기에 모아 둔 크래시·오류를 서버로 보낸다 (#261): 시작 직후, 그 뒤 5분마다. 실패하면 다음 차례에 다시.
+        scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            kotlinx.coroutines.delay(5_000)
+            while (true) {
+                io.github.haeyeonyou.familytrip.data.AppLog.upload(api)
+                kotlinx.coroutines.delay(5 * 60_000L)
+            }
+        }
         // 주행 중 코스 장소에 도착하면 같은 질문을 음성으로만 묻는다 (H03·H03-1, #218). 도착은 내비가 앞에 있을 때
         // 일어나므로 화면(Compose)이 아니라 앱 단위에서 건다. 기어를 모르면 묻지 않는다. 답이 없으면 화면은 그대로.
         scope.launch {
@@ -113,6 +122,7 @@ class FamilyTripApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        io.github.haeyeonyou.familytrip.data.AppLog.init(this)  // 크래시를 놓치지 않게 가장 먼저 (#261)
         container = AppContainer(this).also { it.startConnections() }
     }
 }
