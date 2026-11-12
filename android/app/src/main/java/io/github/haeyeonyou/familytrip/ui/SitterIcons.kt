@@ -337,4 +337,24 @@ object SitterIcons {
     val ChevronDown = sitterIcon("chevron-down", 24, 2.0f,
         "M6 9l6 6 6-6",
     )
+
+    /** 주차 펼침 접기 (H02-2, Lucide chevron-up) */
+    val ChevronUp = sitterIcon("chevron-up", 24, 2.0f,
+        "M18 15l-6-6-6 6",
+    )
+
+    /** 타임라인 행 위로 옮기기 (H02-2 ✕ · ↑ · ↓, Lucide arrow-up) */
+    val ArrowUp = sitterIcon("arrow-up", 24, 2.0f,
+        "M5 12l7-7 7 7", "M12 19V5",
+    )
+
+    /** 아래로 옮기기 (Lucide arrow-down) */
+    val ArrowDown = sitterIcon("arrow-down", 24, 2.0f,
+        "M12 5v14", "M19 12l-7 7-7-7",
+    )
+
+    /** 순서 변경 (H02-2 ↕, Lucide arrow-up-down) */
+    val ArrowUpDown = sitterIcon("arrow-up-down", 24, 2.0f,
+        "M21 16l-4 4-4-4", "M17 20V4", "M3 8l4-4 4 4", "M7 4v16",
+    )
 }

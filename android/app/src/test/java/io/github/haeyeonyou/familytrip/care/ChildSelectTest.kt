@@ -32,7 +32,8 @@ class ChildSelectTest {
         }, today = java.time.LocalDate.of(2026, 3, 1))
         assertEquals("3시간 간격 · 수유 기록 없음 · 낮잠 2회", options[0].line)
         assertTrue(options[0].selected)
-        assertEquals("유아기 · 낮잠 1회", options[1].line)
+        assertEquals("낮잠 1회", options[1].line) // 유아기는 이름 옆 배지 (#247)
+        assertEquals("유아기", options[1].stage)
         assertFalse(options[1].selected)
     }
 

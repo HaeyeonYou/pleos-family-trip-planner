@@ -75,11 +75,25 @@ class VisitSyncTest {
     }
 
     @Test
-    fun 식사와_카페는_올리지_않는다() {
-        assertFalse(VisitMapper.syncs(outing(1).copy(role = "meal")))
+    fun 식사와_카페도_젤리가_되니_역할과_함께_올린다() {
+        // #234: 나들이만 올려 차 3건·서버 1건으로 어긋났다. 경험 젤리 범위(나들이·식사·카페)를 모두 올린다.
+        assertTrue(VisitMapper.syncs(outing(1).copy(role = "meal")))
+        assertTrue(VisitMapper.syncs(outing(1).copy(role = "cafe")))
         assertTrue(VisitMapper.syncs(outing(1)))
-        val p = plan(listOf(outing(1).copy(role = "cafe")), emptyList())
-        assertTrue(p.upload.isEmpty())
+        assertFalse(VisitMapper.syncs(outing(1).copy(role = "home")))
+        assertFalse(VisitMapper.syncs(outing(1).copy(role = "fuel")))
+        val p = plan(listOf(outing(1).copy(role = "cafe"), outing(2).copy(role = "meal"), outing(3)), emptyList())
+        assertEquals(3, p.upload.size)
+        assertEquals("cafe", VisitMapper.toServer(outing(1).copy(role = "cafe"), null).role)
+        assertTrue(Json.encodeToString(VisitMapper.toServer(outing(1).copy(role = "meal"), null)).contains("\"role\":\"meal\""))
+    }
+
+    @Test
+    fun 서버에서_받은_식사_방문은_식사로_들인다() {
+        val s = VisitOut(id = "x", placeName = "소담 한식당", visitedOn = "2026-11-11", stayedMinutes = 40, role = "meal", jelly = "food")
+        assertEquals("meal", VisitMapper.fromServer(s, 7).role)
+        assertEquals("outing", VisitMapper.fromServer(s.copy(role = "boat"), 7).role) // 모르는 값은 나들이
+        assertEquals("outing", VisitMapper.fromServer(Json { ignoreUnknownKeys = true }.decodeFromString<VisitOut>("""{"id":"y","visited_on":"2026-11-11"}"""), 8).role) // 예전 서버
     }
 
     @Test

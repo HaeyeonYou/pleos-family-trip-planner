@@ -48,7 +48,7 @@ data class Visit(
 }
 
 /**
- * 방문 기록을 차 안(앱 내부 파일)에 저장한다. 로그인했다면 [VisitSync]가 나들이 방문만 서버에도 올리고 맞춘다.
+ * 방문 기록을 차 안(앱 내부 파일)에 저장한다. 로그인했다면 [VisitSync]가 나들이·식사·카페 방문을 서버에도 올리고 맞춘다.
  * 기록이 바뀔 때마다 [revision]이 올라 화면이 다시 읽을 수 있다.
  */
 class VisitStore(private val file: File) {

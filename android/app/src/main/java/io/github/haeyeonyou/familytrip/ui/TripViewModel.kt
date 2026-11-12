@@ -1,5 +1,6 @@
 package io.github.haeyeonyou.familytrip.ui
 
+import io.github.haeyeonyou.familytrip.data.withParkingPick
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -533,6 +534,10 @@ class TripViewModel(private val container: AppContainer) : ViewModel() {
     }
 
     /** 순서를 [delta]만큼 옮긴다 (-1 위로, +1 아래로). */
+    /** H02-2: 장소의 주차장을 고른다 (그 장소의 길안내 도착지, #250). 서버 재계산 없이 코스에만 적는다. */
+    fun pickParking(stopIndex: Int, lot: io.github.haeyeonyou.familytrip.data.StopParking) =
+        _state.update { s -> s.copy(course = s.course?.withParkingPick(stopIndex, lot)) }
+
     fun moveStop(stopIndex: Int, delta: Int) {
         val stops = editableStops() ?: return
         val target = stopIndex + delta
@@ -629,7 +634,7 @@ class TripViewModel(private val container: AppContainer) : ViewModel() {
             val base = mergeAlternatives(course, stops, updated.alternatives)
             _state.update {
                 it.copy(
-                    course = updated.copy(alternatives = updateAlternatives(base)),
+                    course = io.github.haeyeonyou.familytrip.data.keepParkingPicks(course, updated).copy(alternatives = updateAlternatives(base)),
                     message = if (updated.alternatives.isNotEmpty()) "나들이 장소 근처 식당·카페 후보를 새로 찾았어요" else null,
                 )
             }

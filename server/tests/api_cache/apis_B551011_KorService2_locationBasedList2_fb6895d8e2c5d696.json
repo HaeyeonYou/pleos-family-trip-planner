@@ -1,0 +1,6 @@
+{
+ "request": "GET apis.data.go.kr/B551011/KorService2/locationBasedList2?MobileApp=FamilyTrip&MobileOS=ETC&_type=json&arrange=E&contentTypeId=14&mapX=126.74622&mapY=37.72014&numOfRows=60&pageNo=1&radius=20000",
+ "status": 200,
+ "content_type": "application/json",
+ "body": "{\"response\": {\"header\":{\"resultCode\":\"0000\",\"resultMsg\":\"OK\"},\"body\": {\"items\": {\"item\":[{\"addr1\":\"경기도 김포시 김포한강11로 455 (운양동)\",\"addr2\":\"\",\"zipcode\":\"10074\",\"areacode\":\"31\",\"cat1\":\"A02\",\"cat2\":\"A0206\",\"cat3\":\"A02060300\",\"contentid\":\"2736429\",\"contenttypeid\":\"14\",\"createdtime\":\"20210825201434\",\"dist\":\"8360.36650179064\",\"firstimage\":\"http://tong.visitkorea.or.kr/cms/resource/06/2736606_image2_1.jpg\",\"firstimage2\":\"http://tong.visitkorea.or.kr/cms/resource/06/2736606_image2_1.jpg\",\"cpyrhtDivCd\":\"Type3\",\"mapx\":\"126.6993634541\",\"mapy\":\"37.6548362130\",\"mlevel\":\"6\",\"modifiedtime\":\"20250430165618\",\"sigungucode\":\"8\",\"tel\":\"\",\"title\":\"에코센터\",\"lDongRegnCd\":\"41\",\"lDongSignguCd\":\"570\",\"lclsSystm1\":\"VE\",\"lclsSystm2\":\"VE07\",\"lclsSystm3\":\"VE070300\"}]},\"numOfRows\":1,\"pageNo\":1,\"totalCount\":1}}}"
+}

@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -28,6 +30,8 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.haeyeonyou.familytrip.care.ChildOption
+import io.github.haeyeonyou.familytrip.care.STAGE_INFANT
+import io.github.haeyeonyou.familytrip.care.STAGE_TODDLER
 
 /** 아바타 바탕 (Figma C07: 첫째 노랑, 둘째 파랑). 셋째부터는 돌아가며. */
 private val AVATAR_COLORS = listOf(Color(0xFFFFE79A) to Color(0xFF5B4A00), Color(0xFFDCE6FF) to Color(0xFF2F3FA8), Color(0xFFE6F6EA) to Color(0xFF1F6B3A))
@@ -70,8 +74,9 @@ fun BoxScope.ChildSelectDropdown(options: List<ChildOption>, onSelect: (String?)
                     Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         Text(o.name, style = SitterText.Title3, color = s.ink)
                         Text("${o.ageMonths}개월", style = SitterText.Label, color = s.inkMute)
+                        AgeStageBadge(o.stage)
                     }
-                    Text(o.line, style = SitterText.Caption, color = s.inkSoft, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
+                    if (o.line.isNotBlank()) Text(o.line, style = SitterText.Caption, color = s.inkSoft, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
                     o.mode?.let { Text("베이비케어 $it", style = SitterText.Caption, color = s.inkMute, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp)) }
                 }
                 if (o.selected) {
@@ -93,3 +98,17 @@ fun BoxScope.ChildSelectDropdown(options: List<ChildOption>, onSelect: (String?)
 }
 
 private const val MAX_ROWS = 3
+
+/** 월령 배지 색 (Figma C07 `369:13974`): 영아기 노랑, 유아기 연두. */
+private val STAGE_COLORS = mapOf(STAGE_INFANT to (Color(0xFFFFE79A) to Color(0xFF5B4A00)), STAGE_TODDLER to (Color(0xFFDDF5C2) to Color(0xFF2F6B12)))
+
+@Composable
+private fun RowScope.AgeStageBadge(stage: String) {
+    val (bg, fg) = STAGE_COLORS[stage] ?: return
+    Text(
+        stage,
+        style = SitterText.Caption,
+        color = fg,
+        modifier = Modifier.align(Alignment.CenterVertically).clip(RoundedCornerShape(8.dp)).background(bg).padding(horizontal = 8.dp, vertical = 2.dp),
+    )
+}

@@ -59,7 +59,7 @@ class FakeKakao:
         self.route_fails = route_fails
 
     def by_category(self, code, latitude, longitude, radius_m, size=15):
-        return {CATEGORY_RESTAURANT: self.restaurants, CATEGORY_CAFE: self.cafes}[code]
+        return {CATEGORY_RESTAURANT: self.restaurants, CATEGORY_CAFE: self.cafes}.get(code, [])
 
     def by_keyword(self, query, latitude, longitude, radius_m, size=15):
         return self.play if query == "키즈카페" else []
@@ -87,9 +87,10 @@ def test_builds_meal_outing_cafe_home_with_timetable():
     assert [s.role for s in res.stops] == [StopRole.MEAL, StopRole.OUTING, StopRole.CAFE, StopRole.HOME]
     assert res.stops[1].place.name == "역삼공원"
     assert res.stops[1].place.theme == Theme.NATURE  # 경험 지도 분야
-    # 10:30 출발, 구간마다 20분, 식사 60, 나들이 120, 카페 40
-    assert [s.arrive_at for s in res.stops] == ["10:50", "12:10", "14:30", "15:30"]
-    assert res.return_at == "15:30"
+    # 10:30 출발, 구간마다 20분, 장소마다 60분
+    assert [s.arrive_at for s in res.stops] == ["10:50", "12:10", "13:30", "14:50"]
+    assert all(s.stay_minutes == 60 for s in res.stops[:-1])
+    assert res.return_at == "14:50"
     assert res.total_drive_minutes == 80
     assert res.route_source == "kakao"
 
@@ -160,9 +161,9 @@ def test_unsuitable_places_are_excluded():
 
 def test_drops_cafe_to_meet_return_time():
     src = FakeTour({CONTENT_TYPE_ATTRACTION: [PARK]})
-    res = plan(TripConditions(return_by_hour=15), tour_src=src, departure_time="10:30")
+    res = plan(TripConditions(return_by_hour=14), tour_src=src, departure_time="10:30")
     assert [s.role for s in res.stops] == [StopRole.MEAL, StopRole.OUTING, StopRole.HOME]
-    assert res.return_at == "14:30"
+    assert res.return_at == "13:30"
     assert any("카페를 뺐어요" in w for w in res.warnings)
 
 
@@ -179,10 +180,10 @@ def test_falls_back_to_estimate_when_route_fails():
     assert all(s.drive_minutes >= 0 for s in res.stops)
 
 
-def test_infant_shortens_outing_and_default_departure_rounds_up():
+def test_infant_stays_same_60_and_default_departure_rounds_up():
     src = FakeTour({CONTENT_TYPE_ATTRACTION: [PARK]})
     res = plan(TripConditions(child_ages=[1]), tour_src=src)
-    assert res.stops[1].stay_minutes == 90
+    assert res.stops[1].stay_minutes == 60  # 장소마다 기본 60분 (월령으로 줄이지 않음)
     assert res.stops[0].arrive_at == "10:30"  # 10:03 → 10:10 출발 + 20분
 
 
@@ -251,8 +252,8 @@ def test_reschedule_keeps_given_places_and_recomputes_times():
         ScheduleRequest(conditions=TripConditions(), origin=ORIGIN, departure_time="10:30", stops=swapped)
     )
     assert [s.place.name for s in res.stops] == ["한식당", "어린이박물관", "카페", "귀가"]
-    # 10:30 출발, 구간 20·30·20·20분, 식사 60, 나들이 120, 카페 40
-    assert [s.arrive_at for s in res.stops] == ["10:50", "12:20", "14:40", "15:40"]
+    # 10:30 출발, 구간 20·30·20·20분, 장소마다 60분
+    assert [s.arrive_at for s in res.stops] == ["10:50", "12:20", "13:40", "15:00"]
     assert res.departure_at == "10:30"
 
 

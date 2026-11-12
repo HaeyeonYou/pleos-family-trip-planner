@@ -243,3 +243,46 @@ def test_course_includes_festival_candidates(tour, kakao):
     tour_events = [c.place for c in festivals if c.place.source == "tour"]
     assert tour_events and all(p.category == "행사·축제" and p.jelly is not None for p in tour_events)
     assert festivals[0].score > min(c.score for c in outings if not c.festival)  # 축제 가점
+
+
+# 반경 5~50km (#250)
+
+DEOKSUGUNG = (37.5658, 126.9752)
+
+
+def test_kakao_parking_near_place_becomes_lots_without_fees(kakao):
+    from app.course import parking_rank
+    from app.sources.kakao import CATEGORY_PARKING
+
+    found = kakao.by_category(CATEGORY_PARKING, *DEOKSUGUNG, parking_rank.PARKING_RADIUS_M, size=parking_rank.PARKING_FETCH)
+    lots = [x for p in found if (x := parking_rank.from_kakao(p))]
+    assert lots and all(x.distance_m <= parking_rank.PARKING_RADIUS_M for x in lots)
+    assert not any("대행" in x.name for x in lots)
+    assert all(x.fee_summary == "" for x in lots)  # 카카오에는 요금이 없다 → 지어내지 않음
+    assert any(x.kind == "공영" for x in lots)  # 분류 끝 단계 '공영주차장'
+
+
+def test_kakao_keyword_beyond_20km_uses_ring_centers(kakao):
+    planner = CoursePlanner(None, kakao, now=FIXED_NOW)  # type: ignore[arg-type]
+    origin = LatLng(latitude=GANGNAM[0], longitude=GANGNAM[1])
+    near = planner._kakao_keyword("키즈카페", origin, 20_000)
+    wide = planner._kakao_keyword("키즈카페", origin, 50_000)
+    assert max(p.distance_m for p in near) <= 20_000
+    assert max(p.distance_m for p in wide) > 20_000, "50km 반경인데 20km 밖 후보가 없음"
+    assert all(p.distance_m <= 50_000 for p in wide)
+    assert len({p.place_id for p in wide}) == len(wide)
+
+
+def test_course_with_50km_radius_reaches_farther_places(tour, kakao):
+    import time
+
+    planner = CoursePlanner(tour, kakao, now=FIXED_NOW)
+    origin = LatLng(latitude=GANGNAM[0], longitude=GANGNAM[1])
+    started = time.monotonic()
+    wide = planner._rank_outings(origin, TripConditions(max_drive_minutes=100), [], FIXED_NOW.date())
+    elapsed = time.monotonic() - started
+    near = planner._rank_outings(origin, TripConditions(max_drive_minutes=40), [], FIXED_NOW.date())
+    assert max(c.distance_m for c in near) <= 20_000
+    assert max(c.distance_m for c in wide) > 20_000
+    assert all(c.distance_m <= 50_000 for c in wide)
+    print(f"50km 후보 {len(wide)}곳 (20km {len(near)}곳), {elapsed:.1f}초")
