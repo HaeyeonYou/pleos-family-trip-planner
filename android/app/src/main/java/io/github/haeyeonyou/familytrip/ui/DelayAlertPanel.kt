@@ -56,7 +56,7 @@ fun DelayAlertPanel(
         ) {
             Row(horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(
-                    modifier = Modifier.size(72.dp).clip(CircleShape).background(TripColors.AmberSoft),
+                    modifier = Modifier.size(72.dp).clip(CircleShape).background(if (SitterSurface.current.dark) Color(0xFF3A2E16) else TripColors.AmberSoft),
                     contentAlignment = Alignment.Center,
                 ) { Text("⚠", fontSize = 34.sp, color = Color(0xFFB45309)) }
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -98,13 +98,14 @@ fun DelayAlertPanel(
     }
 }
 
-/** 경유지 후보 한 장. 1번은 초록 바탕, 나머지는 흰 바탕 (HF06). */
+/** 경유지 후보 한 장. 1번은 primary 바탕, 나머지는 카드 바탕 (HF06). 수면(다크)에서도 셸 토큰을 따른다. */
 @Composable
 private fun CandidateCard(number: Int, candidate: DelayCandidate, primary: Boolean, onClick: () -> Unit) {
     val place = candidate.place
     val shape = RoundedCornerShape(24.dp)
-    val titleColor = if (primary) Color.White else MaterialTheme.colorScheme.onSurface
-    val subColor = if (primary) Color(0xFFDBF5EB) else MaterialTheme.colorScheme.onSurfaceVariant
+    val s = SitterSurface.current
+    val titleColor = if (primary) s.onPrimary else MaterialTheme.colorScheme.onSurface
+    val subColor = if (primary) s.onPrimary.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -117,16 +118,16 @@ private fun CandidateCard(number: Int, candidate: DelayCandidate, primary: Boole
         horizontalArrangement = Arrangement.spacedBy(20.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(number.toString(), fontSize = 48.sp, fontWeight = FontWeight.Bold, color = if (primary) Color.White else MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(number.toString(), fontSize = 48.sp, fontWeight = FontWeight.Bold, color = if (primary) s.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant)
         Box(
-            modifier = Modifier.size(68.dp).clip(CircleShape).background(if (primary) Color(0xFF339E78) else TripColors.GreenSoft),
+            modifier = Modifier.size(68.dp).clip(CircleShape).background(if (primary) s.onPrimary.copy(alpha = 0.15f) else TripColors.GreenSoft),
             contentAlignment = Alignment.Center,
         ) { Text(if (candidate.kind == CareKind.NURSING) "🍼" else "🅿", fontSize = 30.sp) }
         Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.weight(1f)) {
             Text(place.name, fontSize = 30.sp, fontWeight = FontWeight.Bold, color = titleColor)
             Text(detailLine(candidate), fontSize = 21.sp, color = subColor)
         }
-        Text("경유지로 추가", fontSize = 20.sp, fontWeight = FontWeight.SemiBold, color = if (primary) Color.White else TripColors.Green)
+        Text("경유지로 추가", fontSize = 20.sp, fontWeight = FontWeight.SemiBold, color = if (primary) s.onPrimary else TripColors.Green)
     }
 }
 
