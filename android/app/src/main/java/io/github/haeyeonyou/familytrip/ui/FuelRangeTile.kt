@@ -39,12 +39,14 @@ import kotlinx.coroutines.launch
 
 /** 연료 타일 색 (Figma H01 `413:13521` PNG에서 읽은 값). 감사 delta의 새 회색 `#D9DDE2`는 값 없을 때 게이지. */
 object SitterFuelColors {
+    private val dark get() = SitterSurface.current.dark
     val Gauge = Color(0xFFFCE68A)
-    val GaugeEmpty = Color(0xFFD9DDE2)
-    val EnoughFill = Color(0xFFDCFCE7)
-    val Enough = Color(0xFF2E9E5B)
-    val LowFill = Color(0xFFFCF2F8)
-    val Low = Color(0xFFD66A98)
+    /** 수면(다크)에서는 Figma 다크 값이 없어 같은 계열의 어두운 값을 쓴다 (추정) */
+    val GaugeEmpty get() = if (dark) SitterSurface.current.line else Color(0xFFD9DDE2)
+    val EnoughFill get() = if (dark) Color(0xFF1E3A2A) else Color(0xFFDCFCE7)
+    val Enough get() = if (dark) Color(0xFF5CC98A) else Color(0xFF2E9E5B)
+    val LowFill get() = if (dark) Color(0xFF3A2231) else Color(0xFFFCF2F8)
+    val Low get() = if (dark) Color(0xFFF08DB8) else Color(0xFFD66A98)
 }
 
 /** 홈 연료 타일이 밖으로 내보내는 동작 (#215) */
