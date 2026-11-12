@@ -33,7 +33,7 @@ tools/deploy_nas.sh
 4. NAS에 `.env`를 둔다. Mac의 `.env`를 복사한 뒤 NAS 전용 값을 덧붙인다.
    ```bash
    ssh -p 9022 -i ~/.ssh/pleos_nas_ed25519 pleosdeploy@192.168.219.108 'mkdir -p ~/pleos && chmod 700 ~/pleos'
-   scp -P 9022 -i ~/.ssh/pleos_nas_ed25519 .env pleosdeploy@192.168.219.108:pleos/.env
+   scp -O -P 9022 -i ~/.ssh/pleos_nas_ed25519 .env pleosdeploy@192.168.219.108:pleos/.env   # Synology는 SFTP가 꺼져 있어 -O(옛 방식)가 필요
    ssh -p 9022 -i ~/.ssh/pleos_nas_ed25519 pleosdeploy@192.168.219.108 'chmod 600 ~/pleos/.env && nano ~/pleos/.env'
    ```
    덧붙일 값(`nano`에서 맨 아래에 추가):
