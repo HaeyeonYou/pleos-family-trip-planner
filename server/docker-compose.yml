@@ -24,6 +24,8 @@ services:
       PARSER: ${PARSER:-auto}
       DEMO_MODE: ${DEMO_MODE:-false}
       EXPOSE_DOCS: ${EXPOSE_DOCS:-false}
+      # DSM 리버스 프록시(HTTPS)가 붙인 X-Forwarded-* 를 믿는다 (컨테이너에는 Docker 게이트웨이 주소로 들어온다)
+      FORWARDED_ALLOW_IPS: "*"
     depends_on:
       db:
         condition: service_healthy
