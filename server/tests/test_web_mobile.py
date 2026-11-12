@@ -441,7 +441,7 @@ class _FakePlanner:
         self.requests.append(req)
         if self.fail:
             raise self.fail
-        from app.schemas import CourseOption, CourseResponse, Place, Stop, StopRole, SuggestResponse
+        from app.schemas import CourseOption, CourseResponse, Place, Stop, StopRole
 
         place = Place(name="아차산 생태공원", latitude=37.55, longitude=127.1, source="tour", source_id="1", amenities={"nursing_room": "available", "stroller": "unknown"})
         stops = [
@@ -450,7 +450,7 @@ class _FakePlanner:
         ]
         course = CourseResponse(departure_at="10:15", stops=stops, total_drive_minutes=50, return_at="13:30", route_source="estimate")
         option = CourseOption(name="자연 · 아차산 생태공원", summary="아차산 생태공원 → 귀가", total_minutes=195, first_drive_minutes=25, place_key="tour:1", course=course)
-        return SuggestResponse(options=[option])
+        return [option]  # 실제 CoursePlanner.suggest와 같은 모양
 
 
 def test_course_page_builds_conditions_from_family_and_shows_options():
@@ -488,6 +488,42 @@ def test_course_page_builds_conditions_from_family_and_shows_options():
     try:
         run(scenario)
     finally:
+        app.dependency_overrides.pop(get_planner, None)
+
+
+def test_course_page_with_real_planner_and_cached_api():
+    """가짜 플래너가 반환 모양을 감춰 NAS에서 500이 났던 일 (2026-11-12). 저장된 실제 카카오·TourAPI 응답으로 진짜 플래너를 돌린다."""
+    import httpx
+
+    from app.config import get_settings
+    from app.course.planner import CoursePlanner
+    from app.main import app, get_planner
+    from app.sources.kakao import KakaoClient
+    from app.sources.tour import TourApiClient
+    from tests.api_cache import caching_transport
+    from tests.test_real_api_data import FIXED_NOW, GANGNAM
+
+    settings = get_settings()
+    http = httpx.Client(transport=caching_transport(httpx), timeout=15)
+    tour = TourApiClient(settings.data_go_kr_key or "cached", http=http)
+    kakao = KakaoClient(settings.kakao_rest_api_key or "cached", http=http)
+
+    async def scenario(client):
+        async with phone(client) as mom:
+            await signup(mom, "mom_real_course")
+            res = await mom.get(f"/m/course?lat={GANGNAM[0]}&lng={GANGNAM[1]}&minutes=40")
+            assert res.status_code == 200, res.text[:500]
+            assert "추천 코스" in res.text and "우리 집" in res.text
+
+    import app.course.planner as planner_module
+
+    real_rng = planner_module._rng
+    planner_module._rng = lambda seed: real_rng(1)  # 웹은 시드를 보내지 않는다. 저장본과 맞추려고 고정
+    app.dependency_overrides[get_planner] = lambda: CoursePlanner(tour, kakao, now=FIXED_NOW)
+    try:
+        run(scenario)
+    finally:
+        planner_module._rng = real_rng
         app.dependency_overrides.pop(get_planner, None)
 
 
