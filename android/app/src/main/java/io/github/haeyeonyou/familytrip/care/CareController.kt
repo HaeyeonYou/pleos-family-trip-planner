@@ -1,5 +1,6 @@
 package io.github.haeyeonyou.familytrip.care
 
+import io.github.haeyeonyou.familytrip.data.AppLog
 import android.content.Context
 import android.util.Log
 import io.github.haeyeonyou.familytrip.data.CarePlace
@@ -591,7 +592,7 @@ class CareController(
             refreshFrequent()
             res.places
         } catch (e: Exception) {
-            Log.w(TAG, "careNearby $kind failed", e)
+            AppLog.w(TAG, "careNearby $kind failed", e)
             _state.update { it.copy(nearby = it.nearby + (kind to Nearby.Failed("서버에서 ${kind.label}을 찾지 못했어요"))) }
             null
         }
