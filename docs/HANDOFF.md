@@ -189,7 +189,7 @@
 | 코스 진행 H03 도착·H03-1 마지막 장소·H04 코스 종료 (감사 P-1~P-3 필수) | ✅ 완료: H03·H03-1·H04 새 화면, 장소 바꾸기·한 곳 더·귀가·여기서 끝내기, 음성 답, 서버 `/me/trip`·웹 홈 카드, 안내 상태 저장·오늘 코스만 이어 가기. 확인 못 함: 실차 시동 꺼짐·TTS 소리 | #218 · PR #226 · `feature/218-course-progress` | [1111-course-progress.md](docs/agent-tasks/1111-course-progress.md) |
 | 코스 지도를 가상 배경 + 경로선으로 (홈 미리보기·코스 상세·진행 지도, 카카오맵 제거) | ✅ 완료 (#231, 곡선 #233, Figma 맞춤 #239) | PR #232 · #235 · #241 (`feature/239-course-map-figma`) | [1112-course-map-virtual.md](docs/agent-tasks/1112-course-map-virtual.md) |
 | 방문 기록·경험 젤리 숫자를 화면마다 같게 (통합 테스트 문제, 접수 전 필수) | ⏳ 진행 중(jelly-count 세션) | 이슈 #234 | [234-jelly-count-mismatch.md](docs/agent-tasks/234-jelly-count-mismatch.md) |
-| NAS 배포와 Claude Code 자동 배포 확인 | ⏳ 진행 중(nas-deploy 세션) | 이슈 #15 | [15-nas-deploy.md](docs/agent-tasks/15-nas-deploy.md) |
+| NAS 배포와 Claude Code 자동 배포 확인 | ✅ 로컬 네트워크 배포 완료(2026-11-12): `http://192.168.219.108:8000`, 한 줄 배포 `tools/deploy_nas.sh`, 안내 [deploy-nas.md](docs/deploy-nas.md). 남은 일: 외부 공개 여부, 로컬 데이터 이전 여부 | 이슈 #15 · PR (병합 시 기입) · `feature/15-nas-deploy` | [15-nas-deploy.md](docs/agent-tasks/15-nas-deploy.md) |
 | 좁은 창(분할 화면)용 배치 | ⏳ 진행 중(narrow-layout 세션) | (세션이 정함) | [1112-narrow-layout.md](docs/agent-tasks/1112-narrow-layout.md) |
 
 - **이어받는 법:** [docs/agent-tasks/next-agent-prompt.md](docs/agent-tasks/next-agent-prompt.md)의 프롬프트를 새 에이전트에 그대로 붙여 넣는다.
