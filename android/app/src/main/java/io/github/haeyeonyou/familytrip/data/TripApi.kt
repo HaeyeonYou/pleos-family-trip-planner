@@ -463,6 +463,10 @@ interface TripApi {
     @DELETE("me/visits")
     suspend fun eraseVisits(): Response<Unit>
 
+    /** 앱 크래시·오류 원격 수집 (#261, 서버 app/applogs.py). 로그인 전에도 보낸다. */
+    @POST("logs/app")
+    suspend fun sendLogs(@Body batch: AppLogBatch): Response<Unit>
+
     companion object {
         /** [token]이 있으면 모든 요청에 차 세션 토큰을 붙인다 (로그인한 사용자 기능). */
         fun create(baseUrl: String = BuildConfig.SERVER_URL, token: () -> String? = { null }): TripApi {

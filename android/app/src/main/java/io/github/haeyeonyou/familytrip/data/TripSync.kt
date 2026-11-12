@@ -1,6 +1,5 @@
 package io.github.haeyeonyou.familytrip.data
 
-import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
@@ -44,14 +43,14 @@ class TripSync(
     fun start(snapshots: Flow<TripSnapshot?>, scope: CoroutineScope): Job = scope.launch {
         snapshots.distinctUntilChanged().collect { snap ->
             if (snap == null || !loggedIn()) return@collect
-            runCatching { put(snap) }.onFailure { Log.w(TAG, "trip upload failed", it) }
+            runCatching { put(snap) }.onFailure { AppLog.w(TAG, "trip upload failed", it) }
         }
     }
 
     /** 한 번만 올린다 (지난 날 코스를 끝남으로 바꿀 때). */
     fun upload(snapshot: TripSnapshot?, scope: CoroutineScope) {
         if (snapshot == null || !loggedIn()) return
-        scope.launch { runCatching { put(snapshot) }.onFailure { Log.w(TAG, "trip upload failed", it) } }
+        scope.launch { runCatching { put(snapshot) }.onFailure { AppLog.w(TAG, "trip upload failed", it) } }
     }
 
     private companion object {

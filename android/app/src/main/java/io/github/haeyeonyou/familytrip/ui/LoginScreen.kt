@@ -1,6 +1,6 @@
 package io.github.haeyeonyou.familytrip.ui
 
-import android.util.Log
+import io.github.haeyeonyou.familytrip.data.AppLog
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -66,7 +66,7 @@ fun LoginScreen(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                Log.w(TAG, "car login failed", e)
+                AppLog.w(TAG, "car login failed", e)
                 started = null
                 error = "서버에 연결하지 못했어요. 잠시 후 다시 시도할게요."
                 delay(RETRY_MS)
