@@ -16,6 +16,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
@@ -79,7 +80,7 @@ fun CourseMap(
         val curve = CourseMapGeometry.smoothCurve(points)
 
         Canvas(Modifier.matchParentSize()) {
-            if (style == CourseMapStyle.Preview) drawPreviewDecor()
+            if (style == CourseMapStyle.Preview) drawPreviewDecor(s.dark)
             drawRoadGrid(s)
             drawRoute(curve, s)
             anchors.forEachIndexed { i, a -> if (a.number == null) drawOriginRing(points[i], s) }
@@ -176,11 +177,14 @@ private fun MarkerLayer(markers: List<Marker>, showLabels: Boolean, modifier: Mo
 }
 
 /** 홈 H01 장식: 연초록 공원 원 두 개와 가로지르는 연파랑 물길 띠. 카드 크기 비율로 놓는다. */
-private fun DrawScope.drawPreviewDecor() {
+private fun DrawScope.drawPreviewDecor(dark: Boolean) {
     val w = size.width
     val h = size.height
-    drawCircle(SitterPalette.MapPark, radius = w * 0.24f, center = Offset(w * 0.20f, h * 0.20f))
-    drawCircle(SitterPalette.MapPark, radius = w * 0.17f, center = Offset(w * 0.84f, h * 0.30f))
+    // 수면(다크)에서는 연초록·연파랑이 어두운 바탕 위에 밝게 튀지 않게 어두운 같은 계열로 (Figma 다크 지도 없음, 추정)
+    val park = if (dark) Color(0xFF22352A) else SitterPalette.MapPark
+    val water = if (dark) Color(0xFF1E2E40) else SitterPalette.MapWater
+    drawCircle(park, radius = w * 0.24f, center = Offset(w * 0.20f, h * 0.20f))
+    drawCircle(park, radius = w * 0.17f, center = Offset(w * 0.84f, h * 0.30f))
     val river = Path().apply {
         moveTo(0f, h * 0.52f)
         cubicTo(w * 0.35f, h * 0.46f, w * 0.65f, h * 0.50f, w, h * 0.42f)
@@ -188,7 +192,7 @@ private fun DrawScope.drawPreviewDecor() {
         cubicTo(w * 0.65f, h * 0.64f, w * 0.35f, h * 0.60f, 0f, h * 0.66f)
         close()
     }
-    drawPath(river, SitterPalette.MapWater)
+    drawPath(river, water)
 }
 
 /** 흰 굵은 도로 격자: 세로 2줄·가로 2줄, 살짝 기울임 (Figma H01·H02). */

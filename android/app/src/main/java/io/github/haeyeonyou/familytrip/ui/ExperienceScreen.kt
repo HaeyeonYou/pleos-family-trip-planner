@@ -329,7 +329,7 @@ private fun MakeRow(r: MakeJellyRow, onRoute: (String, Double, Double) -> Unit, 
     }
     Row(
         Modifier.fillMaxWidth().height(84.dp).clip(SitterShapes.Row)
-            .background(if (r.tag == MakeTag.MANY) Color(0xFFEFF7E3) else s.tile)
+            .background(if (r.tag == MakeTag.MANY) (if (s.dark) Color(0xFF26331C) else Color(0xFFEFF7E3)) else s.tile)
             .clickable(role = Role.Button, onClick = go)
             .padding(start = 12.dp, end = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
