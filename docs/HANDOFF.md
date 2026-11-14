@@ -193,5 +193,8 @@
 | 원격 로그 수집 (서버·앱 로그를 NAS에, 방식 A 자체 수집) | ✅ 완료(2026-11-12): NAS `docker/pleos/logs`에 `server.log`·`app-날짜.jsonl`, 앱 크래시·경고 큐 전송. 남은 일: 앱에서 실제 크래시가 NAS까지 오는지 에뮬레이터 확인 | #261 · PR #262 · `feature/261-remote-logs` | [261-remote-logs.md](docs/agent-tasks/261-remote-logs.md) |
 | 좁은 창(분할 화면)용 배치 | ✅ 완료 (#245, D01 에뮬레이터 확인 못 함) | PR #251 · `feature/245-narrow-layout` | [1112-narrow-layout.md](docs/agent-tasks/1112-narrow-layout.md) |
 | Figma 11/12 변경 반영(H02-2 주차·H02-1·H03 새 판·장소 바꾸기·C07 배지) + 반경 5~50km | ✅ 완료 — A 코스 상세·반경 ✅(#250, PR #253) · B H03 장소 바꾸기 ✅ 완료(#249) · C C07 배지 ✅ 완료(#247) | B: PR #252 · `feature/249-progress-1112` / C: PR #248 / A: PR #253 · `feature/250-course-detail-1112` | [1112-figma-apply.md](docs/agent-tasks/1112-figma-apply.md) |
+| 전체 작동 검사(NAS 주소 앱) | ✅ 완료(2026-11-13): #236 댓글(❌4·⚠️17), 전체 화면·스크린샷 #264. 남은 ❌: 차 설정 '웹에서 이어 쓰기' QR 없음, 코스 종료 뒤 내비 귀가 안내 남음, 소아과·약국. D01 다크 글자는 PR #266으로 고침 | PR #265 | [1112-full-check-nas.md](docs/agent-tasks/1112-full-check-nas.md) |
+| 수면 모드 다크 점검 | ✅ 완료(2026-11-13): 지연 알림 수면 모드 조용한 채널, 다크에서 밝던 색. 다크 primary 위 흰 글자는 디자이너 확인 필요 | PR #263, #266 | [1113-sleep-dark-check.md](docs/agent-tasks/1113-sleep-dark-check.md) |
+| 1차 접수 제출물 (#13) | ✅ 준비 완료(2026-11-14): 앱 이름 **차곡**·팀 **유니콘**, 서명 APK `apk/유니콘_차곡_release.apk`(서명 키·`android/keystore.properties`는 이 Mac에만, 백업 필요), README 요건 반영, 저장소 Public 전환(#23, git 기록 재작성), Release v1.0.0, 시연 영상 `~/Movies/chagok-demo/유니콘_차곡_시연영상.mp4`(레포 밖). 남은 일: 접수 메일(최종 커밋 번호), 영상 업로드 여부, 로고 `Sn` 교체, GitHub Support에 옛 커밋 캐시 삭제 요청(선택), 2차 PT 전 #236 문제 | PR #267~#270 | [1114-demo-video.md](docs/agent-tasks/1114-demo-video.md) |
 
 - **이어받는 법:** [docs/agent-tasks/next-agent-prompt.md](docs/agent-tasks/next-agent-prompt.md)의 프롬프트를 새 에이전트에 그대로 붙여 넣는다.
