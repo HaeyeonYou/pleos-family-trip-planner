@@ -27,3 +27,6 @@ __pycache__/
 # 주차장 실제 데이터 파일 (서버가 미리 받아 쓰는 CSV/SQL, 용량이 커서 제외)
 server/data/parking/*
 !server/data/parking/.gitkeep
+
+# release 서명 비밀값 (레포에 올리지 않음)
+android/keystore.properties

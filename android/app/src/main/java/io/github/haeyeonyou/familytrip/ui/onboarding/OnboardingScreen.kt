@@ -265,7 +265,7 @@ private fun OnboardingTopbar(stepLabel: String?, later: String?, onLater: () -> 
         verticalAlignment = Alignment.CenterVertically,
     ) {
         AppLogo()
-        Text("시터노트", style = SitterText.Body1, color = s.ink, modifier = Modifier.padding(start = 12.dp))
+        Text("차곡", style = SitterText.Body1, color = s.ink, modifier = Modifier.padding(start = 12.dp))
         Spacer(Modifier.weight(1f))
         stepLabel?.let {
             Box(Modifier.clip(SitterShapes.Pill).background(s.card).padding(horizontal = 12.dp, vertical = 5.dp)) {

@@ -1,0 +1,6 @@
+{
+ "request": "POST api.anthropic.com/v1/messages?",
+ "status": 200,
+ "content_type": "application/json",
+ "body": "{\"model\":\"claude-haiku-5-5\",\"id\":\"msg_011Ch26gSQTN48QuTibcn7cc\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"{\\\"action\\\":\\\"set_filter\\\",\\\"target\\\":\\\"pet\\\",\\\"on\\\":false,\\\"confidence\\\":0.8,\\\"reply\\\":\\\"반려견 없는 코스로 다시 추천할게요.\\\"}\"}],\"container\":null,\"stop_reason\":\"end_turn\",\"stop_sequence\":null,\"stop_details\":null,\"usage\":{\"input_tokens\":4559,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0,\"cache_creation\":{\"ephemeral_5m_input_tokens\":0,\"ephemeral_1h_input_tokens\":0},\"output_tokens\":57,\"output_tokens_details\":{\"thinking_tokens\":0},\"service_tier\":\"standard\",\"inference_geo\":\"global\",\"speed\":\"standard\"},\"diagnostics\":null}"
+}
