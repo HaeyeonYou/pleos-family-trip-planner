@@ -40,8 +40,9 @@ fun DrivingVoiceCard(
     onDecline: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // Figma D01은 상황 톤 없이 기본 밝은 색 (카드 흰색, 문장 연보라, 후보 행 회색)
-    val s = SitterSurface.Light
+    // Figma D01은 밝은 색(카드 흰색, 문장 연보라, 후보 행 회색). 수면 모드(다크)에서는 화면 톤을 따른다.
+    // 예전에는 밝은 색으로 고정했는데 안의 행·버튼은 다크를 따라 장소 이름이 어두운 행에 어두운 글자로 묻혔다 (#236 전체 검사).
+    val s = SitterSurface.current
     Box(modifier = modifier.fillMaxSize().clickable(enabled = false) {}) {
         SitterScrim(alpha = 0.5f)
         // 앱 프레임(1256x886) 기준 크기로 그린다: 카드 1000x660 가운데
