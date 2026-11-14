@@ -4,6 +4,12 @@
 
 **차곡**은 영유아와 함께 나서는 가족을 위한 Pleos Connect 차량용 앱입니다. 아이 월령, 수유·낮잠 시간, 차의 위치와 주행 가능 거리를 보고 **식사 → 나들이 → 카페 → 귀가** 하루 코스를 짜 줍니다. 주행 중에는 음성 한마디로 수유실·기저귀 교환대를 경유지에 넣고, 공조·음량을 아이에게 맞춥니다. 다녀온 곳은 아이의 **경험 젤리**로 쌓입니다.
 
+## 시연 영상
+
+[![차곡 시연 영상 (4분 48초)](https://img.youtube.com/vi/WzidOeUzhrE/maxresdefault.jpg)](https://youtu.be/WzidOeUzhrE)
+
+▶ <https://youtu.be/WzidOeUzhrE> — 제출 APK를 Pleos Connect 에뮬레이터에서 계정 없이 실제로 조작해 녹화했습니다(장면표: [`docs/demo/README.md`](docs/demo/README.md)).
+
 | 홈 · 추천 코스 | 코스 상세 · 주차 | 경유지 도착 |
 |---|---|---|
 | ![홈](docs/screenshots/full-check-1112/02-H01-home.jpg) | ![코스 상세 주차](docs/screenshots/full-check-1112/06-H02-2-parking-expanded.jpg) | ![도착](docs/screenshots/full-check-1112/15-H03-arrived.jpg) |
