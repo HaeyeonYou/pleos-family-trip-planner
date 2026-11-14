@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -16,8 +18,8 @@ android {
         // Pleos Playground requires API 28+ (signing key rotation / lineage)
         minSdk = 28
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "1.0.0"
 
         // 코스 서버 주소. 에뮬레이터에서 Mac의 로컬 서버는 10.0.2.2.
         // NAS 배포 후에는 -PserverUrl=https://... 로 바꿔 빌드한다.
@@ -25,8 +27,26 @@ android {
         buildConfigField("String", "SERVER_URL", "\"$serverUrl\"")
     }
 
+    // release 서명: android/keystore.properties(레포 밖, .gitignore)가 있을 때만. 없으면 서명 없는 release가 나온다.
+    val keystoreFile = rootProject.file("keystore.properties")
+    signingConfigs {
+        if (keystoreFile.exists()) {
+            val p = Properties().apply { keystoreFile.inputStream().use { load(it) } }
+            create("release") {
+                storeFile = rootProject.file(p.getProperty("storeFile"))
+                storePassword = p.getProperty("storePassword")
+                keyAlias = p.getProperty("keyAlias")
+                keyPassword = p.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
+            // 제출용 release는 NAS 서버를 쓴다. 다른 서버로 빌드하려면 -PserverUrl=...
+            val releaseServer = project.findProperty("serverUrl") as String? ?: "https://pleos.kwonstar.synology.me/"
+            buildConfigField("String", "SERVER_URL", "\"$releaseServer\"")
+            signingConfigs.findByName("release")?.let { signingConfig = it }
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }

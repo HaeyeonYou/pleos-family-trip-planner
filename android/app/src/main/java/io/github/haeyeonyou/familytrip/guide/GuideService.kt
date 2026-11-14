@@ -46,7 +46,7 @@ class GuideService : Service() {
         )
         return Notification.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_dialog_map)
-            .setContentTitle("오늘, 어디 가지? 코스 안내 중")
+            .setContentTitle("차곡 코스 안내 중")
             .setContentText(text)
             .setOngoing(true)
             .setContentIntent(open)

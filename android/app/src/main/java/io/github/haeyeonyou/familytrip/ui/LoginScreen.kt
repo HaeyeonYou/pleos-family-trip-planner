@@ -79,7 +79,7 @@ fun LoginScreen(
         verticalArrangement = Arrangement.spacedBy(20.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text("오늘, 어디 가지?", fontSize = 40.sp)
+        Text("차곡", fontSize = 40.sp)
         Text(
             "폰 카메라로 QR을 찍어 회원가입하거나 로그인해 주세요.\n폰에서 '이 차에서 로그인'을 누르면 바로 시작돼요.",
             fontSize = 24.sp,
