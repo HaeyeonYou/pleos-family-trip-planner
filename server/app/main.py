@@ -50,7 +50,7 @@ async def lifespan(app: FastAPI):
 
 _docs = get_settings().expose_docs  # 운영(NAS)에서는 EXPOSE_DOCS=false로 API 문서를 숨긴다
 app = FastAPI(
-    title="오늘, 어디 가지? API",
+    title="차곡 API",
     version="0.1.0",
     lifespan=lifespan,
     docs_url="/docs" if _docs else None,

@@ -217,7 +217,7 @@ private fun ColumnScope.Arrived(
     val last = stage == GuideStage.LAST_STOP
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Chip(if (last) "마지막 장소 도착" else "${(state.index ?: 0) + 1}번째 장소 도착", strong = true)
-        Chip("내비 안내가 끝나 시터노트로 돌아왔어요")
+        Chip("내비 안내가 끝나 차곡으로 돌아왔어요")
     }
     Text("${stop.place.name}에 도착했어요", style = SitterText.Title1, color = s.ink, modifier = Modifier.padding(top = 18.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
     val arrivedAt = state.arrivedAtMillis?.let { Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalTime() } ?: LocalTime.now()
