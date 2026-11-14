@@ -72,6 +72,7 @@ cd android
 ## APK
 
 - 위치: [`apk/유니콘_차곡_release.apk`](apk/유니콘_차곡_release.apk) (release 빌드, 서명됨)
+- GitHub Release: [v1.0.0](https://github.com/HaeyeonYou/pleos-family-trip-planner/releases/tag/v1.0.0) — 같은 파일(첨부 이름 `Unicorn_Chagok_release.apk`)
 - 패키지: `io.github.haeyeonyou.familytrip` · 버전 1.0.0
 
 ## 폴더 구성
