@@ -1,7 +1,6 @@
 # 개발 계획: 오늘, 어디 가지?
 
 작성일 2026-11-05. 근거 자료:
-- [planning-analysis.md](planning-analysis.md): 기획서 분석
 - [research/pleos-sdk.md](research/pleos-sdk.md): Pleos SDK와 에뮬레이터 조사
 - [research/backend-apis.md](research/backend-apis.md): 외부 API, NAS, LLM 조사
 - [contest-briefing-notes.md](contest-briefing-notes.md): 공모전 요건
