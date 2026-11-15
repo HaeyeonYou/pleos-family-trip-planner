@@ -16,6 +16,12 @@
 | **케어 · 수면 모드** | **그로우 · 경험 젤리** | **폰 웹 (가족 정보·수유 기록)** |
 | ![케어 수면 모드](docs/screenshots/full-check-1112/19-C04-sleep-dark-infant.jpg) | ![그로우](docs/screenshots/full-check-1112/55-G01-grow-jelly.jpg) | ![폰 웹](docs/screenshots/full-check-1112/w08-home.jpg) |
 
+## 화면 흐름 (PDF)
+
+[![차곡 인포테인먼트 화면 흐름](docs/chagok-screen-flow-cover.jpg)](docs/chagok-screen-flow.pdf)
+
+▶ [차곡 인포테인먼트 화면 흐름 PDF 보기 (6쪽)](docs/chagok-screen-flow.pdf)
+
 ## 주요 기능
 
 - **Ready · 코스 추천:** 반경 5~50km 안에서 아이 월령과 실내/야외, 꼭 필요한 시설(수유실·유모차 등)에 맞춰 코스 3개를 추천합니다. 장소마다 기본 60분으로 시각표를 짜고, 주차장(공영주차장 공공데이터)과 대체 장소도 함께 보여 줍니다. 연료가 부족하면 주유소·충전소를 자동으로 경유지에 넣습니다.
