@@ -18,7 +18,7 @@
 
 ## 화면 흐름 (PDF)
 
-[![차곡 인포테인먼트 화면 흐름](docs/chagok-screen-flow-cover.png)](docs/chagok-screen-flow.pdf)
+[![차곡 인포테인먼트 화면 흐름](docs/screen-flow/chagok-screen-flow-cover.png)](docs/chagok-screen-flow.pdf)
 
 ▶ [차곡 인포테인먼트 화면 흐름 PDF 보기 (6쪽)](docs/chagok-screen-flow.pdf)
 
